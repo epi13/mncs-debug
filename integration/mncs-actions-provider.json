@@ -1,0 +1,37 @@
+{
+  "schema_version": "mncs.debug-provider/1",
+  "provider_id": "mncs-debug",
+  "repository": "https://github.com/epi13/mncs-debug",
+  "status": "local-contract-not-registered",
+  "purpose": "transport a structured MNCS debug session through action receipts and evidence manifests",
+  "input": {
+    "one_of": ["program_and_request", "mncs.test-result/1 artifact"],
+    "capture_policy": ["failure-only", "bounded", "events"],
+    "timeout_seconds": "bounded positive number",
+    "capability_requirements": "optional list of capability ids"
+  },
+  "operations": [
+    "capabilities",
+    "record",
+    "inspect",
+    "trace",
+    "why",
+    "replay",
+    "minimize"
+  ],
+  "outputs": {
+    "debug_witness": "mncs.debug-witness/1",
+    "debug_trace": "mncs.debug-trace/1",
+    "debug_replay": "mncs.debug-replay/1",
+    "execution_receipt": "mncs.execution-receipt/1",
+    "evidence_manifest": "mncs.evidence-manifest/1"
+  },
+  "transport_boundary": {
+    "owner": "mncs-actions",
+    "mncs_debug_owns": ["debug event semantics", "witness identity", "replay guarantee", "provenance completeness"],
+    "actions_owns": ["provider invocation", "correlation", "receipt lifecycle", "artifact transport"],
+    "unestablished_claims_remain_distinct": true
+  },
+  "pinned_reference": "docs/baseline/revisions.json",
+  "registration_note": "Do not add this descriptor to the family registry until the later integration campaign reconciles mncs-actions changes."
+}

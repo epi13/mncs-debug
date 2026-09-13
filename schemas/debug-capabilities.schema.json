@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-debug/blob/main/schemas/debug-capabilities.schema.json",
+  "title": "MNCS Debug Capabilities",
+  "type": "object",
+  "required": ["schema_version", "protocol_version", "debugger", "debugger_version", "capabilities_id", "capabilities", "protocols"],
+  "properties": {
+    "schema_version": {"const": "mncs.debug-capabilities/1"},
+    "protocol_version": {"const": 1},
+    "debugger": {"const": "mncs-debug"},
+    "debugger_version": {"type": "string"},
+    "capabilities_id": {"type": "string"},
+    "capabilities": {"type": "array", "items": {"$ref": "#/$defs/capability"}},
+    "protocols": {"type": "array", "items": {"type": "string"}},
+    "runtime": {"type": "object"},
+    "identity_basis": {"type": "string"}
+  },
+  "$defs": {
+    "capability": {
+      "type": "object",
+      "required": ["id", "state", "owner", "evidence"],
+      "properties": {
+        "id": {"type": "string"},
+        "state": {"enum": ["supported", "partially_supported", "unsupported", "emulated", "bootstrap_host_boundary"]},
+        "owner": {"type": "string"},
+        "evidence": {"type": "string"}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-debug/blob/main/schemas/debug-witness.schema.json",
+  "title": "MNCS Debug Witness",
+  "type": "object",
+  "required": ["schema_version", "protocol_version", "witness_id", "execution_identity", "session", "program", "request", "compiler", "runtime", "outcome", "trace", "static", "artifacts", "process", "replay", "capabilities", "provenance", "limitations"],
+  "properties": {
+    "schema_version": {"const": "mncs.debug-witness/1"},
+    "protocol_version": {"const": 1},
+    "witness_id": {"type": "string"},
+    "execution_identity": {"type": "string"},
+    "session": {"type": "object"},
+    "program": {"type": "object"},
+    "request": {"type": "object"},
+    "compiler": {"type": "object"},
+    "runtime": {"type": "object"},
+    "outcome": {"type": "object"},
+    "trace": {"$ref": "debug-trace.schema.json"},
+    "static": {"type": "object"},
+    "artifacts": {"type": "array", "items": {"type": "object"}},
+    "process": {"type": "object"},
+    "replay": {"type": "object"},
+    "capabilities": {"$ref": "debug-capabilities.schema.json"},
+    "provenance": {"type": "object"},
+    "integration": {"type": "object"},
+    "limitations": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": true
+}

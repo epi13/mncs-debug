@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-debug/blob/main/schemas/debug-replay.schema.json",
+  "title": "MNCS Debug Replay Result",
+  "type": "object",
+  "required": ["schema_version", "protocol_version", "replay_id", "witness_id", "mode", "guarantee", "status"],
+  "properties": {
+    "schema_version": {"const": "mncs.debug-replay/1"},
+    "protocol_version": {"const": 1},
+    "replay_id": {"type": "string"},
+    "witness_id": {"type": "string"},
+    "mode": {"enum": ["trace_replay", "reexecute"]},
+    "guarantee": {"type": "string"},
+    "status": {"enum": ["replayed", "reproduced", "mismatch", "blocked", "invalid"]},
+    "expected": {"type": "object"},
+    "observed": {"type": "object"},
+    "execution": {"type": ["object", "null"]},
+    "process": {"type": "object"},
+    "differences": {"type": "array", "items": {"type": "string"}},
+    "limitations": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": true
+}

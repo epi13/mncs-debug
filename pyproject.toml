@@ -1,0 +1,13 @@
+[project]
+name = "mncs-debug"
+version = "0.1.0"
+description = "Self-hosted debugging, tracing, replay, and execution introspection for the MNCS ecosystem."
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "MNCS contributors" }]
+
+[project.scripts]
+mncs-debug = "mncs_debug.cli:main"
+
+[tool.mncs-debug]
+protocol = "mncs.debug-witness/1"

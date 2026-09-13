@@ -1,0 +1,36 @@
+{
+  "schema_version": "mncs.test-result/1",
+  "protocol_version": 1,
+  "id": "mncs-test",
+  "provider": "mncs-test",
+  "verdict": "FAIL",
+  "classification": "test_failure",
+  "failure_class": "assertion",
+  "exit_code": 1,
+  "run_id": "1111111111111111111111111111111111111111111111111111111111111111",
+  "scope": {"kind": "fixture"},
+  "summary": {"total": 1, "passed": 0, "failed": 1, "skipped": 0, "unsupported": 0, "authority": "native_suite"},
+  "tests": [
+    {
+      "id": "checked-add-assertion",
+      "entry": "checked_add",
+      "kind": "unit",
+      "source": "checked-add.mncs.json",
+      "verdict": "FAIL",
+      "status": "failed",
+      "request": {
+        "schema_version": "0.1",
+        "target": {"module": "Examples.Debug", "function": "checked_add"},
+        "arguments": [
+          {"integer": {"value": 20, "type": {"bits": 32, "signed": true}}},
+          {"integer": {"value": 22, "type": {"bits": 32, "signed": true}}}
+        ],
+        "step_budget": 64
+      },
+      "failure": {"class": "assertion", "expected": 43, "actual": 42}
+    }
+  ],
+  "provenance": {"libraries": []},
+  "artifacts": [],
+  "reproduction": {"command": "mncs-test run --manifest fixture", "run_id": "1111111111111111111111111111111111111111111111111111111111111111"}
+}

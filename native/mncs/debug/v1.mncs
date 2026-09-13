@@ -1,0 +1,99 @@
+mncs 0.5;
+
+// MNCS-owned debugger semantics. The launcher supplies only bounded
+// transport codes from the external execution boundary. This module decides
+// the semantic failure class and whether a diagnostic session should stop.
+module mncs.debug.v1;
+
+enum Outcome {
+    SUCCESS,
+    COMPILE_FAILURE,
+    RUNTIME_FAILURE,
+    ASSERTION_FAILURE,
+    EFFECT_FAILURE,
+    TIMEOUT,
+    UNSUPPORTED,
+    INVALID_INVOCATION,
+    INFRASTRUCTURE_FAILURE,
+    TEST_FAILURE,
+}
+
+record Decision {
+    outcome_code: i32,
+    should_stop: bool,
+}
+
+// Status codes are a transport membrane, not semantic authority:
+// 0=returned, 1=runtime_failure, 2=unsupported, 3=budget_exhausted,
+// 4=invalid_request, 8=launcher/infrastructure. Test and effect flags are
+// explicit observations supplied by the owning adapter.
+fn decide(status_code: i32, assertion_failed: bool, effect_failed: bool) -> (result: Decision) {
+    if status_code == 0 {
+        if assertion_failed {
+            return make_decision(Outcome.ASSERTION_FAILURE);
+        }
+        if effect_failed {
+            return make_decision(Outcome.EFFECT_FAILURE);
+        }
+        return make_decision(Outcome.SUCCESS);
+    }
+    if status_code == 1 {
+        if effect_failed {
+            return make_decision(Outcome.EFFECT_FAILURE);
+        }
+        return make_decision(Outcome.RUNTIME_FAILURE);
+    }
+    if status_code == 2 {
+        return make_decision(Outcome.UNSUPPORTED);
+    }
+    if status_code == 3 {
+        return make_decision(Outcome.TIMEOUT);
+    }
+    if status_code == 4 {
+        return make_decision(Outcome.INVALID_INVOCATION);
+    }
+    if status_code == 5 {
+        return make_decision(Outcome.COMPILE_FAILURE);
+    }
+    if status_code == 6 {
+        return make_decision(Outcome.TEST_FAILURE);
+    }
+    return make_decision(Outcome.INFRASTRUCTURE_FAILURE);
+}
+
+fn make_decision(outcome: Outcome) -> (result: Decision) {
+    return Decision {
+        outcome_code: code_of(outcome),
+        should_stop: stop_for(outcome),
+    };
+}
+
+fn code_of(outcome: Outcome) -> (result: i32) {
+    return match outcome {
+        SUCCESS => 0,
+        COMPILE_FAILURE => 1,
+        RUNTIME_FAILURE => 2,
+        ASSERTION_FAILURE => 3,
+        EFFECT_FAILURE => 4,
+        TIMEOUT => 5,
+        UNSUPPORTED => 6,
+        INVALID_INVOCATION => 7,
+        INFRASTRUCTURE_FAILURE => 8,
+        TEST_FAILURE => 9,
+    };
+}
+
+fn stop_for(outcome: Outcome) -> (result: bool) {
+    return match outcome {
+        SUCCESS => false,
+        COMPILE_FAILURE => true,
+        RUNTIME_FAILURE => true,
+        ASSERTION_FAILURE => true,
+        EFFECT_FAILURE => true,
+        TIMEOUT => true,
+        UNSUPPORTED => true,
+        INVALID_INVOCATION => true,
+        INFRASTRUCTURE_FAILURE => true,
+        TEST_FAILURE => true,
+    };
+}

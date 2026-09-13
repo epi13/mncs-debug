@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-debug/blob/main/schemas/debug-trace.schema.json",
+  "title": "MNCS Debug Trace",
+  "type": "object",
+  "required": ["schema_version", "protocol_version", "trace_id", "execution_identity", "events", "capture_policy", "bounded"],
+  "properties": {
+    "schema_version": {"const": "mncs.debug-trace/1"},
+    "protocol_version": {"const": 1},
+    "trace_id": {"type": "string"},
+    "execution_identity": {"type": "string"},
+    "events": {"type": "array", "items": {"$ref": "debug-event.schema.json"}},
+    "value_observations": {"type": "array", "items": {"type": "object"}},
+    "capture_policy": {"enum": ["failure-only", "bounded", "events", "query_slice"]},
+    "bounded": {"const": true},
+    "max_events": {"type": "integer", "minimum": 1},
+    "truncated": {"type": "boolean"},
+    "runtime_trace_entries": {"type": "integer", "minimum": 0},
+    "completeness": {"type": "object"}
+  },
+  "additionalProperties": true
+}

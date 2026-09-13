@@ -1,0 +1,35 @@
+{
+  "id": "MNCS-DEBUG-P-010",
+  "title": "Static evidence collection dominates the current recording overhead",
+  "status": "measured-bootstrap-cost",
+  "severity": "medium",
+  "owner_layer_candidate": "mncs-debug/runtime",
+  "pinned_revisions": {
+    "baseline_file": "docs/baseline/revisions.json",
+    "mncs-language": "39b777f19c7326002bea8f25182dc96f3fc4aa36",
+    "mncs-debug": "9524ea24fab44a6dfa6cac2a4846d5fd97e33c9b"
+  },
+  "debugger_capability_attempted": ["bounded trace recording", "failure-only capture", "low-disturbance observation"],
+  "minimal_reproducer": {
+    "program": "tests/fixtures/checked-add.mncs.json",
+    "request": "tests/fixtures/checked-add-success-request.json",
+    "command": "MNCS=/path/to/mncs python3 scripts/measure_overhead.py --program tests/fixtures/checked-add.mncs.json --request tests/fixtures/checked-add-success-request.json --iterations 5"
+  },
+  "expected_semantics": "Selecting a bounded debug capture policy should add a measured, controlled cost and should not require repeated full compiler projections for every event.",
+  "actual_behavior_limitation": "The bootstrap adapter launches execute plus trace, IR, SSA, source-study when applicable, and a separate native-core execute. The measured cost is process/static-projection overhead, not an optimized in-runtime trace path.",
+  "why_capability_matters": "Heavy tracing can perturb timing and resource behavior, making the evidence less trustworthy and making failure-only operation impractical for larger programs.",
+  "current_workaround": "Bound output/events, run static collection once per witness, preserve capture policy, and publish median direct-versus-recording observations without pretending they are runtime instrumentation benchmarks.",
+  "host_language_code_required": {
+    "present": true,
+    "classification": "legitimate platform/bootstrap boundary",
+    "files": ["mncs_debug/runner.py", "mncs_debug/native_core.py", "scripts/measure_overhead.py"],
+    "why": "Current MNCS has no in-process artifact library or event sink, so process boundaries are required to collect existing structured documents.",
+    "changes_semantics": "may_change_timing; does not change recorded semantic fields"
+  },
+  "proposed_primitive_or_semantic_direction": "Provide a native bounded debug event sink and reusable compiler metadata API, with disabled/failure-only/selected/full diagnostic modes and explicit overhead counters.",
+  "alternatives_considered": ["unbounded event logging", "parse stdout after execution", "remove static evidence to look faster"],
+  "tests_evidence": ["evidence/overhead-baseline.json", "docs/campaign-report.md performance section"],
+  "affected_files_or_modules": ["mncs-language runtime event sink", "compiler metadata serialization", "mncs-debug collector"],
+  "dependencies_on_other_pressures": ["MNCS-DEBUG-P-002", "MNCS-DEBUG-P-005"],
+  "resolution_criteria": "A native benchmark reports bounded capture overhead separately from compiler/static collection, and selected capture modes avoid redundant process launches while preserving required event semantics."
+}

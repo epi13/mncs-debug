@@ -1,0 +1,34 @@
+{
+  "id": "MNCS-DEBUG-P-011",
+  "title": "Effect observations lack complete input lineage and environment capture",
+  "status": "open",
+  "severity": "high",
+  "owner_layer_candidate": "mncs-language/runtime",
+  "pinned_revisions": {
+    "baseline_file": "docs/baseline/revisions.json",
+    "mncs-language": "39b777f19c7326002bea8f25182dc96f3fc4aa36",
+    "mncs-actions": "d8337dfff2d2d4ad8d14a676c784a448dc943f3d"
+  },
+  "debugger_capability_attempted": ["effect failure analysis", "action/effect provenance", "replay environment capture"],
+  "minimal_reproducer": {
+    "program": "an MNCS program with an emitted effect under the reference runtime",
+    "observation": "execution effects contain operation/kind/target/capability and optional grant provenance, but no complete input/result/environment lineage"
+  },
+  "expected_semantics": "An effect event should identify the effect invocation, input value identities, result/error identity, capability grant, external resource facts, and replayability.",
+  "actual_behavior_limitation": "The current structured result exposes selected effect metadata only. The debugger can associate an effect with an operation when supplied, but cannot prove what value fed it or recreate external state.",
+  "why_capability_matters": "Many failures cross an action/effect boundary; without input/result lineage, 'which effect fed this operation?' remains an association rather than a causal fact.",
+  "current_workaround": "Preserve effect metadata and capability state, label causality operation_association_only, and keep action receipt/evidence as a separate future integration.",
+  "host_language_code_required": {
+    "present": true,
+    "classification": "temporary adapter caused by an identified MNCS pressure",
+    "files": ["mncs_debug/trace.py", "mncs_debug/protocol.py"],
+    "why": "Host code can preserve bounded metadata but cannot recover external effect inputs/results omitted by the runtime.",
+    "changes_semantics": false
+  },
+  "proposed_primitive_or_semantic_direction": "Emit explicit effect invocation/result events with stable input/output value identities, external resource identity, redaction policy, and replay recordability.",
+  "alternatives_considered": ["infer lineage from operation order", "capture all environment variables", "ask mncs-actions to invent runtime lineage"],
+  "tests_evidence": ["evidence/campaign-demonstrations.json task-lifecycle observation", "effect fields in execution-result baseline inspection", "trace effect completeness labels", "integration/mncs-actions-provider.json"],
+  "affected_files_or_modules": ["mncs-language effect runtime", "mncs-actions receipt boundary", "mncs-debug trace/replay"],
+  "dependencies_on_other_pressures": ["MNCS-DEBUG-P-001", "MNCS-DEBUG-P-005"],
+  "resolution_criteria": "An effect fixture can answer input/result provenance and declares whether its external state is replayable, with action receipts correlating without duplicating runtime semantics."
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-debug/blob/main/schemas/debug-event.schema.json",
+  "title": "MNCS Debug Event",
+  "type": "object",
+  "required": ["schema_version", "protocol_version", "event_id", "execution_identity", "sequence", "kind", "location", "payload", "relationships"],
+  "properties": {
+    "schema_version": {"const": "mncs.debug-event/1"},
+    "protocol_version": {"const": 1},
+    "event_id": {"type": "string"},
+    "execution_identity": {"type": "string"},
+    "sequence": {"type": "integer", "minimum": 0},
+    "kind": {"type": "string"},
+    "location": {"type": "object"},
+    "payload": {"type": "object"},
+    "relationships": {"type": "object"},
+    "evidence": {"type": "string"},
+    "completeness": {"type": "string"}
+  },
+  "additionalProperties": true
+}

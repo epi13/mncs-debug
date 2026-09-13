@@ -1,0 +1,34 @@
+{
+  "id": "MNCS-DEBUG-P-005",
+  "title": "The runtime has no deterministic scheduler/effect/environment capture",
+  "status": "open",
+  "severity": "critical",
+  "owner_layer_candidate": "mncs-language/runtime",
+  "pinned_revisions": {
+    "baseline_file": "docs/baseline/revisions.json",
+    "mncs-language": "39b777f19c7326002bea8f25182dc96f3fc4aa36",
+    "RAVEL": "c156d9ce7b3405562bdcdcb1e7b0a6e7532aa067"
+  },
+  "debugger_capability_attempted": ["deterministic replay", "reproducible effect failure", "replay recipe"],
+  "minimal_reproducer": {
+    "witness": "any record witness, for example /tmp/mncs-debug-failure.json",
+    "command": "./bin/mncs-debug replay /tmp/mncs-debug-failure.json --mode reexecute --deterministic"
+  },
+  "expected_semantics": "A deterministic replay should reproduce the same relevant execution under recorded scheduler choices, inputs, effects, environment, and external boundaries.",
+  "actual_behavior_limitation": "The runtime exposes a bounded request/result but no scheduler decision log, effect result log, filesystem/environment snapshot, or process identity contract. The debugger only offers bounded re-execution and says so.",
+  "why_capability_matters": "Failure analysis cannot distinguish a stable program failure from a schedule/effect/environment race without replay control and evidence.",
+  "current_workaround": "Embed program/request bytes and compare bounded status, failure identity, test id, and return digest; deterministic requests are described as reproduction, never deterministic replay.",
+  "host_language_code_required": {
+    "present": true,
+    "classification": "temporary adapter caused by an identified MNCS pressure",
+    "files": ["mncs_debug/analysis.py"],
+    "why": "The host can resubmit immutable inputs and compare result documents but cannot reconstruct missing execution decisions.",
+    "changes_semantics": false
+  },
+  "proposed_primitive_or_semantic_direction": "Add an opt-in replay log contract for scheduler decisions, effect inputs/results, relevant environment/filesystem facts, process ancestry, and replay compatibility identity.",
+  "alternatives_considered": ["seed only", "capture all ambient environment blindly", "use OS process snapshots", "call repeated re-execution deterministic"],
+  "tests_evidence": ["replay trace and reexecute demonstrations", "deterministic replay returns blocked", "capabilities deterministic_replay=unsupported"],
+  "affected_files_or_modules": ["mncs-language/runtime scheduler/effects", "RAVEL runtime boundary", "mncs-debug replay protocol"],
+  "dependencies_on_other_pressures": ["MNCS-DEBUG-P-004", "MNCS-DEBUG-P-011"],
+  "resolution_criteria": "A nondeterministic fixture has a replay recipe that records all relevant choices/effects and a runtime replay mode that proves compatibility rather than merely matching a result digest."
+}

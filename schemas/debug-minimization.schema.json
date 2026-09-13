@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-debug/blob/main/schemas/debug-minimization.schema.json",
+  "title": "MNCS Debug Minimization Report",
+  "type": "object",
+  "required": ["schema_version", "protocol_version", "minimization_id", "witness_id", "status", "message", "attempts", "changes", "equivalence", "conservative"],
+  "properties": {
+    "schema_version": {"const": "mncs.debug-minimization/1"},
+    "protocol_version": {"const": 1},
+    "minimization_id": {"type": "string"},
+    "witness_id": {"type": "string"},
+    "parent_witness_id": {"type": "string"},
+    "status": {"enum": ["reduced", "no_reduction", "blocked"]},
+    "message": {"type": "string"},
+    "attempts": {"type": "integer", "minimum": 0},
+    "changes": {"type": "array", "items": {"type": "object"}},
+    "equivalence": {"type": "string"},
+    "conservative": {"const": true}
+  },
+  "additionalProperties": true
+}

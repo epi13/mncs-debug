@@ -1,0 +1,34 @@
+{
+  "id": "MNCS-DEBUG-P-007",
+  "title": "Debug provider registration and artifact projection need an actions contract",
+  "status": "prepared-for-integration",
+  "severity": "medium",
+  "owner_layer_candidate": "mncs-actions",
+  "pinned_revisions": {
+    "baseline_file": "docs/baseline/revisions.json",
+    "mncs-actions": "d8337dfff2d2d4ad8d14a676c784a448dc943f3d",
+    "mncs-debug": "9524ea24fab44a6dfa6cac2a4846d5fd97e33c9b"
+  },
+  "debugger_capability_attempted": ["canonical action/provider invocation", "execution receipt", "evidence manifest"],
+  "minimal_reproducer": {
+    "descriptor": "integration/mncs-actions-provider.json",
+    "command": "./bin/mncs-debug api --stdio"
+  },
+  "expected_semantics": "An actions caller should invoke debugging by structured operation and receive witness/trace/replay artifacts plus existing receipt/evidence-manifest documents.",
+  "actual_behavior_limitation": "The pinned actions conventions provide receipt/evidence vocabulary and a provider registry direction, but no registered mncs-debug provider exists. This repository can prepare a descriptor only; it cannot modify or register actions during the concurrent campaign.",
+  "why_capability_matters": "Forge and automation need machine-stable debug artifacts and correlation rather than scraping a debugger terminal.",
+  "current_workaround": "Keep a local data-only descriptor and expose the Forge-ready JSONL API; do not claim family registration.",
+  "host_language_code_required": {
+    "present": true,
+    "classification": "legitimate platform/bootstrap boundary",
+    "files": ["mncs_debug/cli.py", "integration/mncs-actions-provider.json"],
+    "why": "Current action invocation/receipt plumbing belongs in the actions transport layer, which is outside this repository and read-only for this campaign.",
+    "changes_semantics": false
+  },
+  "proposed_primitive_or_semantic_direction": "Add a registered provider contract that maps action correlation to debug-api/1 and lists each artifact digest in mncs.evidence-manifest/1 while preserving unestablished claims.",
+  "alternatives_considered": ["register from mncs-debug directly", "invent a new receipt format", "return pretty text to actions"],
+  "tests_evidence": ["integration/mncs-actions-provider.json", "docs/integration.md", "API stdio test"],
+  "affected_files_or_modules": ["mncs-actions provider registry", "actions receipt/evidence manifest", "mncs-debug provider adapter"],
+  "dependencies_on_other_pressures": ["MNCS-DEBUG-P-006"],
+  "resolution_criteria": "A later actions campaign registers the provider, runs a structured debug action, and verifies receipt/evidence digests against the returned witness without changing debugger semantics."
+}

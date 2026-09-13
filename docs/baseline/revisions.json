@@ -1,0 +1,91 @@
+{
+  "schema_version": "mncs.debug-baseline/1",
+  "captured_at": "2026-09-13",
+  "policy": "Pinned at campaign start; this file is not a moving-main lock.",
+  "repositories": {
+    "mncs-language": {
+      "repository": "https://github.com/epi13/mncs-language.git",
+      "ref": "refs/heads/main",
+      "sha": "39b777f19c7326002bea8f25182dc96f3fc4aa36",
+      "role": "language, compiler, reference runtime, source front end"
+    },
+    "mncs-test": {
+      "repository": "https://github.com/epi13/mncs-test.git",
+      "ref": "refs/heads/main",
+      "sha": "97ca6fa69faa67b077250d4e0945c0aaa2a3e45f",
+      "role": "structured test result and evidence consumer"
+    },
+    "mncs-actions": {
+      "repository": "https://github.com/epi13/mncs-actions",
+      "ref": "refs/heads/main",
+      "sha": "d8337dfff2d2d4ad8d14a676c784a448dc943f3d",
+      "role": "transport, receipts, evidence manifests, family producer registry"
+    },
+    "mncs-compiler": {
+      "repository": "https://github.com/epi13/mncs-compiler.git",
+      "ref": "refs/heads/main",
+      "sha": "0222ebdab0dd56bbce00c77e0369af501751cd6b",
+      "role": "experimental compiler architecture and pass provenance reference"
+    },
+    "mncs-language-service": {
+      "repository": "https://github.com/epi13/mncs-language-service.git",
+      "ref": "refs/heads/main",
+      "sha": "78ed96b3bf89ade67e98a079d1aff022f55d3091",
+      "role": "current language-service/LSP-adjacent tooling reference"
+    },
+    "mncs-forge-mcp": {
+      "repository": "https://github.com/epi13/mncs-forge-mcp.git",
+      "ref": "refs/heads/main",
+      "sha": "d9f89df51130b1dbb499e97ee2982892d17ad7af",
+      "role": "development orchestration and micro-debugging boundary reference"
+    },
+    "MNCS-Commons": {
+      "repository": "https://github.com/epi13/MNCS-Commons.git",
+      "ref": "refs/heads/main",
+      "sha": "e93bbfaceb57e5ad28e4948d1bab2925c76fcdf9",
+      "role": "coordination, family pressure and institutional-memory boundary"
+    },
+    "RAVEL": {
+      "repository": "https://github.com/epi13/RAVEL.git",
+      "ref": "refs/heads/main",
+      "sha": "c156d9ce7b3405562bdcdcb1e7b0a6e7532aa067",
+      "role": "MNCS-native runtime/compiler execution consumer"
+    },
+    "mncs-index": {
+      "repository": "https://github.com/epi13/mncs-index",
+      "ref": "refs/heads/main",
+      "sha": "ee6a0a7fc57969ebdc6c9f571ce189438766e8bb",
+      "role": "family discovery/index and registry coordination reference"
+    },
+    "machine-native-complexity-standard": {
+      "repository": "https://github.com/epi13/machine-native-complexity-standard",
+      "ref": "refs/heads/main",
+      "sha": "0735b9f721a1901f2291433ae0bf9193bf913222",
+      "role": "MNCS standard and family vocabulary reference"
+    },
+    "mncs-cli": {
+      "repository": "https://github.com/epi13/mncs-cli.git",
+      "ref": "refs/heads/main",
+      "sha": "860376e862ccb73d331d20b2025fe5ca51041b50",
+      "role": "CLI/family command convention reference"
+    },
+    "mncs-harness": {
+      "repository": "https://github.com/epi13/mncs-harness.git",
+      "ref": "refs/heads/main",
+      "sha": "cd3927b5a24597a16bdcc867e444b2dbb10937ef",
+      "role": "execution harness/evidence convention reference"
+    }
+  },
+  "local_observation": {
+    "mncs-language_checkout": "90a36226ff0ad4d696b361afc813792963b54db8",
+    "mncs-language_checkout_note": "The local checkout was on campaign/ravel-witness-2026-09 and was not touched. Its code diff from pinned main was documentation-only at capture time; the existing binary remains an observed witness, not a replacement baseline.",
+    "MNCS-Commons_checkout": "79a8e249d0989ab0b3c97fbd047324ab1b8e95af",
+    "MNCS-Commons_checkout_note": "The local checkout was behind origin/main and was not touched.",
+    "mncs-harness_checkout_note": "The local checkout was stale relative to origin/main; the remote main SHA above was inspected and pinned."
+  },
+  "inspection_method": {
+    "remote_main_resolution": "git ls-remote <repository> refs/heads/main HEAD",
+    "moving_heads": "not followed after capture",
+    "commons_publication": "not performed"
+  }
+}

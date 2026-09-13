@@ -1,0 +1,22 @@
+{
+  "schema_version": "0.1",
+  "module": "Examples.Invalid",
+  "assumptions": [],
+  "functions": [
+    {
+      "name": "publish",
+      "inputs": [{"name": "document", "type": "Document"}],
+      "outputs": [],
+      "contracts": [
+        {"id": "publishes_once", "kind": "ensures", "expression": "publish_count' == publish_count + 1"}
+      ],
+      "effects": [
+        {"kind": "network.connect", "target": "PublishingService", "capability": "NetworkPublish"}
+      ],
+      "capabilities": [],
+      "assumptions": [],
+      "evidence": [{"property": "publishes_once", "verifier": "TransitionVerifier", "status": "claimed"}],
+      "failure": "isolated"
+    }
+  ]
+}

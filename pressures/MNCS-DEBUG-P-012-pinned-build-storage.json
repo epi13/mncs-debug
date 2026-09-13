@@ -1,0 +1,33 @@
+{
+  "id": "MNCS-DEBUG-P-012",
+  "title": "Pinned reference-runtime rebuild exceeded available workspace quota",
+  "status": "observed-operational-boundary",
+  "severity": "medium",
+  "owner_layer_candidate": "operating-system/platform boundary",
+  "pinned_revisions": {
+    "baseline_file": "docs/baseline/revisions.json",
+    "mncs-language": "39b777f19c7326002bea8f25182dc96f3fc4aa36"
+  },
+  "debugger_capability_attempted": ["baseline runtime verification", "reference compiler rebuild"],
+  "minimal_reproducer": {
+    "operation": "build the pinned mncs-language main checkout in a temporary worktree with its standard Cargo target",
+    "observation": "compilation reached code generation and failed when the workspace filesystem quota was exhausted; temporary worktree was removed"
+  },
+  "expected_semantics": "The campaign should be able to build the exact pinned runtime or clearly identify why an observed binary is being used instead.",
+  "actual_behavior_limitation": "The pinned build could not complete under the available workspace quota. The existing local executable from checkout 90a36226ff0ad4d696b361afc813792963b54db8 was used with its SHA-256 and observed revision recorded in every witness.",
+  "why_capability_matters": "A debugger witness must not conflate a moving local executable with the pinned design baseline; build failure affects confidence and reproducibility, not MNCS execution semantics directly.",
+  "current_workaround": "Use the pre-existing executable only as an explicitly labeled independent/reference witness, preserve its digest/revision, and keep the pinned SHA in the baseline file.",
+  "host_language_code_required": {
+    "present": true,
+    "classification": "legitimate platform/bootstrap boundary",
+    "files": ["mncs_debug/runner.py", "docs/baseline/revisions.json"],
+    "why": "Compiler build and workspace storage are host/toolchain concerns; the debugger does not fake a pinned build.",
+    "changes_semantics": false
+  },
+  "proposed_primitive_or_semantic_direction": "No MNCS primitive proposed. CI should provide a reproducible pinned runtime artifact or sufficient build quota and record its digest.",
+  "alternatives_considered": ["delete the sibling target tree", "claim the local binary is pinned", "skip compiler/runtime identity recording"],
+  "tests_evidence": ["campaign build attempt log", "witness compiler.binary_sha256 and observed_checkout_revision", "docs/campaign-report.md"],
+  "affected_files_or_modules": ["workspace/toolchain storage", "mncs-debug witness provenance"],
+  "dependencies_on_other_pressures": [],
+  "resolution_criteria": "A clean build or signed artifact for the exact pinned runtime is available and its digest is recorded before a future campaign compares semantic behavior."
+}

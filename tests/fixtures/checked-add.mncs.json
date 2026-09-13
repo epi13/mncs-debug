@@ -1,0 +1,67 @@
+{
+  "schema_version": "0.1",
+  "module": "Examples.Debug",
+  "functions": [
+    {
+      "name": "checked_add",
+      "inputs": [
+        {"name": "a", "type": "i32"},
+        {"name": "b", "type": "i32"}
+      ],
+      "outputs": [{"name": "sum", "type": "i32"}],
+      "contracts": [],
+      "effects": [],
+      "capabilities": [],
+      "assumptions": [],
+      "evidence": [],
+      "failure": "atomic",
+      "body": {
+        "schema_version": "0.2",
+        "entry": "entry",
+        "parameters": [
+          {"id": "a", "name": "a", "type": {"integer": {"bits": 32, "signed": true}}},
+          {"id": "b", "name": "b", "type": {"integer": {"bits": 32, "signed": true}}}
+        ],
+        "blocks": [
+          {
+            "id": "entry",
+            "parameters": [],
+            "operations": [
+              {
+                "id": "sum",
+                "kind": {"integer": {"operator": "add", "operand_type": {"bits": 32, "signed": true}, "intent": "checked"}},
+                "operands": ["a", "b"],
+                "results": [{"id": "sum", "type": {"integer": {"bits": 32, "signed": true}}}],
+                "contracts": [],
+                "assumptions": [],
+                "machine_intent": {
+                  "intent": {"identity": "intent:checked-add", "statement": "preserve checked overflow behavior"},
+                  "preferences": [],
+                  "facts": [],
+                  "requirements": [],
+                  "obligations": []
+                },
+                "lowering": {
+                  "schema_version": "0.2",
+                  "permitted_realizations": ["portable_reference", "runtime_checked"],
+                  "prohibited_transformations": ["assume_no_overflow"],
+                  "required_obligations": [],
+                  "fallback": "runtime_checked"
+                },
+                "portability": {
+                  "schema_version": "0.2",
+                  "target": "portable",
+                  "required_features": [],
+                  "integer_widths": [32],
+                  "abi": null,
+                  "fallback": "runtime_checked"
+                }
+              }
+            ],
+            "terminator": {"return": {"values": ["sum"]}}
+          }
+        ]
+      }
+    }
+  ]
+}

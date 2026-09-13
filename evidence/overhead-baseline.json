@@ -1,0 +1,63 @@
+{
+  "boundedness": {
+    "captured_stream_bytes": 65536,
+    "embedded_input_bytes": 262144,
+    "static_records": 2048,
+    "trace_events": 512
+  },
+  "direct": {
+    "median": 7.566927000880241,
+    "milliseconds": [
+      7.676693145185709,
+      7.549227913841605,
+      7.582317106425762,
+      7.555929012596607,
+      7.566927000880241
+    ],
+    "returncodes": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "interpretation": "bootstrap process/static-evidence collection overhead; not a native in-runtime tracing benchmark",
+  "iterations": 5,
+  "measurement_id": "mncs:debug:overhead:000281756cdb266083c1605ddb9201600e1f357803b5c888aa2acea8fdaa2707",
+  "median_overhead": {
+    "milliseconds": 1058.2213210873306,
+    "ratio": 140.84822649461668
+  },
+  "program": {
+    "path": "/home/epi13/Documents/Projects/mncs-debug/tests/fixtures/checked-add.mncs.json",
+    "sha256": "a183621887fc38aeaf6cca80a79d7408fb7460bb5056f2b9df431f770492f874"
+  },
+  "protocol_version": 1,
+  "record": {
+    "median": 1065.7882480882108,
+    "milliseconds": [
+      1065.6805941835046,
+      1066.0131261684,
+      1065.7882480882108,
+      1065.9264819696546,
+      1065.6582810916007
+    ],
+    "returncodes": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "request": {
+    "path": "/home/epi13/Documents/Projects/mncs-debug/tests/fixtures/checked-add-success-request.json",
+    "sha256": "52d9f596b635ef11f3db92e4edd2e701c437980a626b6d89584bd2c1a0aace59"
+  },
+  "runtime": {
+    "path": "/home/epi13/Documents/Projects/mncs-language/target/debug/mncs",
+    "sha256": "1509c72616da3e986d0fcde404de60db2dc0798d3290159e148e587a65c67a67"
+  },
+  "schema_version": "mncs.debug-overhead/1"
+}

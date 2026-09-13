@@ -1,0 +1,35 @@
+{
+  "id": "MNCS-DEBUG-P-008",
+  "title": "LSP integration lacks an exact debug source-binding contract",
+  "status": "open",
+  "severity": "high",
+  "owner_layer_candidate": "LSP/compiler",
+  "pinned_revisions": {
+    "baseline_file": "docs/baseline/revisions.json",
+    "mncs-language-service": "78ed96b3bf89ade67e98a079d1aff022f55d3091",
+    "mncs-language": "39b777f19c7326002bea8f25182dc96f3fc4aa36"
+  },
+  "debugger_capability_attempted": ["source hover/inspection", "breakpoint binding", "diagnostic correspondence"],
+  "minimal_reproducer": {
+    "program": "examples/nested.mncs",
+    "contract": "integration/lsp-contract.json",
+    "observation": "only a heuristic function declaration location is available"
+  },
+  "expected_semantics": "The language service should resolve a source URI/span/symbol to a stable semantic operation or event identity using compiler-owned source maps.",
+  "actual_behavior_limitation": "The current service/reference artifacts do not expose a debugger location protocol, and operation source spans are absent from the runtime result. The local adapter's path/line scan is explicitly heuristic and unsuitable for breakpoint binding.",
+  "why_capability_matters": "Editor debugging must bind user-visible source constructs to the same identities used by execution, trace, and provenance queries.",
+  "current_workaround": "Provide integration/lsp-contract.json and leave operation source null; expose exact source/program digest and function identity only.",
+  "host_language_code_required": {
+    "present": false,
+    "classification": "none",
+    "files": [],
+    "why": "The missing binding is not hidden by host code; it is recorded as unavailable.",
+    "changes_semantics": false
+  },
+  "proposed_primitive_or_semantic_direction": "Standardize source identity, URI/path normalization, coordinate encoding, symbol identity, span, compiler phase, and exact/derived/unavailable binding status across compiler and LSP.",
+  "alternatives_considered": ["debugger regex scan", "line-number-only protocol", "use host debugger symbols"],
+  "tests_evidence": ["integration/lsp-contract.json", "examples/nested witness source locations", "docs/architecture.md"],
+  "affected_files_or_modules": ["mncs-language-service", "compiler source map", "mncs-debug event location"],
+  "dependencies_on_other_pressures": ["MNCS-DEBUG-P-002"],
+  "resolution_criteria": "The LSP can resolve a source span to an exact semantic identity and `mncs-debug` can return that same binding in trace/inspection output."
+}

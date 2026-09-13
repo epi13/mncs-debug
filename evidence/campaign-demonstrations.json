@@ -1,0 +1,84 @@
+{
+  "schema_version": "mncs.debug-demonstrations/1",
+  "captured_at": "2026-09-13",
+  "baseline_file": "docs/baseline/revisions.json",
+  "selected_runtime": {
+    "path": "/home/epi13/Documents/Projects/mncs-language/target/debug/mncs",
+    "sha256": "1509c72616da3e986d0fcde404de60db2dc0798d3290159e148e587a65c67a67",
+    "observed_checkout_revision": "90a36226ff0ad4d696b361afc813792963b54db8",
+    "pinned_language_main": "39b777f19c7326002bea8f25182dc96f3fc4aa36"
+  },
+  "demonstrations": [
+    {
+      "name": "success",
+      "command": "./bin/mncs-debug record tests/fixtures/checked-add.mncs.json tests/fixtures/checked-add-success-request.json --mncs /home/epi13/Documents/Projects/mncs-language/target/debug/mncs",
+      "exit_code": 0,
+      "witness_id": "mncs:debug:witness:41760659f5915f6a953634701ef9dedec24851c0be5a550d61de057be1dde6be",
+      "observed": {"status": "returned", "failure_class": "success", "native_outcome": "success", "steps": 2, "trace_events": 5}
+    },
+    {
+      "name": "checked-overflow-runtime-failure",
+      "command": "./bin/mncs-debug record tests/fixtures/checked-add.mncs.json tests/fixtures/checked-add-overflow-request.json --mncs /home/epi13/Documents/Projects/mncs-language/target/debug/mncs",
+      "exit_code": 1,
+      "witness_id": "mncs:debug:witness:f35a6c980b0cb01e309723000bf47194f8f0d93c0ca4e9d9ab4401b952ef053a",
+      "observed": {"status": "runtime_failure", "failure_class": "runtime_failure", "native_outcome": "runtime_failure", "steps": 1, "trace_events": 4, "stop": true},
+      "failure_identity": "mncs:0.2:operation:Examples.Debug::checked_add::entry::sum"
+    },
+    {
+      "name": "nested-call-correspondence",
+      "command": "./bin/mncs-debug record examples/nested.mncs examples/nested-request.json --mncs /home/epi13/Documents/Projects/mncs-language/target/debug/mncs",
+      "exit_code": 0,
+      "witness_id": "mncs:debug:witness:43298e40c407b8e075f0ebac7a6b465dec6b866ea121521d9878e37e758de3f7",
+      "observed": {"status": "returned", "functions": ["wrapper", "increment"], "trace_events": 9, "source_function_location_confidence": "heuristic", "nested_frames": false}
+    },
+    {
+      "name": "compile-failure",
+      "command": "./bin/mncs-debug record tests/fixtures/invalid-undeclared-effect.mncs.json tests/fixtures/checked-add-success-request.json --mncs /home/epi13/Documents/Projects/mncs-language/target/debug/mncs",
+      "exit_code": 1,
+      "witness_id": "mncs:debug:witness:4d3407e5c26a97f913072c25bbe196badc23eb265f4875d0439dad8b8d9f08ff",
+      "observed": {"status": "compile_failure", "failure_class": "compile_failure", "native_outcome": "compile_failure", "diagnostic_code": "MNCS010", "trace_events": 2}
+    },
+    {
+      "name": "step-budget-exhaustion",
+      "command": "./bin/mncs-debug record tests/fixtures/checked-add.mncs.json tests/fixtures/checked-add-budget-request.json --mncs /home/epi13/Documents/Projects/mncs-language/target/debug/mncs",
+      "exit_code": 1,
+      "witness_id": "mncs:debug:witness:47d3a79d4be532c54b394253073cd573c5b41847fdbef11a5b49a946122907cc",
+      "observed": {"status": "budget_exhausted", "failure_class": "timeout_or_budget_exhaustion", "native_outcome": "timeout_or_budget_exhaustion", "steps": 1, "trace_events": 4}
+    },
+    {
+      "name": "mncs-test-failed-assertion-import",
+      "command": "./bin/mncs-debug import-test /tmp/mncs-test-fail-result.json --test-id failing-assertion --mncs /home/epi13/Documents/Projects/mncs-language/target/debug/mncs",
+      "exit_code": 0,
+      "source_test_result_run_id": "20c43a07994d4cbb9f855d17332201fa65966042a130ef0f22c010e9b4bcac79",
+      "witness_id": "mncs:debug:witness:eab0f15432700298c524f337f9f511e3c6a74aedc0a8284b2a3d3e062a6a7fbf",
+      "observed": {"status": "returned", "failure_class": "test_failure", "native_outcome": "assertion_failure", "test_id": "failing-assertion", "trace_events": 30, "library_roots_consumed": 2},
+      "replay_note": "reexecute is blocked for this imported witness because a debugger request rerun cannot reproduce the test provider's assertion semantics."
+    },
+    {
+      "name": "mncs-test-task-lifecycle-observation",
+      "command": "./bin/mncs-debug import-test /tmp/mncs-test-result.json --test-id task-lifecycle --mncs /home/epi13/Documents/Projects/mncs-language/target/debug/mncs",
+      "exit_code": 0,
+      "source_test_result_run_id": "47a2d73d9853245613a0c0d975891141b96084f1de6bb202d358909591742050",
+      "witness_id": "mncs:debug:witness:35f9b5e4eda044817b90c54ce6b162b89ce11065e61f83b793d7fa79cab2d38d",
+      "observed": {"status": "returned", "failure_class": "success", "steps": 84, "trace_events": 105, "task_or_effect_events": 0, "static_effect_operations": 0},
+      "interpretation": "The test itself is a real task-lifecycle fixture, but the current execution result exposes no task/effect lifecycle events to the debugger. This is evidence for P-003/P-011, not a claim that task debugging is implemented."
+    },
+    {
+      "name": "trace-replay-and-bounded-reexecution",
+      "witness_id": "mncs:debug:witness:f35a6c980b0cb01e309723000bf47194f8f0d93c0ca4e9d9ab4401b952ef053a",
+      "commands": [
+        "./bin/mncs-debug replay /tmp/mncs-debug-final-runtime.json --mode trace",
+        "./bin/mncs-debug replay /tmp/mncs-debug-final-runtime.json --mode reexecute --mncs /home/epi13/Documents/Projects/mncs-language/target/debug/mncs",
+        "./bin/mncs-debug replay /tmp/mncs-debug-final-runtime.json --mode reexecute --deterministic"
+      ],
+      "observed": {"trace_replay": "replayed", "bounded_reexecution": "reproduced", "deterministic_replay": "blocked"}
+    },
+    {
+      "name": "pinned-mncs-test-self-suite",
+      "source_result": "/tmp/mncs-test-result.json",
+      "source_run_id": "47a2d73d9853245613a0c0d975891141b96084f1de6bb202d358909591742050",
+      "observed": {"verdict": "PASS", "classification": "success", "passed": 5, "skipped": 1, "total": 6, "authority": "native_suite"}
+    }
+  ],
+  "interpretation": "The demonstrations prove bounded structured recording, native classification, source/static identity retention, test-result handoff, trace replay, and bounded re-execution. They do not prove live suspension, nested frames, intermediate-value inspection, watchpoints, or deterministic replay."
+}

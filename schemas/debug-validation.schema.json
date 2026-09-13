@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-debug/blob/main/schemas/debug-validation.schema.json",
+  "title": "MNCS Debug Validation",
+  "type": "object",
+  "required": ["schema_version", "protocol_version", "validation_id", "valid", "kind", "errors"],
+  "properties": {
+    "schema_version": {"const": "mncs.debug-validation/1"},
+    "protocol_version": {"const": 1},
+    "validation_id": {"type": "string"},
+    "valid": {"type": "boolean"},
+    "kind": {"type": "string"},
+    "errors": {"type": "array", "items": {"type": "string"}},
+    "artifact": {"type": "object"},
+    "external": {}
+  },
+  "additionalProperties": true
+}

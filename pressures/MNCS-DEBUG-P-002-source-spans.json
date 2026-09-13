@@ -1,0 +1,35 @@
+{
+  "id": "MNCS-DEBUG-P-002",
+  "title": "Semantic operation identities lose source spans before execution",
+  "status": "open",
+  "severity": "critical",
+  "owner_layer_candidate": "mncs-language/compiler",
+  "pinned_revisions": {
+    "baseline_file": "docs/baseline/revisions.json",
+    "mncs-language": "39b777f19c7326002bea8f25182dc96f3fc4aa36",
+    "mncs-compiler": "0222ebdab0dd56bbce00c77e0369af501751cd6b",
+    "mncs-language-service": "78ed96b3bf89ade67e98a079d1aff022f55d3091"
+  },
+  "debugger_capability_attempted": ["source locations", "breakpoint resolution", "operation-to-source explanation"],
+  "minimal_reproducer": {
+    "program": "examples/nested.mncs",
+    "command": "MNCS=/path/to/mncs ./bin/mncs-debug record examples/nested.mncs examples/nested-request.json"
+  },
+  "expected_semantics": "Each executable semantic operation should carry a stable source identity/span through HIR/SSA/lowering into the runtime event.",
+  "actual_behavior_limitation": "trace/IR/SSA artifacts preserve semantic, IR, and SSA identities; source-study preserves compiler/pass fingerprints and name resolutions; execution events contain no operation source span. mncs-debug can locate only a requested function declaration with a labeled heuristic scan.",
+  "why_capability_matters": "A debugger or LSP cannot bind a breakpoint, failure, or trace event to the user's source construct reliably after the span is gone.",
+  "current_workaround": "Retain source digest and exact compiler identities; expose source=null for operation events and mark function declaration locations heuristic.",
+  "host_language_code_required": {
+    "present": true,
+    "classification": "temporary adapter caused by an identified MNCS pressure",
+    "files": ["mncs_debug/runner.py"],
+    "why": "The adapter runs the existing static commands and performs an explicitly labeled declaration scan only to provide limited context.",
+    "changes_semantics": false
+  },
+  "proposed_primitive_or_semantic_direction": "Emit a versioned source-map artifact mapping source document identity/span and compiler phase to semantic operation/block/function identity; carry it into execution results.",
+  "alternatives_considered": ["regex map operations to source lines", "map by operation order", "depend on debugger DWARF/GDB locations"],
+  "tests_evidence": ["examples/nested.mncs recording", "docs/architecture.md source correspondence section", "static compiler study in witness.static"],
+  "affected_files_or_modules": ["mncs-language parser/HIR", "mncs-compiler lowering", "mncs-language-service symbols", "mncs-debug static projection"],
+  "dependencies_on_other_pressures": ["MNCS-DEBUG-P-001", "MNCS-DEBUG-P-008"],
+  "resolution_criteria": "A source fixture's emitted operation events contain exact source identity/span mappings that survive compiler lowering and are consumable by the LSP contract."
+}

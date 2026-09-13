@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-debug/blob/main/schemas/debug-api.schema.json",
+  "title": "MNCS Debug API Request",
+  "type": "object",
+  "required": ["operation"],
+  "properties": {
+    "schema_version": {"const": "mncs.debug-api/1"},
+    "protocol_version": {"const": 1},
+    "operation": {"enum": ["capabilities", "open", "inspect", "trace", "why", "replay", "minimize"]},
+    "witness": {},
+    "event_id": {"type": "string"},
+    "operation_identity": {"type": "string"},
+    "value": {"type": "string"},
+    "question": {"type": "string"},
+    "mode": {"enum": ["trace", "reexecute"]},
+    "deterministic": {"type": "boolean"},
+    "kind": {"type": "string"},
+    "start": {"type": "integer", "minimum": 0},
+    "limit": {"type": "integer", "minimum": 1, "maximum": 512},
+    "max_attempts": {"type": "integer", "minimum": 1, "maximum": 256}
+  },
+  "additionalProperties": true
+}

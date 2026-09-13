@@ -1,0 +1,9 @@
+{
+  "schema_version": "0.1",
+  "target": {"module": "Examples.Debug", "function": "checked_add"},
+  "arguments": [
+    {"integer": {"value": 20, "type": {"bits": 32, "signed": true}}},
+    {"integer": {"value": 22, "type": {"bits": 32, "signed": true}}}
+  ],
+  "step_budget": 1
+}

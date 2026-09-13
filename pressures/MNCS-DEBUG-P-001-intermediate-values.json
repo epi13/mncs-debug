@@ -1,0 +1,34 @@
+{
+  "id": "MNCS-DEBUG-P-001",
+  "title": "Intermediate runtime values are not observable",
+  "status": "open",
+  "severity": "critical",
+  "owner_layer_candidate": "mncs-language/runtime",
+  "pinned_revisions": {
+    "baseline_file": "docs/baseline/revisions.json",
+    "mncs-language": "39b777f19c7326002bea8f25182dc96f3fc4aa36"
+  },
+  "debugger_capability_attempted": ["variable/value inspection", "watchpoints", "why value"],
+  "minimal_reproducer": {
+    "program": "tests/fixtures/checked-add.mncs.json",
+    "request": "tests/fixtures/checked-add-success-request.json",
+    "command": "MNCS=/path/to/mncs ./bin/mncs-debug record tests/fixtures/checked-add.mncs.json tests/fixtures/checked-add-success-request.json"
+  },
+  "expected_semantics": "A semantic operation should expose typed input/output values or a stable value-observation handle so a debugger can explain how a state/value changed.",
+  "actual_behavior_limitation": "execution-result/0.1 exposes returned values and operation identities but no intermediate values, writes, or value versions; debug traces can retain only static dataflow and return observations.",
+  "why_capability_matters": "Without runtime value versions, 'why is x 17?' and watch/change semantics cannot be answered without guessing or rerunning altered programs.",
+  "current_workaround": "Preserve request arguments, returned values, static inputs/outputs, and exact operation identity; label provenance partial and do not synthesize intermediate values.",
+  "host_language_code_required": {
+    "present": true,
+    "classification": "temporary adapter caused by an identified MNCS pressure",
+    "files": ["mncs_debug/trace.py", "mncs_debug/analysis.py"],
+    "why": "Host code normalizes available return/static evidence because no native inspection API exists.",
+    "changes_semantics": false
+  },
+  "proposed_primitive_or_semantic_direction": "Add bounded typed value-observation events with stable value identity, producer operation, read/write kind, and capture policy. Make emission explicit and disable-able.",
+  "alternatives_considered": ["infer values from source and request", "use GDB/LLDB memory inspection", "snapshot every value in the launcher"],
+  "tests_evidence": ["nested and checked-add recordings", "evidence/campaign-demonstrations.json", "mncs-debug why failure.witness.json"],
+  "affected_files_or_modules": ["mncs-language/runtime execution result", "compiler semantic value identity", "mncs-debug trace/provenance"],
+  "dependencies_on_other_pressures": ["MNCS-DEBUG-P-002", "MNCS-DEBUG-P-003"],
+  "resolution_criteria": "A native execution fixture emits bounded typed intermediate value observations with producer/read/write identity, and mncs-debug can answer a value-origin query without heuristics."
+}

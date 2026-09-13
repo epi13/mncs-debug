@@ -1,0 +1,34 @@
+{
+  "id": "MNCS-DEBUG-P-006",
+  "title": "Test failure import needs stable executable evidence, not prose reconstruction",
+  "status": "open",
+  "severity": "high",
+  "owner_layer_candidate": "mncs-test",
+  "pinned_revisions": {
+    "baseline_file": "docs/baseline/revisions.json",
+    "mncs-test": "97ca6fa69faa67b077250d4e0945c0aaa2a3e45f",
+    "mncs-language": "39b777f19c7326002bea8f25182dc96f3fc4aa36"
+  },
+  "debugger_capability_attempted": ["failed-test-to-witness transition", "assertion failure localization", "test replay"],
+  "minimal_reproducer": {
+    "command": "./bin/mncs-debug import-test test-result.json --test-id stable-test-id",
+    "required_fields": ["tests[].id", "tests[].source", "tests[].request"]
+  },
+  "expected_semantics": "A failed test result should carry enough structured source/request/reproduction evidence for a debugger to open it without parsing a command line or terminal text.",
+  "actual_behavior_limitation": "The pinned result schema has structured top-level verdict/classification/provenance/reproduction and ordinary test entries can carry request evidence, but an import cannot proceed when the selected test lacks a source and embedded request. The debugger does not reimplement test assertions.",
+  "why_capability_matters": "A human should be able to move from what failed to how it failed without reconstructing an invocation that may change the failing execution.",
+  "current_workaround": "Preserve the full test result under integration.result, require source/request for request-level recording, and retain test classification as test-owned evidence.",
+  "host_language_code_required": {
+    "present": true,
+    "classification": "temporary adapter caused by an identified MNCS pressure",
+    "files": ["mncs_debug/cli.py", "mncs_debug/runner.py"],
+    "why": "Python transports the test result and creates a temporary request file; it does not decide the verdict.",
+    "changes_semantics": false
+  },
+  "proposed_primitive_or_semantic_direction": "Make the existing test-result contract explicitly require stable source/program artifact reference and embedded or content-addressed execution request/reproduction recipe for debuggable failures.",
+  "alternatives_considered": ["parse reproduction.command", "rerun the whole test manifest", "duplicate test-result semantics in mncs-debug"],
+  "tests_evidence": ["integration/mncs-test-mapping.json", "tests/test_cli.py import fixture", "pinned mncs-test schema inspection"],
+  "affected_files_or_modules": ["mncs-test per-test result", "mncs-test reproduction evidence", "mncs-debug import-test"],
+  "dependencies_on_other_pressures": ["MNCS-DEBUG-P-002", "MNCS-DEBUG-P-005"],
+  "resolution_criteria": "The first-class test result has a documented, content-addressed program/request/replay reference for every debuggable failure and import works without command-text parsing."
+}

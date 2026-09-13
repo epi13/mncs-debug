@@ -1,0 +1,34 @@
+{
+  "id": "MNCS-DEBUG-P-009",
+  "title": "Compile diagnostics do not yet form a stable debugger failure artifact",
+  "status": "open",
+  "severity": "medium",
+  "owner_layer_candidate": "mncs-language/compiler",
+  "pinned_revisions": {
+    "baseline_file": "docs/baseline/revisions.json",
+    "mncs-language": "39b777f19c7326002bea8f25182dc96f3fc4aa36",
+    "mncs-compiler": "0222ebdab0dd56bbce00c77e0369af501751cd6b"
+  },
+  "debugger_capability_attempted": ["compile failure classification", "diagnostic-to-source inspection", "replay of invalid program"],
+  "minimal_reproducer": {
+    "program": "an invalid .mncs source passed to mncs execute",
+    "command": "MNCS=/path/to/mncs ./bin/mncs-debug record invalid.mncs request.json"
+  },
+  "expected_semantics": "A compile failure should be a structured failure with diagnostic identity, source span, compiler phase, and reproducible program/request artifact.",
+  "actual_behavior_limitation": "The launcher can preserve bounded stderr and process status, but an unsuccessful execute boundary may not emit an execution-result document with a compile classification or structured diagnostic list. The native core can classify compile status only when the adapter has an explicit structured signal.",
+  "why_capability_matters": "Failure analysis must distinguish source/compile failure from launcher infrastructure failure and connect the diagnostic to the program identity.",
+  "current_workaround": "Preserve process output/digests, keep infrastructure versus semantic classification distinct, and do not claim a compile failure when the runtime emitted no structured status.",
+  "host_language_code_required": {
+    "present": true,
+    "classification": "temporary adapter caused by an identified MNCS pressure",
+    "files": ["mncs_debug/runner.py", "mncs_debug/native_core.py"],
+    "why": "The adapter supervises the process and transports stderr; it cannot safely parse prose into compiler semantics.",
+    "changes_semantics": false
+  },
+  "proposed_primitive_or_semantic_direction": "Ensure compile/validation boundaries emit versioned structured diagnostics with source identity/span, compiler phase, severity, and stable diagnostic identity.",
+  "alternatives_considered": ["regex stderr", "classify all nonzero exits as compile failures", "re-run validate and infer"],
+  "tests_evidence": ["process artifact fields in witness", "native core compile branch fixture", "capabilities and local pressure ledger"],
+  "affected_files_or_modules": ["mncs-language compiler diagnostics", "mncs-compiler validation boundary", "mncs-debug outcome adapter"],
+  "dependencies_on_other_pressures": ["MNCS-DEBUG-P-002"],
+  "resolution_criteria": "An invalid source produces a structured compiler failure artifact that the debugger can validate and inspect without parsing terminal prose."
+}

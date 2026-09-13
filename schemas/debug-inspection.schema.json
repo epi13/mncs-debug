@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-debug/blob/main/schemas/debug-inspection.schema.json",
+  "title": "MNCS Debug Inspection",
+  "type": "object",
+  "required": ["schema_version", "protocol_version", "inspection_id", "witness_id", "outcome", "frames", "state", "trace"],
+  "properties": {
+    "schema_version": {"const": "mncs.debug-inspection/1"},
+    "protocol_version": {"const": 1},
+    "inspection_id": {"type": "string"},
+    "witness_id": {"type": "string"},
+    "execution_identity": {"type": ["string", "null"]},
+    "outcome": {"type": "object"},
+    "frames": {"type": "array", "items": {"type": "object"}},
+    "state": {"type": "object"},
+    "values": {"type": "array", "items": {"type": "object"}},
+    "effects": {"type": "array", "items": {"type": "object"}},
+    "trace": {"type": "object"},
+    "failure": {},
+    "limitations": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": true
+}

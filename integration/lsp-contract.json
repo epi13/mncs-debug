@@ -1,0 +1,30 @@
+{
+  "schema_version": "mncs.debug-lsp-contract/1",
+  "status": "local-contract-not-implemented",
+  "debugger": "mncs-debug",
+  "source_binding": {
+    "required": [
+      "source_identity",
+      "source_revision",
+      "uri_or_path",
+      "function_identity",
+      "symbol",
+      "span",
+      "coordinate_encoding",
+      "binding_status"
+    ],
+    "coordinate_encoding": ["utf-8-byte", "utf-16-code-unit"],
+    "binding_status": ["exact", "derived", "heuristic", "unavailable"]
+  },
+  "debug_requests": {
+    "breakpoint": {
+      "input": ["source_identity", "span_or_symbol", "condition"],
+      "resolution": ["resolved_event_kind", "operation_identity", "capability_state"]
+    },
+    "inspection": {
+      "input": ["witness_id", "event_id", "value_or_operation_identity"],
+      "output": "mncs.debug-inspection/1 or mncs.debug-provenance/1"
+    }
+  },
+  "current_limitation": "mncs-language execution artifacts retain semantic identities but not operation source spans; mncs-debug must not infer them from text."
+}

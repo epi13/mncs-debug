@@ -1,0 +1,33 @@
+{
+  "id": "MNCS-DEBUG-P-004",
+  "title": "Execution is one-shot and has no safe suspension or resume contract",
+  "status": "open",
+  "severity": "critical",
+  "owner_layer_candidate": "mncs-language/runtime",
+  "pinned_revisions": {
+    "baseline_file": "docs/baseline/revisions.json",
+    "mncs-language": "39b777f19c7326002bea8f25182dc96f3fc4aa36"
+  },
+  "debugger_capability_attempted": ["breakpoints", "step", "continue", "pause", "live inspection"],
+  "minimal_reproducer": {
+    "program": "tests/fixtures/checked-add.mncs.json",
+    "command": "MNCS=/path/to/mncs ./bin/mncs-debug capabilities"
+  },
+  "expected_semantics": "A debugger session should stop at a semantic event, expose a consistent state, and resume or terminate under an explicit stop condition.",
+  "actual_behavior_limitation": "mncs execute accepts a complete request and emits a terminal JSON result; there is no session handle, safe point, stop-condition injection, or resumable state.",
+  "why_capability_matters": "Without suspension, breakpoints/watchpoints/step cannot be implemented correctly by an external wrapper; re-execution changes the experiment and is not a stop.",
+  "current_workaround": "Report these capabilities as unsupported and provide immutable post-execution inspection plus trace filtering.",
+  "host_language_code_required": {
+    "present": true,
+    "classification": "legitimate platform/bootstrap boundary",
+    "files": ["mncs_debug/runner.py", "mncs_debug/analysis.py"],
+    "why": "The host can impose a process timeout but cannot safely suspend an MNCS semantic execution.",
+    "changes_semantics": true
+  },
+  "proposed_primitive_or_semantic_direction": "Define explicit semantic safe points and a runtime debug session protocol with stop-condition binding, pause/inspect/resume state tokens, and ownership rules for effects.",
+  "alternatives_considered": ["ptrace the runtime process", "kill/restart around a matching trace event", "insert source text probes"],
+  "tests_evidence": ["capabilities breakpoints/step_continue_pause unsupported", "open returns immutable one_shot_cli session"],
+  "affected_files_or_modules": ["mncs-language/runtime scheduler", "execution request/result protocol", "mncs-debug session API"],
+  "dependencies_on_other_pressures": ["MNCS-DEBUG-P-003", "MNCS-DEBUG-P-005"],
+  "resolution_criteria": "A runtime fixture can stop at a declared semantic event, inspect typed state, and resume with a documented effect/scheduler guarantee."
+}

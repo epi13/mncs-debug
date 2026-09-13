@@ -1,0 +1,35 @@
+{
+  "id": "MNCS-DEBUG-P-003",
+  "title": "Nested calls expose identities but not runtime frames",
+  "status": "open",
+  "severity": "high",
+  "owner_layer_candidate": "mncs-language/runtime",
+  "pinned_revisions": {
+    "baseline_file": "docs/baseline/revisions.json",
+    "mncs-language": "39b777f19c7326002bea8f25182dc96f3fc4aa36",
+    "RAVEL": "c156d9ce7b3405562bdcdcb1e7b0a6e7532aa067"
+  },
+  "debugger_capability_attempted": ["stack inspection", "backtrace", "causal execution ancestry"],
+  "minimal_reproducer": {
+    "program": "examples/nested.mncs",
+    "request": "examples/nested-request.json",
+    "observation": "wrapper calls increment; runtime trace contains increment operation identities but no call/return frame events"
+  },
+  "expected_semantics": "An execution event inside a nested function should identify the active frame, parent frame, captures, and call/return ancestry.",
+  "actual_behavior_limitation": "The execution envelope is for the requested wrapper and raw entries have block/operation identity only. The debugger can derive one entry frame and cannot claim a nested call stack.",
+  "why_capability_matters": "Failure analysis and backtraces require knowing which function invocation owned a state transition, especially for recursion, closures, and repeated calls.",
+  "current_workaround": "Preserve all exact operation identities and static function identities; set frame availability to requested_entry_only and causal completeness to partial.",
+  "host_language_code_required": {
+    "present": true,
+    "classification": "temporary adapter caused by an identified MNCS pressure",
+    "files": ["mncs_debug/trace.py", "mncs_debug/analysis.py"],
+    "why": "Host code creates a transparent outer frame projection and no invented inner frames.",
+    "changes_semantics": false
+  },
+  "proposed_primitive_or_semantic_direction": "Expose stable execution/frame/task identities and parent-child call transitions in a bounded runtime event stream, including closure capture references where applicable.",
+  "alternatives_considered": ["infer frames from operation namespace", "use host backtraces", "flatten all calls into one synthetic frame"],
+  "tests_evidence": ["examples/nested.mncs", "evidence/campaign-demonstrations.json task-lifecycle observation", "witness.trace completeness.frames", "capabilities frames=partially_supported"],
+  "affected_files_or_modules": ["mncs-language executor", "runtime value/frame representation", "mncs-debug inspection/provenance"],
+  "dependencies_on_other_pressures": ["MNCS-DEBUG-P-002", "MNCS-DEBUG-P-004"],
+  "resolution_criteria": "A nested-call fixture returns exact frame-enter/frame-exit/call relationships and `inspect` can produce a truthful backtrace with no text inference."
+}

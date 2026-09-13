@@ -1,0 +1,6 @@
+{
+  "schema_version": "0.1",
+  "target": {"module": "examples.debug.nested", "function": "wrapper"},
+  "arguments": [{"integer": {"value": 41, "type": {"bits": 64, "signed": true}}}],
+  "step_budget": 64
+}

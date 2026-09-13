@@ -1,0 +1,13 @@
+mncs 0.4;
+
+// Source-level fixture used to measure how much source/execution
+// correspondence survives the current compiler/runtime boundary.
+module examples.debug.nested;
+
+fn increment(value: i64) -> (result: i64) {
+    return value + 1;
+}
+
+fn wrapper(value: i64) -> (result: i64) {
+    return increment(value);
+}
