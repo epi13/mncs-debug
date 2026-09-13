@@ -28,6 +28,8 @@ PROVENANCE_SCHEMA = "mncs.debug-provenance/1"
 API_SCHEMA = "mncs.debug-api/1"
 VALIDATION_SCHEMA = "mncs.debug-validation/1"
 MINIMIZATION_SCHEMA = "mncs.debug-minimization/1"
+DEMONSTRATIONS_SCHEMA = "mncs.debug-demonstrations/1"
+OVERHEAD_SCHEMA = "mncs.debug-overhead/1"
 PROTOCOL_VERSION = 1
 MAX_CAPTURE_BYTES = 64 * 1024
 MAX_EMBEDDED_INPUT_BYTES = 256 * 1024
@@ -264,6 +266,8 @@ def validate_document(value: Any, expected_schema: str | None = None) -> list[st
         API_SCHEMA: ("schema_version", "protocol_version", "operation"),
         VALIDATION_SCHEMA: ("schema_version", "protocol_version", "valid", "kind", "errors"),
         MINIMIZATION_SCHEMA: ("schema_version", "protocol_version", "minimization_id", "witness_id", "status", "message", "attempts", "changes", "equivalence", "conservative"),
+        DEMONSTRATIONS_SCHEMA: ("schema_version", "captured_at", "baseline_file", "selected_runtime", "demonstrations", "interpretation"),
+        OVERHEAD_SCHEMA: ("schema_version", "protocol_version", "measurement_id", "program", "request", "runtime", "iterations", "direct", "record", "median_overhead", "interpretation", "boundedness"),
     }
     fields = required.get(schema)
     if fields is None:

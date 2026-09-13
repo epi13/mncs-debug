@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-debug/blob/main/schemas/debug-overhead.schema.json",
+  "title": "MNCS Debug Overhead Measurement",
+  "type": "object",
+  "required": ["schema_version", "protocol_version", "measurement_id", "program", "request", "runtime", "iterations", "direct", "record", "median_overhead", "interpretation", "boundedness"],
+  "properties": {
+    "schema_version": {"const": "mncs.debug-overhead/1"},
+    "protocol_version": {"const": 1},
+    "measurement_id": {"type": "string"},
+    "program": {"type": "object"},
+    "request": {"type": "object"},
+    "runtime": {"type": "object"},
+    "iterations": {"type": "integer", "minimum": 1},
+    "direct": {"type": "object"},
+    "record": {"type": "object"},
+    "median_overhead": {"type": "object"},
+    "interpretation": {"type": "string"},
+    "boundedness": {"type": "object"}
+  },
+  "additionalProperties": true
+}

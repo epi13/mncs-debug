@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-debug/blob/main/schemas/debug-demonstrations.schema.json",
+  "title": "MNCS Debug Campaign Demonstrations",
+  "type": "object",
+  "required": ["schema_version", "captured_at", "baseline_file", "selected_runtime", "demonstrations", "interpretation"],
+  "properties": {
+    "schema_version": {"const": "mncs.debug-demonstrations/1"},
+    "captured_at": {"type": "string"},
+    "baseline_file": {"type": "string"},
+    "selected_runtime": {"type": "object"},
+    "demonstrations": {"type": "array", "items": {"type": "object"}},
+    "interpretation": {"type": "string"}
+  },
+  "additionalProperties": true
+}
