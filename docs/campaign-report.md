@@ -349,8 +349,10 @@ record where the missing primitive matters.
 
 The implementation branch is `campaign/debugger-foundation`, based on the
 initial `mncs-debug` main SHA above. The final implementation commit, merge
-commit, and pushed `main` SHA are reported in the delivery handoff after the
-validation workflow. No sibling branch was merged or pushed.
+before the report-finalization commit is
+`b1605b9` (`feat: add structured MNCS debugger foundation`). The delivery
+handoff records the report-finalization commit, merge, and pushed `main` SHA.
+No sibling branch was merged or pushed.
 
 ## 18. Recommended later integration campaign order
 
