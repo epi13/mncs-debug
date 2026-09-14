@@ -298,7 +298,14 @@ class RuntimeCliTests(unittest.TestCase):
             result_path = root / "test-result.json"
             witness_path = root / "witness.json"
             result_path.write_text(json.dumps(result), encoding="utf-8")
-            imported = self.run_cli("import-test", str(result_path), "--output", str(witness_path))
+            imported = self.run_cli(
+                "import-test",
+                str(result_path),
+                "--capture",
+                "failure-only",
+                "--output",
+                str(witness_path),
+            )
             self.assertEqual(imported.returncode, 0, imported.stderr)
             witness = _json(witness_path)
             self.assertEqual(witness["outcome"]["failure_class"], "test_failure")
@@ -310,6 +317,13 @@ class RuntimeCliTests(unittest.TestCase):
                 witness["request"]["sha256"],
             )
             self.assertEqual(witness["integration"]["test_result_reference"]["kind"], "mncs-test-result")
+            if RUNTIME_AVAILABLE:
+                self.assertEqual(witness["runtime"]["capture_policy"], "failure-only")
+                self.assertEqual(witness["runtime"]["effective_capture_policy"], "bounded")
+                self.assertEqual(
+                    witness["runtime"]["observation"]["completeness"]["status"],
+                    "complete",
+                )
             replay = self.run_cli("replay", str(witness_path), "--mode", "reexecute")
             self.assertEqual(replay.returncode, 1)
             self.assertEqual(json.loads(replay.stdout)["status"], "blocked")
