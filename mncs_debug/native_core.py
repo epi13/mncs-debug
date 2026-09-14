@@ -28,6 +28,18 @@ OUTCOME_NAMES = {
     9: "test_failure",
 }
 
+SUFFICIENCY_STATUS = {0: "sufficient", 1: "ambiguous", 2: "unsupported"}
+NEXT_OPERATIONS = {0: None, 1: "trace", 2: "provenance", 3: "replay", 4: "minimization"}
+EVIDENCE_GAPS = {
+    0: None,
+    1: "failure_identity",
+    2: "operation_identity",
+    3: "observation_completeness",
+    4: "provenance",
+    5: "replay",
+    6: "minimization",
+}
+
 
 class NativeCoreError(RuntimeError):
     pass
@@ -120,5 +132,87 @@ def decide(
         "outcome_code": outcome_code,
         "outcome": OUTCOME_NAMES[outcome_code],
         "should_stop": should_stop,
+        "native_execution": document,
+    }
+
+
+def sufficiency(
+    *,
+    mncs_path: Path,
+    has_failure_identity: bool,
+    has_operation_identity: bool,
+    observation_complete: bool,
+    provenance_observed: bool,
+    replay_required: bool = False,
+    minimization_required: bool = False,
+    core_path: Path | None = None,
+    timeout_seconds: float = 10.0,
+) -> dict[str, Any]:
+    """Ask the native debugger policy whether the current evidence is enough."""
+
+    core = core_path or default_core_path()
+    if not core.exists():
+        raise NativeCoreError(f"native debug core is missing: {core}")
+    request = {
+        "schema_version": "0.1",
+        "target": {"module": "mncs.debug.v1", "function": "sufficiency"},
+        "arguments": [
+            {"integer": {"value": int(has_failure_identity), "type": {"bits": 32, "signed": True}}},
+            {"integer": {"value": int(has_operation_identity), "type": {"bits": 32, "signed": True}}},
+            {"integer": {"value": int(observation_complete), "type": {"bits": 32, "signed": True}}},
+            {"integer": {"value": int(provenance_observed), "type": {"bits": 32, "signed": True}}},
+            {"integer": {"value": int(replay_required), "type": {"bits": 32, "signed": True}}},
+            {"integer": {"value": int(minimization_required), "type": {"bits": 32, "signed": True}}},
+        ],
+        "step_budget": 128,
+    }
+    with tempfile.TemporaryDirectory(prefix="mncs-debug-core-") as directory:
+        request_path = Path(directory) / "request.json"
+        request_path.write_text(json.dumps(request), encoding="utf-8")
+        try:
+            completed = subprocess.run(
+                [os.fspath(mncs_path), "execute", os.fspath(core), os.fspath(request_path)],
+                cwd=os.fspath(core.parent),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=timeout_seconds,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise NativeCoreError(f"native debug core invocation failed: {exc}") from exc
+    try:
+        document = json.loads(completed.stdout.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise NativeCoreError(
+            f"native debug core did not emit JSON (exit {completed.returncode}): "
+            f"{completed.stderr.decode('utf-8', errors='replace')[:400]}"
+        ) from exc
+    if not isinstance(document, dict) or document.get("status") != "returned":
+        raise NativeCoreError(f"native debug core returned non-success execution: {document!r}")
+    returned = document.get("returned")
+    fields = returned[0].get("record", {}).get("fields") if isinstance(returned, list) and returned else None
+    if not isinstance(fields, list):
+        raise NativeCoreError("native debug core returned a non-record sufficiency decision")
+    values: dict[str, Any] = {}
+    for pair in fields:
+        if isinstance(pair, list) and len(pair) == 2 and isinstance(pair[0], str):
+            values[pair[0]] = pair[1]
+    status_code = _integer(values.get("status_code"))
+    next_code = _integer(values.get("next_operation_code"))
+    gap_code = _integer(values.get("evidence_gap_code"))
+    sufficient_value = _boolean(values.get("sufficient"))
+    if (
+        status_code not in SUFFICIENCY_STATUS
+        or next_code not in NEXT_OPERATIONS
+        or gap_code not in EVIDENCE_GAPS
+        or sufficient_value is None
+    ):
+        raise NativeCoreError(f"native debug core returned invalid sufficiency fields: {values!r}")
+    return {
+        "status": SUFFICIENCY_STATUS[status_code],
+        "sufficient": sufficient_value,
+        "next_operation": NEXT_OPERATIONS[next_code],
+        "evidence_gap": EVIDENCE_GAPS[gap_code],
         "native_execution": document,
     }

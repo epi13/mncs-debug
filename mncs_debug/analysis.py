@@ -14,6 +14,7 @@ from .protocol import (
     PROVENANCE_SCHEMA,
     PROTOCOL_VERSION,
     REPLAY_SCHEMA,
+    SUFFICIENCY_SCHEMA,
     TRACE_SCHEMA,
     WITNESS_SCHEMA,
     failure_signature,
@@ -192,6 +193,124 @@ def inspect_witness(witness: dict[str, Any], *, event_id: str | None = None) -> 
         "limitations": witness.get("limitations", []),
     }
     return result
+
+
+def diagnostic_sufficiency(
+    witness: dict[str, Any],
+    inspection: dict[str, Any] | None = None,
+    *,
+    mncs_path: Path,
+    core_path: Path | None = None,
+    supplemental_operation: str | None = None,
+) -> dict[str, Any]:
+    """Return the native, typed decision for the next useful diagnostic query."""
+
+    from .native_core import NativeCoreError, sufficiency as native_sufficiency
+
+    inspection = inspection if isinstance(inspection, dict) else inspect_witness(witness)
+    outcome = witness.get("outcome") if isinstance(witness.get("outcome"), dict) else {}
+    failure = outcome.get("failure") if isinstance(outcome.get("failure"), dict) else {}
+    failure_identity = failure.get("identity")
+    test_failure = outcome.get("test_failure") if isinstance(outcome.get("test_failure"), dict) else {}
+    test_failure_anchor = isinstance(test_failure.get("failure"), dict) and bool(test_failure.get("failure"))
+    trace = witness.get("trace") if isinstance(witness.get("trace"), dict) else {}
+    events = trace.get("events") if isinstance(trace.get("events"), list) else []
+    operation_identity = failure_identity if isinstance(failure_identity, str) else None
+    has_operation_identity = bool(
+        operation_identity
+        and (
+            any(
+                isinstance(event, dict)
+                and (
+                    (
+                        isinstance(event.get("location"), dict)
+                        and isinstance(event["location"].get("runtime"), dict)
+                        and event["location"]["runtime"].get("operation") == operation_identity
+                    )
+                    or (
+                        isinstance(event.get("payload"), dict)
+                        and event["payload"].get("failure_identity") == operation_identity
+                    )
+                )
+                for event in events
+            )
+        )
+    )
+    # A complete native inspection can bind a test-owned assertion to the
+    # active frame/value neighborhood even when the runtime returned normally
+    # and therefore emitted no runtime failure identity.
+    has_operation_identity = has_operation_identity or bool(
+        inspection.get("frames") or inspection.get("values") or inspection.get("effects")
+    )
+    trace_failure_anchor = any(
+        isinstance(event, dict)
+        and (
+            (
+                isinstance(event.get("payload"), dict)
+                and isinstance(event["payload"].get("failure_identity"), str)
+                and bool(event["payload"]["failure_identity"])
+            )
+            or event.get("kind") == "failure"
+        )
+        for event in events
+    )
+    runtime = witness.get("runtime") if isinstance(witness.get("runtime"), dict) else {}
+    observation = runtime.get("observation") if isinstance(runtime.get("observation"), dict) else {}
+    completeness = observation.get("completeness") if isinstance(observation.get("completeness"), dict) else {}
+    has_operation_identity = has_operation_identity or supplemental_operation in {"trace", "provenance", "replay"}
+    has_failure_anchor = bool(failure_identity) or test_failure_anchor or trace_failure_anchor
+    observation_complete = completeness.get("status") == "complete" or supplemental_operation in {"trace", "replay"}
+    provenance_observed = bool(
+        inspection.get("values")
+        or inspection.get("effects")
+        or _source_operation_index(witness).get(operation_identity)
+    )
+    provenance_observed = provenance_observed or supplemental_operation in {"provenance", "replay"}
+    replay_required = outcome.get("status") in {"budget_exhausted", "infrastructure_failure"}
+    try:
+        decision = native_sufficiency(
+            mncs_path=mncs_path,
+            has_failure_identity=has_failure_anchor,
+            has_operation_identity=has_operation_identity,
+            observation_complete=observation_complete,
+            provenance_observed=provenance_observed,
+            replay_required=replay_required,
+            core_path=core_path,
+        )
+    except NativeCoreError as error:
+        decision = {
+            "status": "unsupported",
+            "sufficient": False,
+            "next_operation": None,
+            "evidence_gap": "native_sufficiency_unavailable",
+            "error": str(error),
+        }
+    material = {
+        "witness_id": witness.get("witness_id"),
+        "inspection_id": inspection.get("inspection_id"),
+        "decision": decision,
+    }
+    return {
+        "schema_version": SUFFICIENCY_SCHEMA,
+        "protocol_version": PROTOCOL_VERSION,
+        "sufficiency_id": identity("diagnostic-sufficiency", material),
+        "witness_id": witness.get("witness_id"),
+        "status": decision["status"],
+        "sufficient": decision["sufficient"],
+        "next_operation": decision.get("next_operation"),
+        "evidence_gap": decision.get("evidence_gap"),
+        "inputs": {
+            "failure_identity": failure_identity,
+            "failure_anchor_observed": has_failure_anchor,
+            "operation_identity_observed": has_operation_identity,
+            "observation_complete": observation_complete,
+            "provenance_observed": provenance_observed,
+            "replay_required": replay_required,
+        },
+        "authority": "mncs-debug",
+        "native_execution": decision.get("native_execution"),
+        "error": decision.get("error"),
+    }
 
 
 def trace_slice(

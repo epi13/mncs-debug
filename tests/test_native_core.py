@@ -4,7 +4,7 @@ import os
 import unittest
 from pathlib import Path
 
-from mncs_debug.native_core import decide
+from mncs_debug.native_core import decide, sufficiency
 
 
 RUNTIME = Path(os.environ.get("MNCS", "/home/epi13/Documents/Projects/mncs-language/target/debug/mncs"))
@@ -24,6 +24,38 @@ class NativeSemanticCoreTests(unittest.TestCase):
         self.assertEqual(compile_failure["outcome"], "compile_failure")
         self.assertTrue(runtime["should_stop"])
         self.assertTrue(compile_failure["should_stop"])
+
+    def test_sufficiency_stops_or_names_one_next_operation(self) -> None:
+        sufficient = sufficiency(
+            mncs_path=RUNTIME,
+            has_failure_identity=True,
+            has_operation_identity=True,
+            observation_complete=True,
+            provenance_observed=True,
+        )
+        self.assertEqual(sufficient["status"], "sufficient")
+        self.assertIsNone(sufficient["next_operation"])
+        ambiguous = sufficiency(
+            mncs_path=RUNTIME,
+            has_failure_identity=True,
+            has_operation_identity=False,
+            observation_complete=True,
+            provenance_observed=False,
+        )
+        self.assertEqual(ambiguous["status"], "ambiguous")
+        self.assertEqual(ambiguous["next_operation"], "trace")
+        self.assertEqual(ambiguous["evidence_gap"], "operation_identity")
+
+        missing_failure_anchor = sufficiency(
+            mncs_path=RUNTIME,
+            has_failure_identity=False,
+            has_operation_identity=False,
+            observation_complete=True,
+            provenance_observed=False,
+        )
+        self.assertEqual(missing_failure_anchor["status"], "ambiguous")
+        self.assertEqual(missing_failure_anchor["next_operation"], "trace")
+        self.assertEqual(missing_failure_anchor["evidence_gap"], "failure_identity")
 
 
 if __name__ == "__main__":

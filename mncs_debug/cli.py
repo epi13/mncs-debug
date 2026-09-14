@@ -12,6 +12,7 @@ from typing import Any, Callable
 
 from .analysis import (
     inspect_witness,
+    diagnostic_sufficiency,
     load_witness,
     make_session,
     minimize_witness,
@@ -113,6 +114,15 @@ def _build_parser() -> argparse.ArgumentParser:
     inspect.add_argument("--output")
     inspect.add_argument("--format", choices=("json", "text"), default="json")
 
+    sufficiency = sub.add_parser("sufficiency", help="decide whether current diagnostic evidence is sufficient")
+    sufficiency.add_argument("witness")
+    sufficiency.add_argument("--inspection")
+    sufficiency.add_argument("--mncs")
+    sufficiency.add_argument("--core")
+    sufficiency.add_argument("--evidence-operation", choices=("trace", "provenance", "replay", "minimization"))
+    sufficiency.add_argument("--output")
+    sufficiency.add_argument("--format", choices=("json", "text"), default="json")
+
     trace = sub.add_parser("trace", help="return a bounded trace or trace slice")
     trace.add_argument("witness")
     trace.add_argument("--kind")
@@ -210,6 +220,8 @@ def _text_summary(document: dict[str, Any]) -> str:
         return f"validation: {'valid' if document.get('valid') else 'invalid'} ({document.get('kind')})"
     if schema == "mncs.debug-replay/1":
         return f"replay: {document.get('status')} ({document.get('guarantee')})"
+    if schema == "mncs.debug-sufficiency/1":
+        return f"diagnosis: {document.get('status')} (next={document.get('next_operation') or 'stop'})"
     return schema
 
 
@@ -265,6 +277,22 @@ def _cmd_inspect(args: argparse.Namespace) -> int:
     document = inspect_witness(witness, event_id=args.event)
     _write(document, args.output, text=_text_summary(document) if args.format == "text" else None)
     return EXIT_SUCCESS
+
+
+def _cmd_sufficiency(args: argparse.Namespace) -> int:
+    witness = load_witness(_path(args.witness))
+    inspection = load_json(_path(args.inspection)) if args.inspection else inspect_witness(witness)
+    if not isinstance(inspection, dict):
+        raise ValueError("inspection must be a JSON object")
+    document = diagnostic_sufficiency(
+        witness,
+        inspection,
+        mncs_path=_runtime(args),
+        core_path=_path(args.core) if args.core else None,
+        supplemental_operation=args.evidence_operation,
+    )
+    _write(document, args.output, text=_text_summary(document) if args.format == "text" else None)
+    return EXIT_SUCCESS if document.get("status") == "sufficient" else EXIT_FAILURE
 
 
 def _cmd_trace(args: argparse.Namespace) -> int:
@@ -587,6 +615,7 @@ def main(argv: list[str] | None = None) -> int:
             "record": _cmd_record,
             "run": _cmd_record,
             "inspect": _cmd_inspect,
+            "sufficiency": _cmd_sufficiency,
             "trace": _cmd_trace,
             "why": _cmd_why,
             "open": _cmd_open,

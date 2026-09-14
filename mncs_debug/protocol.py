@@ -28,6 +28,7 @@ PROVENANCE_SCHEMA = "mncs.debug-provenance/1"
 API_SCHEMA = "mncs.debug-api/1"
 VALIDATION_SCHEMA = "mncs.debug-validation/1"
 MINIMIZATION_SCHEMA = "mncs.debug-minimization/1"
+SUFFICIENCY_SCHEMA = "mncs.debug-sufficiency/1"
 DEMONSTRATIONS_SCHEMA = "mncs.debug-demonstrations/1"
 OVERHEAD_SCHEMA = "mncs.debug-overhead/1"
 PROTOCOL_VERSION = 1
@@ -268,6 +269,7 @@ def validate_document(value: Any, expected_schema: str | None = None) -> list[st
         API_SCHEMA: ("schema_version", "protocol_version", "operation"),
         VALIDATION_SCHEMA: ("schema_version", "protocol_version", "valid", "kind", "errors"),
         MINIMIZATION_SCHEMA: ("schema_version", "protocol_version", "minimization_id", "witness_id", "status", "message", "attempts", "changes", "equivalence", "conservative"),
+        SUFFICIENCY_SCHEMA: ("schema_version", "protocol_version", "sufficiency_id", "witness_id", "status", "sufficient", "next_operation", "evidence_gap"),
         DEMONSTRATIONS_SCHEMA: ("schema_version", "captured_at", "baseline_file", "selected_runtime", "demonstrations", "interpretation"),
         OVERHEAD_SCHEMA: ("schema_version", "protocol_version", "measurement_id", "program", "request", "runtime", "iterations", "direct", "record", "median_overhead", "interpretation", "boundedness"),
     }
@@ -309,6 +311,11 @@ def validate_document(value: Any, expected_schema: str | None = None) -> list[st
         errors.append("replay status is invalid")
     if schema == MINIMIZATION_SCHEMA and value.get("status") not in {"reduced", "no_reduction", "blocked"}:
         errors.append("minimization status is invalid")
+    if schema == SUFFICIENCY_SCHEMA:
+        if value.get("status") not in {"sufficient", "ambiguous", "unsupported"}:
+            errors.append("sufficiency status is invalid")
+        if not isinstance(value.get("sufficient"), bool):
+            errors.append("sufficiency sufficient must be boolean")
     return errors
 
 

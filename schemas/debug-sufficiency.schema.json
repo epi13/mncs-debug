@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-debug/blob/main/schemas/debug-sufficiency.schema.json",
+  "title": "MNCS Debug Diagnostic Sufficiency",
+  "type": "object",
+  "required": ["schema_version", "protocol_version", "sufficiency_id", "witness_id", "status", "sufficient", "next_operation", "evidence_gap"],
+  "properties": {
+    "schema_version": {"const": "mncs.debug-sufficiency/1"},
+    "protocol_version": {"const": 1},
+    "sufficiency_id": {"type": "string", "minLength": 1},
+    "witness_id": {"type": "string", "minLength": 1},
+    "status": {"enum": ["sufficient", "ambiguous", "unsupported"]},
+    "sufficient": {"type": "boolean"},
+    "next_operation": {"type": ["string", "null"], "enum": ["trace", "provenance", "replay", "minimization", null]},
+    "evidence_gap": {"type": ["string", "null"]}
+  },
+  "additionalProperties": true
+}
