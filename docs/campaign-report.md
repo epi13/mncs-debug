@@ -227,12 +227,15 @@ evidence for the runtime frame/task and effect-lineage pressures.
 
 ## 10. Actions, Forge, and LSP contracts
 
-- `integration/mncs-actions-provider.json` defines a future provider using
+- `integration/mncs-actions-provider.json` is the registered provider using
   `mncs.execution-receipt/1` and `mncs.evidence-manifest/1` output conventions.
-  It is not registered and no actions code changed.
+  `mncs-actions/actions/mncs-debug` validates and transports the debugger
+  artifacts without taking ownership of their semantics.
 - `integration/forge-api.md` defines machine operations for capabilities,
-  open, inspect, trace, why, replay, and minimize. Forge owns orchestration and
-  conclusions; the debugger owns facts and guarantees.
+  open, inspect, trace, why, replay, and minimize. The implemented Forge
+  `development.mncs.failure-loop` consumes those structured operations; Forge
+  owns orchestration and conclusions while the debugger owns facts and
+  guarantees.
 - `integration/lsp-contract.json` requires source identity/revision, URI/path,
   symbol, span coordinate encoding, binding status, and operation identity.
   Current operation bindings are unavailable, so no breakpoint claim is made.
