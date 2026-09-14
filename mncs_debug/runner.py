@@ -677,13 +677,26 @@ def build_witness(
         environment["MNCS_LIBRARY_PATH"] = os.pathsep.join(os.fspath(path) for path in libraries)
     else:
         environment.pop("MNCS_LIBRARY_PATH", None)
+    # A first-class test assertion is represented by mncs-test as a returned
+    # TestResult, not necessarily as a runtime exception.  `failure-only`
+    # therefore needs a debugger-owned effective policy for an imported FAIL;
+    # the requested policy remains preserved in the witness so semantic
+    # execution identity and capture intent are not conflated.
+    requested_capture_policy = capture_policy
+    effective_capture_policy = capture_policy
+    if (
+        capture_policy == "failure-only"
+        and isinstance(test_result, dict)
+        and test_result.get("verdict") == "FAIL"
+    ):
+        effective_capture_policy = "bounded"
     observation, request = observe_request(
         mncs_path=mncs_path,
         program_path=program_path,
         request_path=request_path,
         cwd=cwd,
         timeout_seconds=timeout_seconds,
-        capture_policy=capture_policy,
+        capture_policy=effective_capture_policy,
         max_events=max_events,
         max_values=max_values if max_values is not None else min(max_events * 2, 2048),
         max_value_bytes=max_value_bytes,
@@ -828,6 +841,8 @@ def build_witness(
             if native_observation
             else None
         ),
+        "capture_policy": requested_capture_policy,
+        "effective_capture_policy": effective_capture_policy,
     }
     artifacts = [
         {"kind": "program", "sha256": program["sha256"], "path": program["path"]},
