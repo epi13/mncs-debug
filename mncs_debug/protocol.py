@@ -35,6 +35,8 @@ MAX_CAPTURE_BYTES = 64 * 1024
 MAX_EMBEDDED_INPUT_BYTES = 256 * 1024
 MAX_TRACE_EVENTS = 512
 MAX_STATIC_RECORDS = 2048
+LANGUAGE_OBSERVATION_SCHEMA = "mncs.execution-observation/1"
+LANGUAGE_SOURCE_MAP_SCHEMA = "mncs.execution-source-map/1"
 
 CAPABILITY_STATES = (
     "supported",
@@ -326,6 +328,99 @@ def validate_witness_integrity(witness: dict[str, Any]) -> list[str]:
         for index, event in enumerate(trace.get("events", [])):
             event_errors = validate_document(event, EVENT_SCHEMA)
             errors.extend(f"trace.events[{index}]: {error}" for error in event_errors)
+    runtime = witness.get("runtime")
+    if isinstance(runtime, dict):
+        observation = runtime.get("observation")
+        if observation is not None:
+            errors.extend(validate_language_observation(observation, label="runtime.observation"))
+            if isinstance(trace, dict) and isinstance(observation, dict):
+                if (
+                    trace.get("observation_identity") is not None
+                    and trace.get("observation_identity") != observation.get("identity")
+                ):
+                    errors.append("trace.observation_identity does not match runtime.observation.identity")
+                observed_ids = {
+                    item.get("identity")
+                    for item in observation.get("events", [])
+                    if isinstance(item, dict) and isinstance(item.get("identity"), str)
+                }
+                projected_ids = {
+                    item.get("payload", {}).get("native_event", {}).get("identity")
+                    for item in trace.get("events", [])
+                    if isinstance(item, dict)
+                    and isinstance(item.get("payload"), dict)
+                    and isinstance(item.get("payload", {}).get("native_event"), dict)
+                }
+                missing = sorted(item for item in projected_ids - observed_ids if isinstance(item, str))
+                if missing:
+                    errors.append(f"trace projects unknown native observation events: {missing[:4]}")
+        source_map = runtime.get("source_map")
+        if source_map is not None:
+            errors.extend(validate_language_source_map(source_map, label="runtime.source_map"))
+    static = witness.get("static")
+    if isinstance(static, dict):
+        source = static.get("source")
+        if (
+            isinstance(source, dict)
+            and isinstance(source.get("source_map"), dict)
+            and source["source_map"].get("schema_version") is not None
+        ):
+            errors.extend(validate_language_source_map(source["source_map"], label="static.source.source_map"))
+    return errors
+
+
+def validate_language_observation(value: Any, *, label: str = "observation") -> list[str]:
+    """Validate the language-owned observation membrane without owning it."""
+
+    errors: list[str] = []
+    if not isinstance(value, dict):
+        return [f"{label} must be an object"]
+    required = ("schema_version", "identity", "execution_identity", "policy", "completeness", "frames", "values", "effects", "events")
+    errors.extend(f"{label} missing required field {field!r}" for field in required if field not in value)
+    if value.get("schema_version") != LANGUAGE_OBSERVATION_SCHEMA:
+        errors.append(f"{label}.schema_version must be {LANGUAGE_OBSERVATION_SCHEMA!r}")
+    for field in ("identity", "execution_identity"):
+        if not isinstance(value.get(field), str) or not value[field]:
+            errors.append(f"{label}.{field} must be a non-empty string")
+    policy = value.get("policy")
+    if not isinstance(policy, dict):
+        errors.append(f"{label}.policy must be an object")
+    else:
+        if policy.get("schema_version") != "mncs.execution-observation-policy/1":
+            errors.append(f"{label}.policy.schema_version is unsupported")
+        if policy.get("capture") not in {"none", "failure_only", "selected", "bounded", "diagnostic"}:
+            errors.append(f"{label}.policy.capture is unsupported")
+        for field, maximum in (("max_events", 4096), ("max_values", 2048), ("max_value_bytes", 65536)):
+            bound = policy.get(field)
+            if not isinstance(bound, int) or not 0 <= bound <= maximum:
+                errors.append(f"{label}.policy.{field} is outside the native bound")
+    completeness = value.get("completeness")
+    if not isinstance(completeness, dict):
+        errors.append(f"{label}.completeness must be an object")
+    elif completeness.get("status") not in {"disabled", "not_captured", "complete", "truncated"}:
+        errors.append(f"{label}.completeness.status is unsupported")
+    for field in ("frames", "values", "effects", "events"):
+        if not isinstance(value.get(field), list):
+            errors.append(f"{label}.{field} must be an array")
+    return errors
+
+
+def validate_language_source_map(value: Any, *, label: str = "source_map") -> list[str]:
+    """Validate source-map shape at the debugger membrane."""
+
+    errors: list[str] = []
+    if not isinstance(value, dict):
+        return [f"{label} must be an object"]
+    required = ("schema_version", "identity", "source_identity", "source_profile", "module", "module_identity", "functions", "blocks", "operations")
+    errors.extend(f"{label} missing required field {field!r}" for field in required if field not in value)
+    if value.get("schema_version") != LANGUAGE_SOURCE_MAP_SCHEMA:
+        errors.append(f"{label}.schema_version must be {LANGUAGE_SOURCE_MAP_SCHEMA!r}")
+    for field in ("identity", "source_identity", "source_profile", "module", "module_identity"):
+        if not isinstance(value.get(field), str) or not value[field]:
+            errors.append(f"{label}.{field} must be a non-empty string")
+    for field in ("functions", "blocks", "operations"):
+        if not isinstance(value.get(field), list):
+            errors.append(f"{label}.{field} must be an array")
     return errors
 
 

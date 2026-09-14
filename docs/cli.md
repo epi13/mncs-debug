@@ -7,10 +7,13 @@ code reports failure.
 
 ```text
 capabilities [--mncs PATH]
-record PROGRAM REQUEST [--capture POLICY] [--max-events N] [--test-result FILE]
+record PROGRAM REQUEST [--capture POLICY] [--max-events N] [--max-values N] [--max-value-bytes N] [--operation ID] [--test-result FILE]
 inspect WITNESS [--event EVENT_ID]
 trace WITNESS [--kind KIND] [--operation OPERATION_ID] [--from N] [--limit N]
 why WITNESS [--operation OPERATION_ID] [--value VALUE_ID] [--question TEXT]
+backtrace WITNESS
+value-origin WITNESS VALUE_ID
+effect-provenance WITNESS EFFECT_ID
 open WITNESS
 replay WITNESS --mode trace|reexecute [--deterministic]
 minimize WITNESS [--max-attempts N]
@@ -35,3 +38,12 @@ The API request envelope is `mncs.debug-api/1`:
 
 The `provider` command is an alias for `api` during the bootstrap stage. It is
 not an `mncs-actions` registration.
+
+`--capture selected` requires one or more `--operation` identities. `--capture
+events` is retained as a compatibility alias for bounded capture. Current
+native witnesses are created by one `mncs observe` call. The language
+runtime keeps semantic execution identity independent from the observation
+policy, and the witness carries the bounded `mncs.execution-observation/1`
+stream plus the compiler-owned `mncs.execution-source-map/1` when available.
+The legacy multi-command collector is used only for older runtimes that do not
+provide that contract.

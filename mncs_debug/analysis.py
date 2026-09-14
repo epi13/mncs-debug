@@ -39,6 +39,7 @@ def load_witness(path: Path) -> dict[str, Any]:
 
 def make_session(witness: dict[str, Any]) -> dict[str, Any]:
     session_id = identity("session", {"witness_id": witness["witness_id"], "operation": "open"})
+    frames = _frames(witness)
     return {
         "schema_version": "mncs.debug-session/1",
         "protocol_version": PROTOCOL_VERSION,
@@ -47,13 +48,110 @@ def make_session(witness: dict[str, Any]) -> dict[str, Any]:
         "witness_id": witness["witness_id"],
         "execution_identity": witness.get("execution_identity"),
         "capabilities": witness.get("capabilities", {}),
-        "active_frame": _frame(witness),
+        "active_frame": frames[-1] if frames else _frame(witness),
         "transport": {
             "kind": "one_shot_cli",
             "resumable": False,
             "note": "The current runtime has no suspended process; this is an immutable inspection session.",
         },
     }
+
+
+def _native_observation(witness: dict[str, Any]) -> dict[str, Any] | None:
+    runtime = witness.get("runtime") if isinstance(witness.get("runtime"), dict) else {}
+    observation = runtime.get("observation")
+    if isinstance(observation, dict) and observation.get("schema_version") == "mncs.execution-observation/1":
+        return observation
+    return None
+
+
+def _source_function_index(witness: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    static = witness.get("static") if isinstance(witness.get("static"), dict) else {}
+    source = static.get("source") if isinstance(static.get("source"), dict) else {}
+    source_map = source.get("source_map") if isinstance(source.get("source_map"), dict) else {}
+    return {
+        item["identity"]: item
+        for item in source_map.get("functions", [])
+        if isinstance(item, dict) and isinstance(item.get("identity"), str)
+    }
+
+
+def _source_operation_index(witness: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    static = witness.get("static") if isinstance(witness.get("static"), dict) else {}
+    source = static.get("source") if isinstance(static.get("source"), dict) else {}
+    source_map = source.get("source_map") if isinstance(source.get("source_map"), dict) else {}
+    return {
+        item["identity"]: item
+        for item in source_map.get("operations", [])
+        if isinstance(item, dict) and isinstance(item.get("identity"), str)
+    }
+
+
+def _source_span_for_function(witness: dict[str, Any], function_identity: str | None) -> dict[str, Any] | None:
+    if not function_identity:
+        return None
+    function = _source_function_index(witness).get(function_identity)
+    if not function or not isinstance(function.get("declaration_span"), dict):
+        return None
+    static = witness.get("static") if isinstance(witness.get("static"), dict) else {}
+    source = static.get("source") if isinstance(static.get("source"), dict) else {}
+    source_map = source.get("source_map") if isinstance(source.get("source_map"), dict) else {}
+    return {
+        "path": source.get("path"),
+        **function["declaration_span"],
+        "symbol": function.get("name"),
+        "confidence": "compiler_exact",
+        "mapping": source_map.get("schema_version", "mncs.execution-source-map/1"),
+    }
+
+
+def _frames(witness: dict[str, Any]) -> list[dict[str, Any]]:
+    observation = _native_observation(witness)
+    if observation is None:
+        return [_frame(witness)]
+    request = witness.get("request", {}).get("embedded", {})
+    target = request.get("target", {}) if isinstance(request, dict) else {}
+    functions = _source_function_index(witness)
+    frames: list[dict[str, Any]] = []
+    for raw in observation.get("frames", []) if isinstance(observation.get("frames"), list) else []:
+        if not isinstance(raw, dict) or not isinstance(raw.get("identity"), str):
+            continue
+        function_identity = raw.get("function") if isinstance(raw.get("function"), str) else None
+        function = functions.get(function_identity, {})
+        frames.append(
+            {
+                "frame_id": raw["identity"],
+                "module": target.get("module"),
+                "function": function.get("name") or function_identity,
+                "function_identity": function_identity,
+                "source_location": _source_span_for_function(witness, function_identity),
+                "runtime_identity": raw["identity"],
+                "parent_frame": raw.get("parent"),
+                "call_operation": raw.get("call_operation"),
+                "depth": raw.get("depth"),
+                "arguments": raw.get("arguments", []),
+                "availability": "native_runtime_observed",
+                "suspended": False,
+            }
+        )
+    return frames or [_frame(witness)]
+
+
+def _native_values(witness: dict[str, Any]) -> list[dict[str, Any]]:
+    trace = witness.get("trace") if isinstance(witness.get("trace"), dict) else {}
+    return [item for item in trace.get("value_observations", []) if isinstance(item, dict)]
+
+
+def _native_effects(witness: dict[str, Any]) -> list[dict[str, Any]]:
+    observation = _native_observation(witness)
+    if observation is not None:
+        return [
+            item
+            for item in observation.get("effects", [])
+            if isinstance(item, dict) and isinstance(item.get("identity"), str)
+        ]
+    trace = witness.get("trace") if isinstance(witness.get("trace"), dict) else {}
+    return [event for event in trace.get("events", []) if isinstance(event, dict) and event.get("kind") == "effect"]
 
 
 def inspect_witness(witness: dict[str, Any], *, event_id: str | None = None) -> dict[str, Any]:
@@ -78,15 +176,17 @@ def inspect_witness(witness: dict[str, Any], *, event_id: str | None = None) -> 
         "witness_id": witness["witness_id"],
         "execution_identity": witness.get("execution_identity"),
         "outcome": outcome,
-        "frames": [_frame(witness)],
+        "frames": _frames(witness),
         "state": state,
-        "values": trace.get("value_observations", []),
-        "effects": [event for event in events if isinstance(event, dict) and event.get("kind") == "effect"],
+        "values": _native_values(witness),
+        "effects": _native_effects(witness),
         "trace": {
             "trace_id": trace.get("trace_id"),
             "event_count": len(events),
             "truncated": trace.get("truncated", False),
             "selected_event": selected_event,
+            "observation_identity": trace.get("observation_identity"),
+            "completeness": trace.get("completeness", {}),
         },
         "failure": outcome.get("failure"),
         "limitations": witness.get("limitations", []),
@@ -137,7 +237,38 @@ def trace_slice(
         "value_observations": [
             value
             for value in source.get("value_observations", [])
-            if not operation or value.get("output_identity") == operation
+            if not operation
+            or value.get("output_identity") == operation
+            or value.get("operation") == operation
+            or value.get("value_id") in {
+                value_id
+                for event in selected
+                if isinstance(event, dict)
+                for value_id in event.get("relationships", {}).get("value_inputs", [])
+                if isinstance(value_id, str)
+            }
+        ],
+        "frame_observations": [
+            frame
+            for frame in source.get("frame_observations", [])
+            if not operation
+            or frame.get("call_operation") == operation
+            or any(
+                event.get("location", {}).get("runtime", {}).get("frame") == frame.get("identity")
+                for event in selected
+                if isinstance(event, dict)
+            )
+        ],
+        "effect_observations": [
+            effect
+            for effect in source.get("effect_observations", [])
+            if not operation
+            or effect.get("operation") == operation
+            or any(
+                event.get("relationships", {}).get("effect") == effect.get("identity")
+                for event in selected
+                if isinstance(event, dict)
+            )
         ],
         "capture_policy": "query_slice",
         "bounded": True,
@@ -151,7 +282,264 @@ def trace_slice(
     }
 
 
+def _native_provenance_query(
+    witness: dict[str, Any],
+    *,
+    question: str | None,
+    value: str | None,
+    operation: str | None,
+) -> dict[str, Any]:
+    """Answer provenance questions from runtime-emitted references.
+
+    The native path deliberately does not consult the legacy static dataflow
+    projection to manufacture a value origin. Static compiler facts are used
+    only to attach the already-observed operation to its exact source map
+    entry.
+    """
+
+    trace = witness.get("trace") if isinstance(witness.get("trace"), dict) else {}
+    events = [event for event in trace.get("events", []) if isinstance(event, dict)]
+    values = _native_values(witness)
+    value_index = {
+        item.get("value_id"): item
+        for item in values
+        if isinstance(item.get("value_id"), str)
+    }
+    effects = _native_effects(witness)
+    effect_index = {
+        item.get("identity"): item
+        for item in effects
+        if isinstance(item.get("identity"), str)
+    }
+    operation_index = _source_operation_index(witness)
+    operation_events: dict[str, list[dict[str, Any]]] = {}
+    for event in events:
+        runtime = event.get("location", {}).get("runtime", {}) if isinstance(event.get("location"), dict) else {}
+        event_operation = runtime.get("operation")
+        if not isinstance(event_operation, str):
+            event_operation = event.get("payload", {}).get("operation_identity")
+        if isinstance(event_operation, str):
+            operation_events.setdefault(event_operation, []).append(event)
+
+    outcome = witness.get("outcome") if isinstance(witness.get("outcome"), dict) else {}
+    failure = outcome.get("failure") if isinstance(outcome.get("failure"), dict) else {}
+    target_operation = operation
+    if target_operation is None and isinstance(failure.get("identity"), str):
+        target_operation = failure["identity"]
+
+    target_value = value_index.get(value) if value else None
+    if target_operation is None and target_value is not None:
+        target_operation = target_value.get("operation")
+    if target_operation is None and value:
+        target_operation = next(
+            (
+                event.get("location", {}).get("runtime", {}).get("operation")
+                for event in events
+                if value in event.get("relationships", {}).get("value_outputs", [])
+            ),
+            None,
+        )
+
+    def value_claim(value_identity: str) -> dict[str, Any]:
+        observed = value_index.get(value_identity)
+        if observed is None:
+            return {
+                "identity": value_identity,
+                "status": "unobserved",
+                "confidence": "native_runtime_observation_missing",
+            }
+        capture = observed.get("capture") if isinstance(observed.get("capture"), dict) else {}
+        return {
+            "identity": value_identity,
+            "status": "observed",
+            "value": observed.get("value") if capture.get("kind") == "full" else None,
+            "capture": capture,
+            "type_name": observed.get("type_name"),
+            "logical_identity": observed.get("logical_identity"),
+            "binding": observed.get("binding"),
+            "version": observed.get("version"),
+            "frame": observed.get("frame"),
+            "operation": observed.get("operation"),
+            "origin": observed.get("origin"),
+            "confidence": "native_runtime_observation",
+        }
+
+    claims: list[dict[str, Any]] = []
+    if target_value is not None and isinstance(target_value.get("value_id"), str):
+        target_value_id = target_value["value_id"]
+        claims.append(
+            {
+                "kind": "value_observation",
+                **value_claim(target_value_id),
+            }
+        )
+        origins: list[dict[str, Any]] = []
+        current = target_value
+        seen: set[str] = set()
+        while isinstance(current, dict):
+            current_id = current.get("value_id")
+            if not isinstance(current_id, str) or current_id in seen:
+                break
+            seen.add(current_id)
+            origin_id = current.get("origin")
+            if not isinstance(origin_id, str):
+                break
+            origins.append(value_claim(origin_id))
+            current = value_index.get(origin_id, {})
+        if origins:
+            claims.append(
+                {
+                    "kind": "value_origin_chain",
+                    "status": "observed",
+                    "values": origins,
+                    "confidence": "native_runtime_references",
+                }
+            )
+
+    if target_operation:
+        observed_events = operation_events.get(target_operation, [])
+        static_operation = operation_index.get(target_operation)
+        operation_claim: dict[str, Any] = {
+            "identity": target_operation,
+            "status": "observed" if observed_events else "unobserved",
+            "event_ids": [event.get("event_id") for event in observed_events],
+            "confidence": "native_runtime_observation" if observed_events else "native_runtime_identity_missing",
+        }
+        if static_operation is not None:
+            correspondence = dict(static_operation)
+            span = correspondence.get("source_span")
+            correspondence["confidence"] = "compiler_exact" if isinstance(span, dict) else "compiler_synthetic"
+            operation_claim["source_correspondence"] = correspondence
+        claims.append({"kind": "operation_identity", "operation": operation_claim})
+        if observed_events:
+            input_ids: list[str] = []
+            output_ids: list[str] = []
+            effect_ids: list[str] = []
+            for event in observed_events:
+                input_ids.extend(
+                    item
+                    for item in event.get("relationships", {}).get("value_inputs", [])
+                    if isinstance(item, str)
+                )
+                output_ids.extend(
+                    item
+                    for item in event.get("relationships", {}).get("value_outputs", [])
+                    if isinstance(item, str)
+                )
+                effect = event.get("relationships", {}).get("effect")
+                if isinstance(effect, str):
+                    effect_ids.append(effect)
+            input_ids = list(dict.fromkeys(input_ids))
+            output_ids = list(dict.fromkeys(output_ids))
+            effect_ids = list(dict.fromkeys(effect_ids))
+            claims.append(
+                {
+                    "kind": "inputs",
+                    "status": "observed",
+                    "inputs": [value_claim(item) for item in input_ids],
+                    "confidence": "native_runtime_value_references",
+                }
+            )
+            claims.append(
+                {
+                    "kind": "outputs",
+                    "status": "observed",
+                    "outputs": [value_claim(item) for item in output_ids],
+                    "confidence": "native_runtime_value_references",
+                }
+            )
+            frame_ids = list(
+                dict.fromkeys(
+                    event.get("location", {}).get("runtime", {}).get("frame")
+                    for event in observed_events
+                    if isinstance(event.get("location"), dict)
+                    and isinstance(event.get("location", {}).get("runtime"), dict)
+                    and isinstance(event.get("location", {}).get("runtime", {}).get("frame"), str)
+                )
+            )
+            if frame_ids:
+                claims.append(
+                    {
+                        "kind": "frames",
+                        "status": "observed",
+                        "frames": [frame for frame in _frames(witness) if frame.get("frame_id") in frame_ids],
+                        "confidence": "native_runtime_frame_references",
+                    }
+                )
+            for effect_id in effect_ids:
+                effect = effect_index.get(effect_id)
+                if effect is not None:
+                    claims.append(
+                        {
+                            "kind": "effect_provenance",
+                            "status": "observed",
+                            "effect": effect,
+                            "confidence": "native_runtime_effect_lineage",
+                        }
+                    )
+
+    selected_event_ids = []
+    for event in events:
+        runtime = event.get("location", {}).get("runtime", {}) if isinstance(event.get("location"), dict) else {}
+        relationships = event.get("relationships", {}) if isinstance(event.get("relationships"), dict) else {}
+        if not target_operation and not value:
+            selected_event_ids.append(event.get("event_id"))
+        elif (
+            runtime.get("operation") == target_operation
+            or target_operation in relationships.get("value_inputs", [])
+            or target_operation in relationships.get("value_outputs", [])
+            or value in relationships.get("value_inputs", [])
+            or value in relationships.get("value_outputs", [])
+        ):
+            selected_event_ids.append(event.get("event_id"))
+    claims.append(
+        {
+            "kind": "execution_path",
+            "status": "bounded_observation",
+            "event_ids": [item for item in selected_event_ids if isinstance(item, str)],
+            "confidence": "native_runtime_observation_sequence",
+        }
+    )
+    completeness = _native_observation(witness).get("completeness", {}) if _native_observation(witness) else {}
+    complete = completeness.get("status") == "complete"
+    material = {
+        "witness_id": witness.get("witness_id"),
+        "question": question,
+        "value": value,
+        "operation": operation,
+        "claims": claims,
+    }
+    return {
+        "schema_version": PROVENANCE_SCHEMA,
+        "protocol_version": PROTOCOL_VERSION,
+        "provenance_id": identity("provenance", material),
+        "witness_id": witness.get("witness_id"),
+        "execution_identity": witness.get("execution_identity"),
+        "question": question or (f"why {value}" if value else f"why {target_operation}" if target_operation else "execution provenance"),
+        "target": {"value": value, "operation": target_operation},
+        "claims": claims,
+        "completeness": {
+            "status": "complete" if complete else "partial",
+            "exact": [
+                "native value identities and capture status",
+                "native operation input/output references",
+                "native frame ancestry",
+                "compiler-owned source correspondence",
+                "native effect invocation/result lineage",
+            ],
+            "missing": [
+                "scheduler/task ancestry",
+                "deterministic external-effect replay",
+            ],
+            "observation": completeness,
+        },
+        "limitations": witness.get("limitations", []),
+    }
+
+
 def provenance_query(witness: dict[str, Any], *, question: str | None = None, value: str | None = None, operation: str | None = None) -> dict[str, Any]:
+    if _native_observation(witness) is not None:
+        return _native_provenance_query(witness, question=question, value=value, operation=operation)
     static = witness.get("static") if isinstance(witness.get("static"), dict) else {}
     operations = [item for item in static.get("operations", []) if isinstance(item, dict)]
     target_operation = operation

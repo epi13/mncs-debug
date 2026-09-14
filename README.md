@@ -4,11 +4,12 @@ Self-hosted debugging, tracing, replay, and execution introspection for the
 MNCS ecosystem.
 
 `mncs-debug` is a structured debugger consumer for the current MNCS language
-and reference runtime. It turns the runtime's bounded execution result and the
-compiler's HIR/SSA/trace artifacts into versioned debug events, traces,
-witnesses, inspection results, and replay reports. MNCS-native code owns the
-small semantic decision core; the Python launcher is a narrow process and
-artifact boundary.
+and reference runtime. It consumes the runtime's bounded
+`mncs.execution-observation/1` stream and the compiler's
+`mncs.execution-source-map/1`, then projects them into versioned debug events,
+traces, witnesses, inspection results, and replay reports. MNCS-native code
+owns the small semantic decision core; the Python launcher is a narrow process
+and artifact boundary.
 
 The machine-readable documents are authoritative. Terminal summaries are only
 projections of those documents.
@@ -19,13 +20,14 @@ The initial implementation can:
 
 - execute a checked MNCS request and preserve a content-derived
   `mncs.debug-witness/1`;
-- normalize block, semantic-operation, terminator, effect, failure, and
-  derived entry/exit observations into bounded `mncs.debug-event/1` and
-  `mncs.debug-trace/1` documents;
-- retain runtime, program, request, compiler, source, HIR, SSA, and
-  `source-study` identities where the selected runtime emits them;
+- project native execution/frame/operation/effect/failure observations into
+  bounded `mncs.debug-event/1` and `mncs.debug-trace/1` documents;
+- retain compiler-owned exact operation spans, runtime frame ancestry, typed
+  value captures, effect input/result references, and source/runtime
+  identities where the selected runtime emits them;
 - inspect an immutable terminal session, return trace slices, and answer
-  conservative partial provenance questions;
+  native value-origin, backtrace, source-operation, and effect-provenance
+  questions;
 - replay a saved trace without executing it, or re-submit an embedded request
   for bounded reproduction;
 - reject deterministic replay claims when scheduler, effect, or environment
@@ -36,11 +38,12 @@ The initial implementation can:
   bounded failure signature; and
 - expose capability discovery and a newline-delimited Forge-ready API.
 
-The current runtime cannot provide true suspended sessions, source-level
-operation spans, nested runtime frames, intermediate value snapshots,
-watchpoints, expression evaluation, task ancestry, scheduler control, or
-deterministic effect replay. These are represented as capability states and
-local pressure records, not hidden behind a fake debugger interface.
+The current runtime still cannot provide true suspended sessions, stop-on-
+watchpoint behavior, expression evaluation, task ancestry, scheduler control,
+or deterministic effect replay. Imported-source operation maps and external
+environment capture are also bounded by explicit compiler/runtime boundaries.
+These are represented as capability states and pressure records, not hidden
+behind a fake debugger interface.
 
 This is intentionally not GDB/LLDB with MNCS text around it. GDB and LLDB can
 remain independent investigative witnesses, but the stable model here is
@@ -58,7 +61,8 @@ MNCS=/path/to/mncs ./bin/mncs-debug capabilities
 MNCS=/path/to/mncs ./bin/mncs-debug record \
   tests/fixtures/checked-add.mncs.json \
   tests/fixtures/checked-add-overflow-request.json \
-  --output /tmp/checked-add.witness.json --format text
+  --capture failure-only --max-events 512 --max-values 1024 \
+  --max-value-bytes 4096 --output /tmp/checked-add.witness.json --format text
 
 ./bin/mncs-debug validate /tmp/checked-add.witness.json --format text
 ./bin/mncs-debug inspect /tmp/checked-add.witness.json --format text
@@ -94,6 +98,8 @@ The initial protocol family is versioned by schema name:
 | `mncs.debug-provenance/1` | partial causal/dataflow claims with completeness labels |
 | `mncs.debug-api/1` | programmatic operation envelope |
 | `mncs.debug-validation/1` | validation result for a protocol artifact |
+| `mncs.execution-observation/1` | language/runtime bounded typed execution facts consumed by the debugger |
+| `mncs.execution-source-map/1` | compiler-owned exact source correspondence joined by operation identity |
 
 JSON schemas are under [`schemas/`](schemas/), while the implementation also
 performs dependency-free structural and witness-integrity validation. Identities
@@ -104,25 +110,26 @@ mncs:debug:witness:<sha256(canonical witness content)>
 mncs:debug:event:<sha256(canonical event content)>
 ```
 
-Wall-clock time is not used for primary identities. Captures are bounded:
+Wall-clock time is not used for primary identities. Semantic execution
+identity excludes capture policy, while observation identity includes its
+policy, completeness, and retained facts. Captures are bounded:
 stdout/stderr are capped at 64 KiB, embedded inputs at 256 KiB, traces at 512
 events, and static correspondence projections at 2,048 records. Full digests
 are retained even when content is clipped.
 
 ### Trace and provenance guarantees
 
-Runtime block, operation, and terminator entries retain their exact runtime
-identities and order. Effects preserve the runtime's effect fields and are
-associated with an operation only when the runtime supplies that operation
-identity. Function entry/exit events are explicitly derived from the one
-requested entry point; they are not a claim that the runtime emitted a call
-stack.
+Runtime execution, frame, block, operation, return, and failure entries retain
+their native identities and order. Nested/repeated calls have execution-scoped
+frame identities with parent and call-operation references. Typed values carry
+execution-scoped versions and explicit full/truncated/digest-only/unavailable
+capture. Effects preserve invocation/result lineage and input/result value
+references when the runtime observed them.
 
-The `why` operation can connect a failure operation to static HIR/SSA identity,
-static inputs/outputs, request arguments, and the bounded execution path. It
-labels this as partial because the current runtime does not emit intermediate
-values, write history, nested frames, scheduler ancestry, or complete effect
-input lineage.
+The `why`, `value-origin`, `backtrace`, and `effect-provenance` operations join
+those native references to exact compiler source correspondence. Completeness
+remains partial when capture is truncated or when task/scheduler/external
+environment facts are not emitted.
 
 ## Replay semantics
 
@@ -220,9 +227,10 @@ MNCS=/path/to/mncs python3 scripts/measure_overhead.py \
   --iterations 5 --output /tmp/mncs-debug-overhead.json
 ```
 
-It reports wall-clock medians for direct execution versus recording and labels
-the result as launcher/static-analysis overhead, not a runtime tracing
-benchmark. A campaign observation is preserved under `evidence/`.
+It reports repeated wall-clock medians and p95 values for direct execution,
+native observation policies, and debugger recording. It labels process,
+protocol, and static/bootstrap components separately from intrinsic native
+observation cost. A campaign observation is preserved under `evidence/`.
 
 ## Local pressure records
 

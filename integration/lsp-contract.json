@@ -1,6 +1,6 @@
 {
   "schema_version": "mncs.debug-lsp-contract/1",
-  "status": "shared-vocabulary-partially-implemented",
+  "status": "operation-resolution-implemented-live-suspension-unavailable",
   "debugger": "mncs-debug",
   "source_binding": {
     "required": [
@@ -30,6 +30,6 @@
       "output": "mncs.debug-inspection/1 or mncs.debug-provenance/1"
     }
   },
-  "current_implementation": "mncs-test compiler-inventory spans and debug test_execution identities use this vocabulary; language-service clients may project exact declaration locations from the same fields.",
-  "current_limitation": "mncs-language execution artifacts retain semantic identities but not operation source spans; mncs-debug must not infer them from text. Live breakpoint resolution remains unavailable."
+  "current_implementation": "mncs-language emits mncs.execution-source-map/1; mncs-debug joins native operation identities to exact spans; language-service operation queries project the same span and capability vocabulary.",
+  "current_limitation": "source-level operation resolution is supported for the compiled source module, but live suspension, conditional evaluation, and breakpoint execution remain unavailable. Imported-module source projection remains a compiler multi-source boundary."
 }

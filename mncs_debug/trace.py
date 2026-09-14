@@ -75,6 +75,209 @@ def _value_kind(value: Any) -> str:
     return "unknown"
 
 
+def _native_source_span(
+    source: dict[str, Any] | None,
+    operation: str | None,
+    frame_function: str | None,
+) -> dict[str, Any] | None:
+    if not isinstance(source, dict):
+        return None
+    source_map = source.get("source_map")
+    if not isinstance(source_map, dict):
+        return None
+    operations = source_map.get("operations")
+    if operation and isinstance(operations, list):
+        for item in operations:
+            if isinstance(item, dict) and item.get("identity") == operation:
+                span = item.get("source_span")
+                if isinstance(span, dict):
+                    return {
+                        "path": source.get("path"),
+                        **span,
+                        "symbol": frame_function,
+                        "confidence": "compiler_exact",
+                        "mapping": source_map.get("schema_version"),
+                    }
+    return _source_location(source, frame_function)
+
+
+def _native_trace(
+    *,
+    execution_identity: str,
+    execution: dict[str, Any],
+    observation: dict[str, Any],
+    static: dict[str, Any],
+    source: dict[str, Any] | None,
+    capture_policy: str,
+    max_events: int,
+) -> dict[str, Any]:
+    """Project the language-owned observation stream into debug-event/1."""
+
+    frames = {
+        item["identity"]: item
+        for item in observation.get("frames", [])
+        if isinstance(item, dict) and isinstance(item.get("identity"), str)
+    }
+    functions = {
+        item.get("identity"): item.get("name")
+        for item in static.get("functions", [])
+        if isinstance(item, dict) and isinstance(item.get("identity"), str)
+    }
+    events: list[dict[str, Any]] = []
+    previous_id: str | None = None
+    kind_map = {
+        # Execution boundaries and frame boundaries are distinct native
+        # facts. Keeping them distinct avoids presenting one root frame as
+        # several synthetic calls.
+        "execution_enter": "execution_entry",
+        "frame_enter": "function_entry",
+        "block_enter": "block_enter",
+        "operation_enter": "semantic_operation",
+        "operation_result": "operation_result",
+        "effect_invoke": "effect",
+        "effect_result": "effect_result",
+        "return": "return",
+        "frame_exit": "function_exit",
+        "execution_exit": "execution_exit",
+        "failure": "failure",
+    }
+    for raw in observation.get("events", []) if isinstance(observation.get("events"), list) else []:
+        if not isinstance(raw, dict) or not isinstance(raw.get("kind"), str):
+            continue
+        frame = raw.get("frame") if isinstance(raw.get("frame"), str) else None
+        frame_item = frames.get(frame, {})
+        frame_function_identity = frame_item.get("function")
+        frame_function = functions.get(frame_function_identity)
+        operation = raw.get("operation") if isinstance(raw.get("operation"), str) else None
+        block = raw.get("block") if isinstance(raw.get("block"), str) else None
+        native_kind = raw["kind"]
+        kind = kind_map.get(native_kind, "runtime_event")
+        location = {
+            "program": execution.get("program_identity"),
+            "function": frame_function_identity or execution.get("function_identity"),
+            "source": _native_source_span(source, operation, frame_function),
+            "runtime": {
+                "module": execution.get("target", {}).get("module") if isinstance(execution.get("target"), dict) else None,
+                "function": frame_function,
+                "frame": frame,
+                "block": block,
+                "operation": operation,
+            },
+        }
+        payload = {
+            "native_event": raw,
+            "operation_identity": operation,
+            "block_identity": block,
+            "frame_identity": frame,
+            "frame_function_identity": frame_function_identity,
+            "frame_function": frame_function,
+            "value_inputs": raw.get("inputs", []),
+            "value_outputs": raw.get("outputs", []),
+            "effect_identity": raw.get("effect"),
+            "failure_identity": raw.get("failure"),
+        }
+        relationships: dict[str, Any] = {}
+        if previous_id:
+            relationships["observed_after"] = previous_id
+        if frame_item.get("parent"):
+            relationships["parent_frame"] = frame_item["parent"]
+        if raw.get("inputs"):
+            relationships["value_inputs"] = raw["inputs"]
+        if raw.get("outputs"):
+            relationships["value_outputs"] = raw["outputs"]
+        if raw.get("effect"):
+            relationships["effect"] = raw["effect"]
+        event = _event(
+            execution_identity=execution_identity,
+            sequence=(raw.get("sequence") if isinstance(raw.get("sequence"), int) else len(events)) + 1,
+            kind=kind,
+            location=location,
+            payload=payload,
+            relationships=relationships,
+            evidence="mncs-language.execution-observation/1",
+            completeness=(
+                observation.get("completeness", {}).get("status", "unknown")
+                if isinstance(observation.get("completeness"), dict)
+                else "unknown"
+            ),
+        )
+        events.append(event)
+        previous_id = event["event_id"]
+
+    values: list[dict[str, Any]] = []
+    raw_values = observation.get("values")
+    for raw in raw_values if isinstance(raw_values, list) else []:
+        if not isinstance(raw, dict) or not isinstance(raw.get("identity"), str):
+            continue
+        capture = raw.get("capture") if isinstance(raw.get("capture"), dict) else {}
+        full_value = capture.get("value") if capture.get("kind") == "full" else None
+        values.append(
+            {
+                "value_id": raw["identity"],
+                "kind": _value_kind(full_value),
+                "value": full_value,
+                "capture": capture,
+                "logical_identity": raw.get("logical_identity"),
+                "binding": raw.get("binding"),
+                "version": raw.get("version"),
+                "type_name": raw.get("type_name"),
+                "origin": raw.get("origin"),
+                "operation": raw.get("operation"),
+                "frame": raw.get("frame"),
+                "confidence": "native_runtime_observation",
+            }
+        )
+    events.sort(key=lambda event: (event["sequence"], event["event_id"]))
+    completeness = observation.get("completeness") if isinstance(observation.get("completeness"), dict) else {}
+    truncated = bool(completeness.get("truncated"))
+    if len(events) > max_events:
+        events = events[:max_events]
+        truncated = True
+    material = {
+        "execution_identity": execution_identity,
+        "observation_identity": observation.get("identity"),
+        "events": events,
+        "values": values,
+        "capture_policy": capture_policy,
+        "bounded": True,
+        "truncated": truncated,
+    }
+    return {
+        "schema_version": TRACE_SCHEMA,
+        "protocol_version": PROTOCOL_VERSION,
+        "trace_id": identity("trace", material),
+        "execution_identity": execution_identity,
+        "observation_identity": observation.get("identity"),
+        "events": events,
+        "frame_observations": [
+            frame
+            for frame in observation.get("frames", [])
+            if isinstance(frame, dict) and isinstance(frame.get("identity"), str)
+        ],
+        "effect_observations": [
+            effect
+            for effect in observation.get("effects", [])
+            if isinstance(effect, dict) and isinstance(effect.get("identity"), str)
+        ],
+        "value_observations": values,
+        "capture_policy": capture_policy,
+        "bounded": True,
+        "max_events": max_events,
+        "truncated": truncated,
+        "runtime_trace_entries": len(execution.get("trace", [])) if isinstance(execution.get("trace"), list) else 0,
+        "completeness": {
+            "ordering": "native_runtime_observation_sequence",
+            "source_locations": "compiler_execution_source_map",
+            "values": "native_typed_value_observations",
+            "frames": "native_execution_scoped_frame_ancestry",
+            "effects": "native_invocation_result_lineage",
+            "causality": "native_value_and_frame_references",
+            "tasks": "unavailable_until_runtime_task_model_is exposed",
+            "stream": completeness,
+        },
+    }
+
+
 def make_trace(
     *,
     execution_identity: str,
@@ -83,8 +286,20 @@ def make_trace(
     source: dict[str, Any] | None = None,
     capture_policy: str = "bounded",
     max_events: int = 512,
+    observation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Create a bounded trace while preserving the runtime's exact events."""
+
+    if isinstance(observation, dict) and observation.get("schema_version") == "mncs.execution-observation/1":
+        return _native_trace(
+            execution_identity=execution_identity,
+            execution=execution,
+            observation=observation,
+            static=static or {},
+            source=source,
+            capture_policy=capture_policy,
+            max_events=max_events,
+        )
 
     static = static or {}
     op_index = _operation_index(static)

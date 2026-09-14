@@ -1,9 +1,9 @@
 # mncs-debug architecture
 
-This document describes the implementation at the initial pinned debugger
-baseline and the current family integration. It is an integration contract
-and pressure record, not a promise that the current MNCS runtime already
-provides a conventional debugger.
+This document describes the native bounded-observability tranche and the
+current family integration. It is an integration contract and pressure record,
+not a promise that the current MNCS runtime provides a conventional live
+debugger.
 
 ## Design objective
 
@@ -14,20 +14,23 @@ responsibilities are intentionally separate:
 
 ```text
 mncs-language/runtime/compiler
-    structured execution result + static identities
+    execution-result/0.1 + execution-observation/1
+    + compiler-owned execution-source-map/1
                   │
                   ▼
 mncs-debug
-    bounded semantic events → trace → witness → inspection/replay facts
+    native facts → bounded debug events/trace → witness → queries
                   │
           ┌───────┼────────┐
           ▼       ▼        ▼
       mncs-test actions   Forge/LSP
 ```
 
-The debugger does not parse its own pretty output. It consumes structured
-execution/compiler documents, and every derived fact carries an evidence or
-completeness label.
+The debugger does not parse pretty output or reconstruct runtime meaning from
+operation order. It consumes the language-owned observation stream and joins
+runtime operation identities with the compiler-owned source map. Legacy
+execution-result/static projection remains a versioned compatibility path for
+older artifacts only; it is never mixed into a native observation claim.
 
 The implemented family path is:
 
@@ -49,17 +52,17 @@ The minimum coherent model currently implemented is:
 
 | Concept | Implemented representation |
 | --- | --- |
-| execution | content-derived `execution_identity` over program, target, request, and selected runtime |
-| state | terminal snapshot plus ordered bounded runtime entries |
-| transition | block/terminator event with runtime step and block identity |
-| semantic operation | operation event retaining the runtime operation identity and static HIR/SSA projection |
-| effect | effect event preserving operation, kind, target, capability, and optional grant provenance |
-| source identity | program digest, module/function identity, and a labeled function-declaration scan when source exists |
-| frame | one requested entry frame, explicitly marked `requested_entry_only` |
+| execution | language-owned semantic `execution_identity` over program identity/fingerprint and the request; observation policy is excluded |
+| observation | bounded `mncs.execution-observation/1` stream with explicit policy, completeness, truncation, frames, values, effects, and events |
+| transition | native event with sequence, block/operation identity, frame, value references, and status |
+| semantic operation | runtime operation identity joined to `mncs.execution-source-map/1`; HIR/SSA retain the same semantic identity for phase joins |
+| effect | native invocation/result pair preserving operation, frame, input/result value references, capability, target, provenance, and `lineage_only` replayability |
+| source identity | compiler source-envelope identity plus exact declaration/operation spans from the source map; legacy text scans are compatibility-only |
+| frame | execution-scoped invocation identity with function, parent, call operation, depth, and argument value references |
 | failure | runtime structured failure, imported test failure, process timeout, or bootstrap boundary classification |
-| trace | bounded ordered event sequence plus return-value observations |
+| trace | bounded projection of the native observation stream, retaining native event/value/frame/effect identities |
 | witness | immutable reproducibility artifact with inputs, identities, output evidence, limitations, and replay recipe |
-| provenance | partial claims from exact failure identity, static dataflow, request arguments, and bounded order |
+| provenance | native value/frame/effect references plus exact source correspondence; missing scheduler/external causality remains explicit |
 | stop condition | MNCS-native semantic core's `should_stop` decision for the terminal classification |
 
 Conventional debugger operations map onto that model as follows:
@@ -68,7 +71,7 @@ Conventional debugger operations map onto that model as follows:
 breakpoint  → future stop on an event/location/condition
 watchpoint  → future stop on a state relationship change
 step        → future advance over one semantic transition
-backtrace   → current entry frame plus future runtime causal ancestry
+backtrace   → native execution-scoped frame ancestry for the bounded run
 replay      → trace inspection or bounded re-execution, with guarantees named
 why x?      → current partial static-dataflow and event-path provenance
 ```
@@ -92,6 +95,8 @@ Protocol versioning is schema-based rather than terminal-command-based:
 | `mncs.debug-provenance/1` | partial causal/dataflow claims and explicit omissions |
 | `mncs.debug-api/1` | Forge/actions/LSP machine request envelope |
 | `mncs.debug-validation/1` | validation result with no text scraping |
+| `mncs.execution-observation/1` | language/runtime-owned bounded typed execution facts carried inside a witness |
+| `mncs.execution-source-map/1` | compiler-owned source correspondence joined by operation identity |
 
 JSON schemas are in `schemas/`; the dependency-free Python validator covers
 the integrity membrane needed by the CLI. Unknown future fields are tolerated
@@ -106,51 +111,59 @@ wall-clock facts do not define semantic identities.
 
 ## Current data path
 
-`record` performs these bounded operations:
+On a current language runtime, `record` performs one bounded native observation
+operation:
 
 1. load the request JSON;
-2. invoke `mncs execute` without a shell and with an OS timeout;
-3. invoke `mncs trace`, `mncs ir`, `mncs ssa`, and, for source programs,
-   `mncs source-study` to collect structured static correspondence;
-4. invoke `native/mncs/debug/v1.mncs` through `mncs execute` to classify the
+2. invoke `mncs observe` without a shell and with an OS timeout; this returns
+   `execution-result/0.1`, `execution-observation/1`, validation, and (for a
+   valid source program) `execution-source-map/1`;
+3. invoke `native/mncs/debug/v1.mncs` through `mncs execute` to classify the
    explicit runtime status plus assertion/effect flags;
-5. normalize the result into debug events and a bounded trace; and
-6. embed bounded program/request inputs and process output evidence in a
+4. project the native stream into debug events and a bounded trace; and
+5. embed bounded program/request inputs and process output evidence in a
    content-derived witness.
 
-The four static invocations are deliberate evidence collection, not a hidden
-semantic engine. If one fails, `collection_errors` and witness limitations
-remain visible.
+The old `execute` + `trace` + `ir` + `ssa` + `source-study` sequence remains a
+compatibility fallback when `mncs observe` is unavailable. A malformed native
+observation is rejected at the debugger membrane; it is not silently
+reinterpreted as a legacy witness.
 
 ## Source-to-execution correspondence
 
-At the baseline, the strongest exact correspondence is:
+The native correspondence is now:
 
-- runtime operation/block/function identities in `execution-result/0.1`;
-- matching operation/function/block identities in HIR/SSA projections;
-- compiler and pass fingerprints from `source-study`; and
-- a source digest and heuristic function declaration location.
+```text
+source envelope identity + exact span
+        ↓ compiler
+semantic operation identity ─────┐
+        ↓ HIR/SSA semantic_identity│
+runtime operation event ─────────┘
+        ↓ runtime
+frame/value/effect references
+```
 
-The correspondence disappears at the source operation-span boundary. The
-runtime result does not contain source spans, and the source-study result
-contains compiler-study/name-resolution facts but no operation-to-span table
-that can be carried into execution. A nested-call fixture also shows that
-runtime entries retain the called operation identities while the current
-execution envelope still describes the requested wrapper function; no runtime
-call-stack frame events are emitted.
+`mncs.execution-source-map/1` is the compiler authority for declaration and
+semantic-operation spans. Synthetic operations are marked without fabricated
+locations. HIR and SSA already carry the semantic operation identity, so the
+join is identity-based rather than text/order-based. The current map is emitted
+for the source module being executed; imported-source span projection remains
+an explicit multi-source boundary until the compiler exposes source envelopes
+for linked modules in one map.
 
-`mncs-debug` therefore never claims that an operation identity maps to a source
-line. It retains `source: null` for those events and marks the declaration scan
-`heuristic`.
+`mncs-debug` therefore labels native operation locations `compiler_exact` or
+`compiler_synthetic`. The old declaration scan is retained only for legacy
+manifests and is labeled `heuristic`.
 
 ## Trace architecture and boundedness
 
-Runtime entries are retained as ordered events with explicit `sequence`, event
-identity, runtime location, payload, relationship fields, and evidence source.
-Derived function boundary events are intentionally separate from runtime
-events. Effects and failures are appended only when present. Returned values
-are preserved as selected value observations; arbitrary intermediate state is
-not guessed.
+The runtime emits one bounded observation stream. Events reference typed value,
+frame, effect, block, operation, and failure identities; the debugger projects
+that stream without inventing a second execution log. Values explicitly state
+their type, logical binding, version, observation kind, origin, and whether the
+capture is full, truncated, digest-only, or unavailable. Frames preserve nested
+and repeated calls through execution-scoped identities. Effects are represented
+as invocation/result lineage, not as a deterministic replay promise.
 
 The default bounded policy is:
 
@@ -159,11 +172,14 @@ stdout/stderr             64 KiB each, full digest retained
 embedded program/request  256 KiB each, full digest retained
 normalized trace          512 events maximum
 static functions/blocks   2,048 records maximum per projection
+runtime observation       4,096 events, 2,048 values, 64 KiB/value maximum
 ```
 
-`failure-only` and `events` are accepted capture labels for the protocol
-surface; with the current runtime, no additional intermediate event source is
-available, so they do not create data that the runtime did not emit.
+`none` and passing `failure-only` runs intentionally retain no observation.
+Failure-only capture retains the bounded stream only when the semantic run
+fails. `selected`, `bounded`, and `diagnostic` are explicit bounded policies;
+the runtime reports dropped events/values and never upgrades truncated evidence
+to complete evidence.
 
 ## Witness and replay
 
@@ -206,8 +222,8 @@ from the current runtime's status vocabulary. The Python adapter owns:
 | --- | --- | --- |
 | process creation, timeout, stdout/stderr pipes | legitimate platform/bootstrap boundary | MNCS cannot yet supervise an external compiler/runtime process or OS timeout |
 | JSON file read/write, bounded base64/text, SHA-256 | legitimate transport/artifact boundary | cross-process artifact transport is outside the current native program model |
-| HIR/SSA/source-study normalization | temporary adapter caused by identified MNCS pressure | the current runtime emits these documents but has no native library/API import surface |
-| witness queries and human/JSON projection | temporary adapter caused by identified MNCS pressure | no current in-process debugger session/value inspection API exists |
+| legacy HIR/SSA/source-study normalization | versioned compatibility fallback caused by identified MNCS pressure | older runtimes do not expose `execution-observation/1`; native witnesses do not use it |
+| witness queries and JSON projection | canonical debugger semantic consumer | `mncs-debug` interprets native facts into inspection/provenance contracts; it does not reconstruct them |
 | selected `mncs` executable | independent differential/reference witness | this campaign must consume current runtime behavior without modifying it |
 
 There is no host fallback for semantic outcome classification. If the MNCS
@@ -218,11 +234,10 @@ unestablished classification.
 
 ### mncs-language/compiler/runtime
 
-Should eventually own source spans on semantic identities, retained symbols,
-runtime frames, typed intermediate value observations, task/effect identities,
-safe suspension points, and deterministic replay primitives. These are
-runtime/compiler semantics because a debugger cannot reconstruct them reliably
-after they disappear.
+Owns exact source correspondence, semantic operation identities, runtime frames,
+typed bounded value observations, and effect/task lineage. Safe suspension,
+scheduler control, and deterministic replay remain future primitives and are
+not implied by this stream.
 
 ### mncs-debug
 
