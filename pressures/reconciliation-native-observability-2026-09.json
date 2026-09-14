@@ -2,7 +2,7 @@
   "schema_version": "mncs.debug-pressure-reconciliation/2",
   "campaign": "mncs-native-observability-2026-09",
   "baseline_revision": "d134ed702a1be5a1aae32762219b66a1e802e1d6",
-  "final_debug_revision": "aba12729257e9b624331044affd36b4a3c18691a",
+  "final_debug_revision": "178f8bfd05b9ecee6aa5edb912baa59ddcc1bfdd",
   "profile": "0.17",
   "rule": "capability landed is distinct from consumer verified; layered PASS, FAIL, UNKNOWN, INVALID, and partial evidence remain distinct",
   "pressures": [
