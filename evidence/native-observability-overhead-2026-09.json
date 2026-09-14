@@ -1,0 +1,39 @@
+{
+  "schema_version": "mncs.debug-overhead/1",
+  "campaign": "mncs-native-observability-2026-09",
+  "measurement_id": "mncs:debug:overhead:e3f7a2b9bd20828a532a96cdbd73619e9e87444c2bc7ff86d15873e10e76da20",
+  "iterations": 5,
+  "runtime_revision": "dbea90d18b28c8716ab34a8873ba308edba265f7",
+  "runtime_sha256": "94d12a17fcaba3d610b66389a62f808c0ffd9d46f3a063ba75ac8b3ead096094",
+  "fixture": "tests/fixtures/checked-add.mncs.json",
+  "medians_ms": {
+    "direct_execution": 7.547568064182997,
+    "native_observation_disabled": 7.514313096180558,
+    "native_observation_values": 7.5256661511957645,
+    "native_observation_frames": 7.5371041893959045,
+    "native_observation_effects": 7.491148076951504,
+    "native_observation_bounded": 7.517579942941666,
+    "native_observation_diagnostic": 7.4984668754041195,
+    "native_semantic_core": 264.20581713318825,
+    "legacy_static_bundle": 49.81928993947804,
+    "debug_record": 715.1551579590887
+  },
+  "p95_ms": {
+    "direct_execution": 7.560011371970177,
+    "legacy_static_bundle": 56.74674673937261,
+    "debug_record": 715.2033997699618
+  },
+  "derived": {
+    "native_bounded_minus_direct_ms": -0.02998812124133091,
+    "native_bounded_ratio": 0.9960252148679523,
+    "debug_record_minus_direct_ms": 707.6075898949057,
+    "debug_record_ratio": 94.75305845241188
+  },
+  "interpretation": "Native observation itself is near direct execution in this fixture. The remaining aggregate debug cost is dominated by native semantic-core and process/bootstrap/protocol work; it is not intrinsic event-sink cost.",
+  "bounds": {
+    "observation_events": 4096,
+    "observation_values": 2048,
+    "observation_value_bytes": 65536,
+    "debug_trace_events": 512
+  }
+}

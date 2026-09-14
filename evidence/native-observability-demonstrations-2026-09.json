@@ -1,0 +1,102 @@
+{
+  "schema_version": "mncs.debug.native-observability-evidence/1",
+  "campaign": "mncs-native-observability-2026-09",
+  "profile": "0.17",
+  "runtime": {
+    "repository": "mncs-language",
+    "revision": "dbea90d18b28c8716ab34a8873ba308edba265f7",
+    "binary_sha256": "94d12a17fcaba3d610b66389a62f808c0ffd9d46f3a063ba75ac8b3ead096094"
+  },
+  "demonstrations": {
+    "A_exact_operation_source_mapping": {
+      "status": "PASS",
+      "fixture": "examples/nested.mncs",
+      "witness_id": "mncs:debug:witness:090929520b38a06a71e761eecfcf4700633207d391f518e9e9397331b0fd4dde",
+      "observation_id": "mncs:language:observation:15165a7f1376fa37fa824c1fc3d7b15fec0c5c15528c2794f80e4ff15408bb8",
+      "source_map_id": "mncs:compiler:execution-source-map:2353e9683a05459be9c7c1fa7f5b16db87737f5d0e50ce086167d623c6149fa4",
+      "operation": "mncs:0.2:operation:examples.debug.nested::wrapper::entry::%24mncs%24call%240",
+      "source_span": {"line": 12, "column": 12, "start": 296, "end": 312},
+      "join": "runtime operation identity joined to compiler source-map identity; no operation ordering or text inference",
+      "language_service": "the same source map resolves the operation through mncs-language-service debug_binding"
+    },
+    "B_intermediate_value_provenance": {
+      "status": "PASS",
+      "fixture": "examples/nested.mncs",
+      "observation_id": "mncs:language:observation:15165a7f1376fa37fa824c1fc3d7b15fec0c5c15528c2794f80e4ff15408bb8",
+      "event_count": 16,
+      "value_count": 5,
+      "value_model": "execution-scoped identities with logical identity, type, observation kind, version, producer operation, consumer inputs, and bounded capture status",
+      "causal_example": {
+        "argument": "mncs:language:value:7a02e3b68f18a6bbaf310ffe4e6b4ab5219a51aef94eb51267d6d386eaf4cf1b",
+        "nested_argument": "mncs:language:value:e187daa62f3be804d8fb82833c1be4a2ecca3d6f4b47a59e0b86b55972d38414",
+        "intermediate_result": "mncs:language:value:24556d98e04159610169675c5153d74439b0aa579cecd3b73404ff3105df3c3c",
+        "return_value": "mncs:language:value:eab8ec29af9e502dd85853c3e69f3b7dba2f784c9f1e7abef0462d154f87d82c"
+      },
+      "remaining_boundary": "full read/write history and live watchpoints are not claimed"
+    },
+    "C_truthful_backtrace": {
+      "status": "PASS",
+      "fixture": "examples/nested.mncs",
+      "root_frame": "mncs:language:frame:93ec41d90d5564f44f20dc9a6040e8192d492ece1de4370a8f463c8d68a16c57",
+      "child_frame": "mncs:language:frame:191da4d729dac8c6b185e04771db7c4931b78ec06b305c62096481b50bef90f2",
+      "root_function": "mncs:0.2:function:examples.debug.nested::wrapper",
+      "child_function": "mncs:0.2:function:examples.debug.nested::increment",
+      "parent_relation": "child.parent = root; child.call_operation = mncs:0.2:operation:examples.debug.nested::wrapper::entry::%24mncs%24call%240",
+      "ancestry": "runtime-emitted execution-scoped frames; not reconstructed from operation namespaces"
+    },
+    "D_effect_provenance": {
+      "status": "PASS_PARTIAL",
+      "fixture": "mncs-language/examples/executable/effectful-record.mncs.json",
+      "observation_id": "mncs:language:observation:af2fd97266a40e88f197bb76482dbe752a48dd2a6bfec71b788493c9fe167cd4",
+      "effect_id": "mncs:language:effect:eebe12b267799cf12a0e2e3f214748e523e371ffb57e63bc16a5619997b9e805",
+      "event_kinds": ["effect_invoke", "effect_result"],
+      "effect": {
+        "operation": "mncs:0.2:operation:Examples.Executable::record::entry::write",
+        "frame": "mncs:language:frame:fa15cb4853d6838080175c0ba9dbf16b37bd02dc705e4fd3d478d955d5867d52",
+        "kind": "write",
+        "target": "Store.value",
+        "capability": "StoreMutation",
+        "replayability": "lineage_only",
+        "status": "realized_or_recorded"
+      },
+      "remaining_boundary": "this fixture has no input/result value references; task ancestry, environment capture, and deterministic replay remain unsupported"
+    },
+    "E_test_to_deep_debug": {
+      "status": "PASS",
+      "provider": "mncs-test",
+      "test_result_schema": "mncs.test-result/1",
+      "test_run_id": "f04160769219fb6182bc4e02299afe7ba20f6b4a10c2f4f55c2eda73363ac29a",
+      "test_id": "mncs:0.2:test-case:tests.first_class_failing::failing_assertion::6a50c9e4ddda30c8e1f9e6c69f572885548f5022def1e7995a8fcadb9792a48b",
+      "test_execution_identity": "mncs:language:experiment-run:f04160769219fb6182bc4e02299afe7ba20f6b4a10c2f4f55c2eda73363ac29a:execution:85033a4fde3921c744063d6a28d9fc215dcd4a7b6f904a5bcc281f9d0b79f465",
+      "verdict": "FAIL",
+      "requested_capture": "failure-only",
+      "effective_capture": "bounded",
+      "witness_id": "mncs:debug:witness:5cb7090df2016e5323823d95693c707cd17bdca2e6cc8a97667bca718a6e32f1",
+      "observation_id": "mncs:language:observation:91d131b092aad2da6c8b8d5476e49a0a0b13ba016c9be4433c760f008df32d95",
+      "source_map_id": "mncs:compiler:execution-source-map:f7ae8347209452179931d6f040cc4f72c7ac35af5aab30908cefee0831ee34d5",
+      "observation_completeness": {"status": "complete", "events": 52, "values": 22, "frames": 3, "effects": 0},
+      "oracle_authority": "mncs-test; assertion FAIL is not rewritten by mncs-debug",
+      "debug_queries": ["trace", "inspect", "why/value-origin", "backtrace"]
+    },
+    "F_forge_diagnosis": {
+      "status": "PASS",
+      "consumer_repository": "mncs-forge-mcp",
+      "consumer_revision": "3aa93ee15a057932e12aaccd1133101e9a2c9209",
+      "test": "tests/test_mncs_development.py::test_failure_loop_preserves_lineage_and_verifies_exact_repair",
+      "facts": ["mncs.execution-observation/1", "mncs.execution-source-map/1", "native frame/value references", "bounded repair and canonical verification"],
+      "semantic_boundary": "Forge projects provider facts into diagnosis; it does not reconstruct dataflow or parse terminal output"
+    }
+  },
+  "identity_rules": {
+    "semantic_execution": "request/program/source identities do not include capture policy",
+    "observation": "capture policy, bounds, native event/value/frame/effect content form a separate observation identity",
+    "debug_witness": "references test execution, observation, source map, trace, receipts, and provenance without taking ownership of test verdict"
+  },
+  "limitations": [
+    "safe suspension and resume are unsupported",
+    "deterministic scheduler/effect/environment replay is unsupported",
+    "task ancestry is unavailable in the current reference executor",
+    "full value read/write history and watchpoints are unsupported",
+    "JSON executable artifacts without source input have no compiler source map"
+  ]
+}
