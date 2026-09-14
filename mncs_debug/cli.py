@@ -89,8 +89,20 @@ def _build_parser() -> argparse.ArgumentParser:
         command.add_argument("program", help="MNCS source or semantic program manifest")
         command.add_argument("request", help="execution request JSON")
         _add_runtime_options(command)
-        command.add_argument("--capture", choices=("failure-only", "bounded", "events"), default="bounded")
+        command.add_argument(
+            "--capture",
+            choices=("failure-only", "selected", "bounded", "diagnostic", "events"),
+            default="bounded",
+        )
         command.add_argument("--max-events", type=int, default=512)
+        command.add_argument("--max-values", type=int, default=1024)
+        command.add_argument("--max-value-bytes", type=int, default=4096)
+        command.add_argument(
+            "--operation",
+            action="append",
+            default=[],
+            help="semantic operation identity for selected capture; may be repeated",
+        )
         command.add_argument("--test-result", help="optional pinned mncs.test-result/1 document")
         command.add_argument("--output", help="write witness JSON to this path")
         command.add_argument("--format", choices=("json", "text"), default="json")
@@ -151,8 +163,20 @@ def _build_parser() -> argparse.ArgumentParser:
     import_test.add_argument("result", help="mncs.test-result/1 JSON")
     import_test.add_argument("--test-id")
     _add_runtime_options(import_test)
-    import_test.add_argument("--capture", choices=("failure-only", "bounded", "events"), default="bounded")
+    import_test.add_argument(
+        "--capture",
+        choices=("failure-only", "selected", "bounded", "diagnostic", "events"),
+        default="bounded",
+    )
     import_test.add_argument("--max-events", type=int, default=512)
+    import_test.add_argument("--max-values", type=int, default=1024)
+    import_test.add_argument("--max-value-bytes", type=int, default=4096)
+    import_test.add_argument(
+        "--operation",
+        action="append",
+        default=[],
+        help="semantic operation identity for selected capture; may be repeated",
+    )
     import_test.add_argument("--output")
     import_test.add_argument("--format", choices=("json", "text"), default="json")
 
@@ -211,6 +235,12 @@ def _cmd_record(args: argparse.Namespace) -> int:
     test_result = load_json(_path(args.test_result)) if args.test_result else None
     if args.max_events < 1 or args.max_events > 512:
         raise ValueError("--max-events must be between 1 and 512")
+    if args.max_values < 0 or args.max_values > 2048:
+        raise ValueError("--max-values must be between 0 and 2048")
+    if args.max_value_bytes < 0 or args.max_value_bytes > 65536:
+        raise ValueError("--max-value-bytes must be between 0 and 65536")
+    if args.capture == "selected" and not args.operation:
+        raise ValueError("--capture selected requires at least one --operation")
     witness = build_witness(
         mncs_path=runtime,
         program_path=program,
@@ -219,6 +249,9 @@ def _cmd_record(args: argparse.Namespace) -> int:
         timeout_seconds=args.timeout,
         capture_policy=args.capture,
         max_events=args.max_events,
+        max_values=args.max_values,
+        max_value_bytes=args.max_value_bytes,
+        selected_operations=args.operation,
         test_result=test_result,
         core_path=_path(args.core) if args.core else None,
         library_paths=[_path(path) for path in args.library],
@@ -391,6 +424,14 @@ def _cmd_import_test(args: argparse.Namespace) -> int:
     if not isinstance(request_value, dict):
         raise ValueError("selected test has no embedded execution request; future mncs-test must supply one")
     _validate_execution_request(request_value)
+    if args.max_events < 1 or args.max_events > 512:
+        raise ValueError("--max-events must be between 1 and 512")
+    if args.max_values < 0 or args.max_values > 2048:
+        raise ValueError("--max-values must be between 0 and 2048")
+    if args.max_value_bytes < 0 or args.max_value_bytes > 65536:
+        raise ValueError("--max-value-bytes must be between 0 and 65536")
+    if args.capture == "selected" and not args.operation:
+        raise ValueError("--capture selected requires at least one --operation")
     with tempfile.TemporaryDirectory(prefix="mncs-debug-test-import-") as directory:
         request_path = Path(directory) / "request.json"
         request_path.write_text(json.dumps(request_value), encoding="utf-8")
@@ -408,6 +449,9 @@ def _cmd_import_test(args: argparse.Namespace) -> int:
             timeout_seconds=args.timeout,
             capture_policy=args.capture,
             max_events=args.max_events,
+            max_values=args.max_values,
+            max_value_bytes=args.max_value_bytes,
+            selected_operations=args.operation,
             test_result=selected_result,
             core_path=_path(args.core) if args.core else None,
             library_paths=[_path(path) for path in args.library],
@@ -453,6 +497,10 @@ def _api_one(request: dict[str, Any]) -> dict[str, Any]:
         return make_session(witness)
     if operation == "inspect":
         return inspect_witness(witness, event_id=request.get("event_id"))
+    if operation in {"frames", "backtrace"}:
+        document = inspect_witness(witness, event_id=request.get("event_id"))
+        document["projection"] = "backtrace"
+        return document
     if operation == "trace":
         limit = int(request.get("limit", 256))
         if not 1 <= limit <= 512:
@@ -466,6 +514,36 @@ def _api_one(request: dict[str, Any]) -> dict[str, Any]:
         )
     if operation == "why":
         return provenance_query(witness, question=request.get("question"), value=request.get("value"), operation=request.get("operation_identity"))
+    if operation in {"inspect-value", "value-origin"}:
+        value = request.get("value")
+        if not isinstance(value, str) or not value:
+            raise ValueError(f"{operation} requires a value identity")
+        document = provenance_query(witness, question=request.get("question"), value=value)
+        document["projection"] = "value-origin"
+        return document
+    if operation == "effect-provenance":
+        effect = request.get("effect_identity")
+        if not isinstance(effect, str) or not effect:
+            raise ValueError("effect-provenance requires an effect identity")
+        observation = witness.get("runtime", {}).get("observation", {}) if isinstance(witness.get("runtime"), dict) else {}
+        effect_item = next(
+            (
+                item
+                for item in observation.get("effects", [])
+                if isinstance(item, dict) and item.get("identity") == effect
+            ),
+            None,
+        ) if isinstance(observation, dict) else None
+        if effect_item is None:
+            raise ValueError(f"effect identity is not present in the witness: {effect}")
+        document = provenance_query(
+            witness,
+            question=request.get("question") or f"effect {effect}",
+            operation=effect_item.get("operation"),
+        )
+        document["projection"] = "effect-provenance"
+        document["target"]["effect"] = effect
+        return document
     if operation == "replay":
         if request.get("mode", "trace") == "trace":
             return replay_trace(witness)

@@ -17,6 +17,12 @@ def capability_document(*, runtime_path: str | None = None, runtime_digest: str 
             "evidence": "mncs execution-result/0.1 exposes status, identities, bounded trace, and effects",
         },
         {
+            "id": "native_bounded_execution_observation",
+            "state": "supported",
+            "owner": "mncs-language/runtime",
+            "evidence": "mncs.execution-observation/1 is emitted beside the unchanged execution-result/0.1 with explicit capture bounds",
+        },
+        {
             "id": "bounded_semantic_trace",
             "state": "supported",
             "owner": "mncs-debug",
@@ -24,15 +30,21 @@ def capability_document(*, runtime_path: str | None = None, runtime_digest: str 
         },
         {
             "id": "function_entry_exit",
-            "state": "emulated",
-            "owner": "mncs-debug",
-            "evidence": "derived boundary events are added around one requested function; runtime call-stack events are absent",
+            "state": "supported",
+            "owner": "mncs-language/runtime",
+            "evidence": "execution-scoped frame_enter/frame_exit events preserve nested parent and call-operation identities",
         },
         {
             "id": "source_function_location",
-            "state": "partially_supported",
-            "owner": "mncs-debug/compiler",
-            "evidence": "function declaration locations can be found; operation/source-span bindings are not retained in execution artifacts",
+            "state": "supported",
+            "owner": "mncs-language/compiler",
+            "evidence": "mncs.execution-source-map/1 carries compiler-owned declaration and semantic operation source spans",
+        },
+        {
+            "id": "source_operation_location",
+            "state": "supported",
+            "owner": "mncs-language/compiler",
+            "evidence": "runtime operation identities join exact lowered semantic operation spans without order or text inference",
         },
         {
             "id": "compiler_pass_provenance",
@@ -42,21 +54,21 @@ def capability_document(*, runtime_path: str | None = None, runtime_digest: str 
         },
         {
             "id": "return_value_inspection",
-            "state": "partially_supported",
-            "owner": "mncs-debug/runtime",
-            "evidence": "arguments and returned values are structured; intermediate runtime values are not emitted",
+            "state": "supported",
+            "owner": "mncs-language/runtime",
+            "evidence": "bounded typed value observations retain argument and operation-result identities, versions, and explicit full/truncated/digest captures",
         },
         {
             "id": "frames",
-            "state": "partially_supported",
+            "state": "supported",
             "owner": "mncs-language/runtime",
-            "evidence": "the requested entry frame is known; nested runtime frames are not exposed",
+            "evidence": "nested and repeated calls emit execution-scoped frame identities with parent and call-operation relationships",
         },
         {
             "id": "effects",
             "state": "partially_supported",
             "owner": "mncs-language/runtime",
-            "evidence": "effect kind/target/capability and optional grant provenance are exposed; causal input/value lineage is not",
+            "evidence": "effect invocation/result observations retain frame, input value, result value, capability and grant provenance; external environment replay remains outside the contract",
         },
         {
             "id": "runtime_failure_localization",
@@ -104,7 +116,7 @@ def capability_document(*, runtime_path: str | None = None, runtime_digest: str 
             "id": "watchpoints",
             "state": "unsupported",
             "owner": "mncs-language/runtime",
-            "evidence": "intermediate state writes and value-change events are not observable",
+            "evidence": "native value versions and writes are inspectable after a bounded run, but the runtime has no safe suspension or stop-condition API",
         },
         {
             "id": "expression_evaluation",

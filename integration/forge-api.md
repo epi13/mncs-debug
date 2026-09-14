@@ -12,8 +12,11 @@ parse a human summary.
 | `capabilities` | optional runtime selection | `mncs.debug-capabilities/1` |
 | `open` | witness path or inline witness | `mncs.debug-session/1` |
 | `inspect` | witness plus optional event ID | `mncs.debug-inspection/1` |
+| `frames` / `backtrace` | witness plus optional event ID | native execution-scoped frame projection |
 | `trace` | witness plus kind/operation/range | `mncs.debug-trace/1` |
 | `why` | witness plus operation/value/question | `mncs.debug-provenance/1` |
+| `inspect-value` / `value-origin` | witness plus native value identity | value capture and origin chain in `mncs.debug-provenance/1` |
+| `effect-provenance` | witness plus native effect identity | invocation/result lineage in `mncs.debug-provenance/1` |
 | `replay` | witness plus `trace` or `reexecute` mode | `mncs.debug-replay/1` |
 | `minimize` | witness plus bounded attempt count | `mncs.debug-minimization/1` |
 
@@ -25,4 +28,5 @@ must not be promoted to a successful conclusion by the provider.
 The current API has no live session token, stop request, evaluate operation,
 or scheduler control because the runtime cannot support those semantics. Those
 operations must be added only with a corresponding capability and evidence
-contract.
+contract. Native backtrace/value/effect queries are terminal projections over
+the bounded observation stream; they do not imply suspension or watchpoints.

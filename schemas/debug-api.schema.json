@@ -7,7 +7,7 @@
   "properties": {
     "schema_version": {"const": "mncs.debug-api/1"},
     "protocol_version": {"const": 1},
-    "operation": {"enum": ["capabilities", "open", "inspect", "trace", "why", "replay", "minimize"]},
+    "operation": {"enum": ["capabilities", "open", "inspect", "frames", "backtrace", "trace", "why", "inspect-value", "value-origin", "effect-provenance", "replay", "minimize"]},
     "witness": {},
     "event_id": {"type": "string"},
     "operation_identity": {"type": "string"},

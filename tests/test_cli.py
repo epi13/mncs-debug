@@ -61,7 +61,27 @@ class RuntimeCliTests(unittest.TestCase):
             self.assertEqual(validate_witness_integrity(failure), [])
             self.assertEqual(
                 {event["kind"] for event in success["trace"]["events"]},
-                {"function_entry", "block_enter", "semantic_operation", "state_transition", "function_exit"},
+                {
+                    "execution_entry",
+                    "function_entry",
+                    "block_enter",
+                    "semantic_operation",
+                    "operation_result",
+                    "return",
+                    "function_exit",
+                    "execution_exit",
+                },
+            )
+            self.assertEqual(
+                [event["kind"] for event in failure["trace"]["events"]].count("failure"),
+                1,
+            )
+            self.assertTrue(
+                all(
+                    event.get("payload", {}).get("native_event", {}).get("status") != "invalid_request"
+                    for event in success["trace"]["events"]
+                    if event["kind"] == "operation_result"
+                )
             )
             self.assertTrue(failure["outcome"]["native_decision"]["should_stop"])
             self.assertEqual(self.run_cli("validate", str(failure_path)).returncode, 0)
@@ -71,7 +91,7 @@ class RuntimeCliTests(unittest.TestCase):
             trace = json.loads(self.run_cli("trace", str(failure_path), "--kind", "failure").stdout)
             self.assertEqual([event["kind"] for event in trace["events"]], ["failure"])
             why = json.loads(self.run_cli("why", str(failure_path)).stdout)
-            self.assertEqual(why["completeness"]["status"], "partial")
+            self.assertEqual(why["completeness"]["status"], "complete")
             self.assertTrue(any(claim["kind"] == "operation_identity" for claim in why["claims"]))
 
             trace_replay = json.loads(self.run_cli("replay", str(failure_path), "--mode", "trace").stdout)
@@ -94,7 +114,13 @@ class RuntimeCliTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             witness = _json(witness_path)
             self.assertEqual({item["name"] for item in witness["static"]["functions"]}, {"wrapper", "increment"})
-            self.assertEqual(witness["static"]["source"]["function_locations"]["wrapper"]["confidence"], "heuristic")
+            self.assertEqual(witness["static"]["source"]["function_locations"]["wrapper"]["confidence"], "compiler_exact")
+            self.assertEqual(witness["static"]["source"]["source_map_schema"], "mncs.execution-source-map/1")
+            self.assertEqual(witness["trace"]["completeness"]["source_locations"], "compiler_execution_source_map")
+            self.assertEqual(len(witness["trace"]["frame_observations"]), 2)
+            child = next(frame for frame in witness["trace"]["frame_observations"] if frame.get("parent"))
+            self.assertTrue(child["call_operation"])
+            self.assertTrue(any(value.get("origin") for value in witness["trace"]["value_observations"]))
             self.assertTrue(
                 any(
                     "increment" in (event.get("location", {}).get("runtime", {}).get("operation") or "")
@@ -119,6 +145,99 @@ class RuntimeCliTests(unittest.TestCase):
             self.assertEqual(minimize.returncode, 0, minimize.stderr)
             self.assertIn(_json(report_path)["status"], {"no_reduction", "reduced"})
             self.assertEqual(validate_witness_integrity(_json(reduced_path)), [])
+
+    def test_native_backtrace_value_origin_and_source_operation_api(self) -> None:
+        nested_program = ROOT / "examples/nested.mncs"
+        nested_request = ROOT / "examples/nested-request.json"
+        with tempfile.TemporaryDirectory(prefix="mncs-debug-native-api-" ) as directory:
+            witness_path = Path(directory) / "nested.json"
+            result = self.run_cli("record", str(nested_program), str(nested_request), "--output", str(witness_path))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            witness = _json(witness_path)
+            value = next(item["value_id"] for item in witness["trace"]["value_observations"] if item.get("origin"))
+            operation = next(
+                event["location"]["runtime"]["operation"]
+                for event in witness["trace"]["events"]
+                if event["kind"] == "operation_result" and event["location"]["runtime"].get("operation")
+            )
+
+            def api(request: dict) -> dict:
+                response = self.run_cli("api", "--stdio", input_text=json.dumps(request) + "\n")
+                self.assertEqual(response.returncode, 0, response.stderr)
+                return json.loads(response.stdout)
+
+            backtrace = api(
+                {
+                    "schema_version": "mncs.debug-api/1",
+                    "protocol_version": 1,
+                    "operation": "backtrace",
+                    "witness": str(witness_path),
+                }
+            )
+            self.assertEqual(backtrace["projection"], "backtrace")
+            self.assertEqual(len(backtrace["frames"]), 2)
+            self.assertTrue(backtrace["frames"][1]["parent_frame"])
+
+            origin = api(
+                {
+                    "schema_version": "mncs.debug-api/1",
+                    "protocol_version": 1,
+                    "operation": "value-origin",
+                    "witness": str(witness_path),
+                    "value": value,
+                }
+            )
+            self.assertEqual(origin["projection"], "value-origin")
+            self.assertTrue(any(claim["kind"] == "value_origin_chain" for claim in origin["claims"]))
+            self.assertEqual(origin["completeness"]["status"], "complete")
+
+            source_operation = api(
+                {
+                    "schema_version": "mncs.debug-api/1",
+                    "protocol_version": 1,
+                    "operation": "why",
+                    "witness": str(witness_path),
+                    "operation_identity": operation,
+                }
+            )
+            operation_claim = next(
+                claim for claim in source_operation["claims"] if claim["kind"] == "operation_identity"
+            )
+            self.assertEqual(operation_claim["operation"]["source_correspondence"]["confidence"], "compiler_exact")
+
+            selected_path = Path(directory) / "selected.json"
+            selected = self.run_cli(
+                "record",
+                str(nested_program),
+                str(nested_request),
+                "--capture",
+                "selected",
+                "--operation",
+                operation,
+                "--max-value-bytes",
+                "1",
+                "--output",
+                str(selected_path),
+            )
+            self.assertEqual(selected.returncode, 0, selected.stderr)
+            selected_witness = _json(selected_path)
+            self.assertEqual(
+                selected_witness["runtime"]["observation"]["policy"]["capture"],
+                "selected",
+            )
+            self.assertTrue(
+                all(
+                    event["operation"] == operation
+                    or event["kind"] in {"operation_result", "semantic_operation"}
+                    for event in selected_witness["runtime"]["observation"]["events"]
+                )
+            )
+            self.assertTrue(
+                any(
+                    value["capture"]["kind"] != "full"
+                    for value in selected_witness["runtime"]["observation"]["values"]
+                )
+            )
 
     def test_compile_failure_is_structured_and_replayable_as_compile_failure(self) -> None:
         with tempfile.TemporaryDirectory(prefix="mncs-debug-compile-test-") as directory:

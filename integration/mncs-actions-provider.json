@@ -6,7 +6,13 @@
   "purpose": "transport a structured MNCS debug session through action receipts and evidence manifests",
   "input": {
     "one_of": ["program_and_request", "mncs.test-result/1 artifact"],
-    "capture_policy": ["failure-only", "bounded", "events"],
+    "capture_policy": ["failure-only", "selected", "bounded", "diagnostic", "events"],
+    "capture_bounds": {
+      "max_events": "1..512",
+      "max_values": "0..2048",
+      "max_value_bytes": "0..65536"
+    },
+    "selected_operations": "required when capture_policy=selected; repeatable semantic operation identities",
     "timeout_seconds": "bounded positive number",
     "capability_requirements": "optional list of capability ids"
   },
@@ -14,8 +20,13 @@
     "capabilities",
     "record",
     "inspect",
+    "frames",
+    "backtrace",
     "trace",
     "why",
+    "inspect-value",
+    "value-origin",
+    "effect-provenance",
     "replay",
     "minimize"
   ],
@@ -35,6 +46,10 @@
     "debug_witness": "mncs.debug-witness/1",
     "debug_trace": "mncs.debug-trace/1",
     "debug_replay": "mncs.debug-replay/1",
+    "debug_inspection": "mncs.debug-inspection/1",
+    "debug_provenance": "mncs.debug-provenance/1",
+    "execution_observation": "mncs.execution-observation/1",
+    "execution_source_map": "mncs.execution-source-map/1",
     "execution_receipt": "mncs.execution-receipt/1",
     "evidence_manifest": "mncs.evidence-manifest/1"
   },

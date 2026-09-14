@@ -79,9 +79,10 @@ evidence is UNKNOWN and never becomes a confident diagnosis.
 
 The lower-level `mncs-debug api --stdio` remains available for provider clients
 that want one JSONL request/response membrane. It exposes `capabilities`,
-`open`, `inspect`, `trace`, `why`, `replay`, and `minimize` without claiming
-unsupported live suspension, watchpoints, expression evaluation, or
-deterministic effect replay.
+`open`, `inspect`, `frames`/`backtrace`, `trace`, `why`,
+`inspect-value`/`value-origin`, `effect-provenance`, `replay`, and `minimize`
+without claiming unsupported live suspension, watchpoints, expression
+evaluation, task ancestry, or deterministic effect replay.
 
 ## LSP/source binding
 
@@ -89,6 +90,7 @@ deterministic effect replay.
 revision, URI/path, module/function/test identity, source span coordinate
 encoding, runtime operation identity, and binding status. Compiler-inventory
 declaration spans are exact and are carried through the test/debug lineage.
-Runtime operation spans and live breakpoint resolution remain unavailable;
+Runtime operation spans now resolve through the compiler-owned source map for
+the compiled source module. Live breakpoint execution remains unavailable;
 clients must display that capability state rather than infer a location from
 source text.
