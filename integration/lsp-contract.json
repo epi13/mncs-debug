@@ -1,16 +1,20 @@
 {
   "schema_version": "mncs.debug-lsp-contract/1",
-  "status": "local-contract-not-implemented",
+  "status": "shared-vocabulary-partially-implemented",
   "debugger": "mncs-debug",
   "source_binding": {
     "required": [
       "source_identity",
       "source_revision",
       "uri_or_path",
+      "module_identity",
       "function_identity",
+      "test_case_identity",
       "symbol",
       "span",
       "coordinate_encoding",
+      "runtime_operation_identity",
+      "failure_identity",
       "binding_status"
     ],
     "coordinate_encoding": ["utf-8-byte", "utf-16-code-unit"],
@@ -26,5 +30,6 @@
       "output": "mncs.debug-inspection/1 or mncs.debug-provenance/1"
     }
   },
-  "current_limitation": "mncs-language execution artifacts retain semantic identities but not operation source spans; mncs-debug must not infer them from text."
+  "current_implementation": "mncs-test compiler-inventory spans and debug test_execution identities use this vocabulary; language-service clients may project exact declaration locations from the same fields.",
+  "current_limitation": "mncs-language execution artifacts retain semantic identities but not operation source spans; mncs-debug must not infer them from text. Live breakpoint resolution remains unavailable."
 }

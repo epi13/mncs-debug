@@ -1,7 +1,7 @@
 {
   "id": "MNCS-DEBUG-P-005",
   "title": "The runtime has no deterministic scheduler/effect/environment capture",
-  "status": "open",
+  "status": "reviewed",
   "severity": "critical",
   "owner_layer_candidate": "mncs-language/runtime",
   "pinned_revisions": {
@@ -30,5 +30,6 @@
   "tests_evidence": ["replay trace and reexecute demonstrations", "deterministic replay returns blocked", "capabilities deterministic_replay=unsupported"],
   "affected_files_or_modules": ["mncs-language/runtime scheduler/effects", "RAVEL runtime boundary", "mncs-debug replay protocol"],
   "dependencies_on_other_pressures": ["MNCS-DEBUG-P-004", "MNCS-DEBUG-P-011"],
-  "resolution_criteria": "A nondeterministic fixture has a replay recipe that records all relevant choices/effects and a runtime replay mode that proves compatibility rather than merely matching a result digest."
+  "resolution_criteria": "A nondeterministic fixture has a replay recipe that records all relevant choices/effects and a runtime replay mode that proves compatibility rather than merely matching a result digest.",
+  "campaign_review": {"classification": "STILL_OPEN", "canonical_record": "MNCS-RUNTIME-6382A1A44458", "reproducer_status": "FAIL", "evidence": "evidence/campaign-demonstrations.json", "disposition": "Trace replay and bounded re-execution are honest; deterministic replay remains blocked by missing scheduler/effect/environment capture.", "workaround": "Label same-request re-execution as reproduced/mismatch and never deterministic."}
 }

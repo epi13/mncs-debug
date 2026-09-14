@@ -1,7 +1,7 @@
 {
   "id": "MNCS-DEBUG-P-009",
   "title": "Compile diagnostics do not yet form a stable debugger failure artifact",
-  "status": "open",
+  "status": "reviewed",
   "severity": "medium",
   "owner_layer_candidate": "mncs-language/compiler",
   "pinned_revisions": {
@@ -30,5 +30,6 @@
   "tests_evidence": ["process artifact fields in witness", "native core compile branch fixture", "capabilities and local pressure ledger"],
   "affected_files_or_modules": ["mncs-language compiler diagnostics", "mncs-compiler validation boundary", "mncs-debug outcome adapter"],
   "dependencies_on_other_pressures": ["MNCS-DEBUG-P-002"],
-  "resolution_criteria": "An invalid source produces a structured compiler failure artifact that the debugger can validate and inspect without parsing terminal prose."
+  "resolution_criteria": "An invalid source produces a structured compiler failure artifact that the debugger can validate and inspect without parsing terminal prose.",
+  "campaign_review": {"classification": "RESOLVED", "canonical_record": "MNCS-COMPILER-94428E41EEAC", "reproducer_status": "PASS", "evidence": "evidence/campaign-demonstrations.json", "disposition": "The invalid-effect fixture produces structured compiler validation and compile_failure witness evidence without terminal diagnostic parsing.", "workaround": "not_needed"}
 }

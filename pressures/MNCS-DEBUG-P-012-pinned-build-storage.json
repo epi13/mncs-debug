@@ -1,7 +1,7 @@
 {
   "id": "MNCS-DEBUG-P-012",
   "title": "Pinned reference-runtime rebuild exceeded available workspace quota",
-  "status": "observed-operational-boundary",
+  "status": "reviewed",
   "severity": "medium",
   "owner_layer_candidate": "operating-system/platform boundary",
   "pinned_revisions": {
@@ -29,5 +29,6 @@
   "tests_evidence": ["campaign build attempt log", "witness compiler.binary_sha256 and observed_checkout_revision", "docs/campaign-report.md"],
   "affected_files_or_modules": ["workspace/toolchain storage", "mncs-debug witness provenance"],
   "dependencies_on_other_pressures": [],
-  "resolution_criteria": "A clean build or signed artifact for the exact pinned runtime is available and its digest is recorded before a future campaign compares semantic behavior."
+  "resolution_criteria": "A clean build or signed artifact for the exact pinned runtime is available and its digest is recorded before a future campaign compares semantic behavior.",
+  "campaign_review": {"classification": "PLATFORM_BOUNDARY", "canonical_record": "MNCS-TOOLING-14E88C1C7431", "reproducer_status": "UNKNOWN", "evidence": "docs/baseline/revisions.json", "disposition": "Workspace quota prevents the pinned rebuild; this is an operational boundary and is deferred rather than resolved.", "workaround": "Keep observed binary digest/revision distinct from pinned source revision."}
 }

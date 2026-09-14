@@ -1,7 +1,7 @@
 {
   "id": "MNCS-DEBUG-P-003",
   "title": "Nested calls expose identities but not runtime frames",
-  "status": "open",
+  "status": "reviewed",
   "severity": "high",
   "owner_layer_candidate": "mncs-language/runtime",
   "pinned_revisions": {
@@ -31,5 +31,6 @@
   "tests_evidence": ["examples/nested.mncs", "evidence/campaign-demonstrations.json task-lifecycle observation", "witness.trace completeness.frames", "capabilities frames=partially_supported"],
   "affected_files_or_modules": ["mncs-language executor", "runtime value/frame representation", "mncs-debug inspection/provenance"],
   "dependencies_on_other_pressures": ["MNCS-DEBUG-P-002", "MNCS-DEBUG-P-004"],
-  "resolution_criteria": "A nested-call fixture returns exact frame-enter/frame-exit/call relationships and `inspect` can produce a truthful backtrace with no text inference."
+  "resolution_criteria": "A nested-call fixture returns exact frame-enter/frame-exit/call relationships and `inspect` can produce a truthful backtrace with no text inference.",
+  "campaign_review": {"classification": "PARTIALLY_RESOLVED", "canonical_record": "MNCS-RUNTIME-D5179B1A5E9D", "reproducer_status": "FAIL", "evidence": "evidence/campaign-demonstrations.json", "disposition": "Static nested-call correspondence is verified, but it is not a runtime frame/task ancestry contract.", "workaround": "Expose ordered block events and function identities as partial correspondence only."}
 }

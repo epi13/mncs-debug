@@ -22,7 +22,21 @@
     "replay": {"type": "object"},
     "capabilities": {"$ref": "debug-capabilities.schema.json"},
     "provenance": {"type": "object"},
-    "integration": {"type": "object"},
+    "integration": {
+      "type": "object",
+      "properties": {
+        "kind": {"type": "string"},
+        "schema_version": {"const": "mncs.test-result/1"},
+        "provider": {"const": "mncs-test"},
+        "run_id": {"type": "string"},
+        "test_id": {"type": "string"},
+        "test_result_reference": {"type": "object"},
+        "test_execution": {"type": "object"},
+        "request": {"type": "object"},
+        "sha256": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
     "limitations": {"type": "array", "items": {"type": "string"}}
   },
   "additionalProperties": true

@@ -1,7 +1,7 @@
 {
   "id": "MNCS-DEBUG-P-008",
   "title": "LSP integration lacks an exact debug source-binding contract",
-  "status": "open",
+  "status": "reviewed",
   "severity": "high",
   "owner_layer_candidate": "LSP/compiler",
   "pinned_revisions": {
@@ -31,5 +31,6 @@
   "tests_evidence": ["integration/lsp-contract.json", "examples/nested witness source locations", "docs/architecture.md"],
   "affected_files_or_modules": ["mncs-language-service", "compiler source map", "mncs-debug event location"],
   "dependencies_on_other_pressures": ["MNCS-DEBUG-P-002"],
-  "resolution_criteria": "The LSP can resolve a source span to an exact semantic identity and `mncs-debug` can return that same binding in trace/inspection output."
+  "resolution_criteria": "The LSP can resolve a source span to an exact semantic identity and `mncs-debug` can return that same binding in trace/inspection output.",
+  "campaign_review": {"classification": "PARTIALLY_RESOLVED", "canonical_record": "MNCS-TOOLING-673C8430E951", "reproducer_status": "UNKNOWN", "evidence": "integration/lsp-contract.json", "disposition": "Shared source/module/function/test/span vocabulary is explicit; language-service runtime-operation binding and breakpoint resolution remain unverified.", "workaround": "Project exact declaration spans and show derived/unavailable binding status."}
 }

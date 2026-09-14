@@ -185,6 +185,12 @@ class RuntimeCliTests(unittest.TestCase):
             self.assertEqual(witness["outcome"]["failure_class"], "test_failure")
             self.assertEqual(witness["outcome"]["native_decision"]["outcome"], "assertion_failure")
             self.assertEqual(witness["integration"]["test_id"], "checked-add-assertion")
+            self.assertNotIn("test_case_identity", witness["integration"]["test_execution"])
+            self.assertEqual(
+                witness["integration"]["request"]["embedding"]["sha256"],
+                witness["request"]["sha256"],
+            )
+            self.assertEqual(witness["integration"]["test_result_reference"]["kind"], "mncs-test-result")
             replay = self.run_cli("replay", str(witness_path), "--mode", "reexecute")
             self.assertEqual(replay.returncode, 1)
             self.assertEqual(json.loads(replay.stdout)["status"], "blocked")

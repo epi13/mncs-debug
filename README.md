@@ -147,11 +147,13 @@ is required for semantic rechecking.
 
 ## `mncs-test` integration
 
-`import-test` consumes the pinned `mncs.test-result/1` shape and selects a
-failed test's embedded execution request. It preserves the complete selected
-result under `integration.result`, records its digest, and adds the debugger
-witness around the request-level execution evidence. It does not redefine
-verdict, test selection, or assertion semantics.
+`import-test` consumes the canonical `mncs.test-result/1` shape and selects a
+failed test's structured execution request. It preserves the complete selected
+result under `integration.result`, records a `test_result_reference`, and adds
+the debugger witness around request-level execution evidence. The test
+provider now emits a canonical request, request artifact digest, source span,
+and execution/declaration/subject/observation/oracle lineage. It does not
+redefine verdict, test selection, or assertion semantics.
 
 The current baseline can supply a request for ordinary native tests. If a
 future test provider omits the request or source reference, `mncs-debug` rejects
@@ -161,21 +163,21 @@ command from prose. The local mapping is documented in
 
 ## Actions, Forge, and LSP boundaries
 
-No sibling repository is changed by this campaign.
-
 - [`integration/mncs-actions-provider.json`](integration/mncs-actions-provider.json)
-  is a local, data-only future provider descriptor. It projects witnesses,
-  traces, replay reports, and artifact digests into the existing actions
-  receipt/evidence vocabulary; it is not registered remotely yet.
+  is the registered provider descriptor. `mncs-actions/actions/mncs-debug`
+  projects witnesses, traces, replay reports, and artifact digests into the
+  existing receipt/evidence vocabulary without taking debugger semantic
+  authority.
 - [`integration/forge-api.md`](integration/forge-api.md) defines the
   `mncs.debug-api/1` operations Forge can call without scraping text.
 - [`integration/lsp-contract.json`](integration/lsp-contract.json) records the
   source identity, symbol, span, and breakpoint-resolution fields a future LSP
   bridge will need.
 
-Forge should orchestrate and reason over these facts. It should not need to
-invent stop semantics, parse terminal output, or embed an AI planner in this
-repository.
+Forge now exposes a structured `development.mncs.failure-loop` operation that
+orchestrates these facts, preserves PASS/FAIL/UNKNOWN distinctions, and can
+stage one bounded exact repair before a canonical test verification run. It
+does not invent stop semantics or parse terminal output.
 
 ## Bootstrap and self-hosting
 
@@ -224,12 +226,12 @@ benchmark. A campaign observation is preserved under `evidence/`.
 
 ## Local pressure records
 
-Pressure records live under [`pressures/`](pressures/). They include exact
-revisions, minimal reproducers, expected/actual semantics, owner-layer
-candidates, host-boundary classification, evidence, and resolution criteria.
-They are intentionally local and were not written to Commons during this
-campaign. The later language/test integration campaign should reconcile them
-against a fresh post-concurrency baseline.
+Pressure records live under [`pressures/`](pressures/). Every local record has
+now been refreshed against the Profile 0.17/test integration and linked to a
+canonical Commons pressure or explicitly marked obsolete/platform-boundary.
+The unresolved runtime limitations remain local evidence as well as Commons
+records; a registered provider is not treated as proof that those capabilities
+are resolved.
 
 ## License
 

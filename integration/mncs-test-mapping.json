@@ -2,12 +2,14 @@
   "schema_version": "mncs.debug-mncs-test-mapping/1",
   "source_schema": "mncs.test-result/1",
   "debug_schema": "mncs.debug-witness/1",
-  "status": "implemented-import-adapter",
-  "required_result_fields": ["schema_version", "provider", "verdict", "classification", "tests", "provenance", "artifacts", "reproduction"],
+  "status": "implemented-and-consumer-verified",
+  "required_result_fields": ["schema_version", "provider", "verdict", "classification", "tests", "provenance", "artifacts", "reproduction", "run_id"],
   "selected_test_fields": {
     "id": "integration.test_id",
     "source": "program.path or program embedded artifact",
-    "request": "request.embedded",
+    "request": "request (canonical 0.1 execution request)",
+    "request_artifact_ref": "execution_lineage.request.artifact",
+    "execution_lineage": "test execution/declaration/subject/observation/oracle identities",
     "verdict": "outcome.test_failure.verdict",
     "classification": "outcome.test_failure.classification",
     "failure": "outcome.test_failure.failure"
@@ -16,7 +18,8 @@
     "full source test-result under integration.result",
     "content digest under integration.sha256",
     "original run_id/provider",
-    "debugger request-level execution evidence"
+    "debugger request-level execution evidence",
+    "test_result_reference for the source mncs.test-result/1 artifact"
   ],
   "non_ownership": ["test selection", "assertion semantics", "test verdict", "test result schema"],
   "missing_contract_behavior": "reject rather than reconstruct command text"

@@ -1,7 +1,7 @@
 {
   "id": "MNCS-DEBUG-P-001",
   "title": "Intermediate runtime values are not observable",
-  "status": "open",
+  "status": "reviewed",
   "severity": "critical",
   "owner_layer_candidate": "mncs-language/runtime",
   "pinned_revisions": {
@@ -30,5 +30,6 @@
   "tests_evidence": ["nested and checked-add recordings", "evidence/campaign-demonstrations.json", "mncs-debug why failure.witness.json"],
   "affected_files_or_modules": ["mncs-language/runtime execution result", "compiler semantic value identity", "mncs-debug trace/provenance"],
   "dependencies_on_other_pressures": ["MNCS-DEBUG-P-002", "MNCS-DEBUG-P-003"],
-  "resolution_criteria": "A native execution fixture emits bounded typed intermediate value observations with producer/read/write identity, and mncs-debug can answer a value-origin query without heuristics."
+  "resolution_criteria": "A native execution fixture emits bounded typed intermediate value observations with producer/read/write identity, and mncs-debug can answer a value-origin query without heuristics.",
+  "campaign_review": {"classification": "PARTIALLY_RESOLVED", "canonical_record": "MNCS-RUNTIME-F42CEFCE989D", "reproducer_status": "FAIL", "evidence": "evidence/campaign-demonstrations.json", "disposition": "Returned values and static projections are available; intermediate read/write history remains a language/runtime gap.", "workaround": "Report intermediate inspection as unsupported and preserve bounded returned evidence."}
 }

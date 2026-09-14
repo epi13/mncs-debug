@@ -1,9 +1,11 @@
 # Local debugging pressure ledger
 
-These records are local campaign evidence. They were not written to Commons,
-Forge, `mncs-language`, `mncs-test`, `mncs-actions`, or the language service.
-The later integration campaign must refresh the observations against the
-post-concurrency baselines before proposing family-wide changes.
+These records are the local pressure evidence for the initial debugger
+campaign. Their original reproducer and workaround fields are historical
+snapshots; the `campaign_review` field and
+`pressures/reconciliation-2026-09.json` are the superseding post-Profile-0.17
+disposition. Reconciled canonical records live in MNCS-Commons and retain the
+legacy `MNCS-DEBUG-P-*` identities.
 
 Each JSON record contains:
 

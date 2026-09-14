@@ -1,9 +1,9 @@
 # mncs-debug architecture
 
-This document describes what the first implementation actually does at the
-pinned campaign baseline. It is an integration contract and pressure record,
-not a promise that the current MNCS runtime already provides a conventional
-debugger.
+This document describes the implementation at the initial pinned debugger
+baseline and the current family integration. It is an integration contract
+and pressure record, not a promise that the current MNCS runtime already
+provides a conventional debugger.
 
 ## Design objective
 
@@ -28,6 +28,20 @@ mncs-debug
 The debugger does not parse its own pretty output. It consumes structured
 execution/compiler documents, and every derived fact carries an evidence or
 completeness label.
+
+The implemented family path is:
+
+```text
+mncs-test mncs.test-result/1
+    -> mncs-debug import-test / mncs.debug-witness/1
+    -> mncs-actions receipt + evidence manifest
+    -> Forge development.mncs.failure-loop
+    -> canonical mncs-test verification
+```
+
+The test oracle remains owned by `mncs-test`; debug evidence explains the
+failure and never changes its verdict. Forge consumes versioned JSON artifacts
+and does not parse terminal summaries.
 
 ## Semantic model
 
@@ -226,9 +240,9 @@ consumes that evidence.
 ### mncs-actions
 
 Owns provider invocation, action correlation, receipts, artifact manifests,
-and transport lifecycle. The local descriptor under `integration/` shows how a
-future debug provider can return the debug artifacts through existing action
-conventions.
+and transport lifecycle. `mncs-actions/actions/mncs-debug` is the registered
+debug provider membrane; it validates and transports debugger artifacts but
+does not interpret trace or replay semantics.
 
 ### LSP/language service
 
@@ -256,5 +270,6 @@ The implementation has reached Stage 3 of the local trust model:
 ```
 
 The fixture demonstrations and exact baseline revisions are recorded in
-`docs/campaign-report.md`. Local pressure records are under `pressures/` and
-were not published to Commons.
+`docs/campaign-report.md`. The initial local pressure records are under
+`pressures/`; their reconciled canonical records and append-only verification
+observations are maintained by MNCS-Commons.

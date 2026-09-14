@@ -1,7 +1,7 @@
 {
   "id": "MNCS-DEBUG-P-010",
   "title": "Static evidence collection dominates the current recording overhead",
-  "status": "measured-bootstrap-cost",
+  "status": "reviewed",
   "severity": "medium",
   "owner_layer_candidate": "mncs-debug/runtime",
   "pinned_revisions": {
@@ -31,5 +31,6 @@
   "tests_evidence": ["evidence/overhead-baseline.json", "docs/campaign-report.md performance section"],
   "affected_files_or_modules": ["mncs-language runtime event sink", "compiler metadata serialization", "mncs-debug collector"],
   "dependencies_on_other_pressures": ["MNCS-DEBUG-P-002", "MNCS-DEBUG-P-005"],
-  "resolution_criteria": "A native benchmark reports bounded capture overhead separately from compiler/static collection, and selected capture modes avoid redundant process launches while preserving required event semantics."
+  "resolution_criteria": "A native benchmark reports bounded capture overhead separately from compiler/static collection, and selected capture modes avoid redundant process launches while preserving required event semantics.",
+  "campaign_review": {"classification": "STILL_OPEN", "canonical_record": "MNCS-TOOLING-A74DFC47DDB6", "reproducer_status": "FAIL", "evidence": "evidence/overhead-baseline.json", "disposition": "Failure-only capture is bounded and integrated, but the measured bootstrap/static overhead remains high and was not hidden.", "workaround": "Keep normal PASS capture disabled; bound events and retain digest references."}
 }

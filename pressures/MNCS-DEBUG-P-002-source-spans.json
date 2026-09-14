@@ -1,7 +1,7 @@
 {
   "id": "MNCS-DEBUG-P-002",
   "title": "Semantic operation identities lose source spans before execution",
-  "status": "open",
+  "status": "reviewed",
   "severity": "critical",
   "owner_layer_candidate": "mncs-language/compiler",
   "pinned_revisions": {
@@ -31,5 +31,6 @@
   "tests_evidence": ["examples/nested.mncs recording", "docs/architecture.md source correspondence section", "static compiler study in witness.static"],
   "affected_files_or_modules": ["mncs-language parser/HIR", "mncs-compiler lowering", "mncs-language-service symbols", "mncs-debug static projection"],
   "dependencies_on_other_pressures": ["MNCS-DEBUG-P-001", "MNCS-DEBUG-P-008"],
-  "resolution_criteria": "A source fixture's emitted operation events contain exact source identity/span mappings that survive compiler lowering and are consumable by the LSP contract."
+  "resolution_criteria": "A source fixture's emitted operation events contain exact source identity/span mappings that survive compiler lowering and are consumable by the LSP contract.",
+  "campaign_review": {"classification": "PARTIALLY_RESOLVED", "canonical_record": "MNCS-COMPILER-E445EECC9F96", "reproducer_status": "FAIL", "evidence": "mncs-test mncs.test-result/1 execution_lineage.source", "disposition": "Profile 0.17 declaration spans cross the test/debug boundary; exact lowered operation spans remain open.", "workaround": "Use compiler-owned declaration spans and explicit unavailable binding status."}
 }

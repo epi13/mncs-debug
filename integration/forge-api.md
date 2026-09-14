@@ -2,7 +2,10 @@
 
 Forge can invoke `mncs-debug api --stdio` as a newline-delimited structured
 provider. Each line is one `mncs.debug-api/1` request and each response is one
-JSON document. The provider never requires Forge to parse a human summary.
+JSON document. The implemented Forge failure-loop uses the same owner-native
+CLI operations as file-backed calls so Actions and Forge can share bounded
+artifacts without a second semantic adapter. Neither path requires Forge to
+parse a human summary.
 
 | Operation | Input | Result |
 | --- | --- | --- |
@@ -21,5 +24,5 @@ must not be promoted to a successful conclusion by the provider.
 
 The current API has no live session token, stop request, evaluate operation,
 or scheduler control because the runtime cannot support those semantics. Those
-operations should be added only with a corresponding capability and evidence
+operations must be added only with a corresponding capability and evidence
 contract.

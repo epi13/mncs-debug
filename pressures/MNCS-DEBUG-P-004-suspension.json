@@ -1,7 +1,7 @@
 {
   "id": "MNCS-DEBUG-P-004",
   "title": "Execution is one-shot and has no safe suspension or resume contract",
-  "status": "open",
+  "status": "reviewed",
   "severity": "critical",
   "owner_layer_candidate": "mncs-language/runtime",
   "pinned_revisions": {
@@ -29,5 +29,6 @@
   "tests_evidence": ["capabilities breakpoints/step_continue_pause unsupported", "open returns immutable one_shot_cli session"],
   "affected_files_or_modules": ["mncs-language/runtime scheduler", "execution request/result protocol", "mncs-debug session API"],
   "dependencies_on_other_pressures": ["MNCS-DEBUG-P-003", "MNCS-DEBUG-P-005"],
-  "resolution_criteria": "A runtime fixture can stop at a declared semantic event, inspect typed state, and resume with a documented effect/scheduler guarantee."
+  "resolution_criteria": "A runtime fixture can stop at a declared semantic event, inspect typed state, and resume with a documented effect/scheduler guarantee.",
+  "campaign_review": {"classification": "STILL_OPEN", "canonical_record": "MNCS-RUNTIME-A32B31916255", "reproducer_status": "FAIL", "evidence": "schemas/debug-capabilities.schema.json", "disposition": "No truthful runtime suspension primitive was available or justified; sessions remain immutable closed projections.", "workaround": "Use bounded completed-execution witnesses and report unsupported live-session capabilities."}
 }

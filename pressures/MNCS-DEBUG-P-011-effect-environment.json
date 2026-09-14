@@ -1,7 +1,7 @@
 {
   "id": "MNCS-DEBUG-P-011",
   "title": "Effect observations lack complete input lineage and environment capture",
-  "status": "open",
+  "status": "reviewed",
   "severity": "high",
   "owner_layer_candidate": "mncs-language/runtime",
   "pinned_revisions": {
@@ -30,5 +30,6 @@
   "tests_evidence": ["evidence/campaign-demonstrations.json task-lifecycle observation", "effect fields in execution-result baseline inspection", "trace effect completeness labels", "integration/mncs-actions-provider.json"],
   "affected_files_or_modules": ["mncs-language effect runtime", "mncs-actions receipt boundary", "mncs-debug trace/replay"],
   "dependencies_on_other_pressures": ["MNCS-DEBUG-P-001", "MNCS-DEBUG-P-005"],
-  "resolution_criteria": "An effect fixture can answer input/result provenance and declares whether its external state is replayable, with action receipts correlating without duplicating runtime semantics."
+  "resolution_criteria": "An effect fixture can answer input/result provenance and declares whether its external state is replayable, with action receipts correlating without duplicating runtime semantics.",
+  "campaign_review": {"classification": "STILL_OPEN", "canonical_record": "MNCS-RUNTIME-3B723B6FADD8", "reproducer_status": "FAIL", "evidence": "evidence/campaign-demonstrations.json", "disposition": "The task-lifecycle fixture exposes zero task/effect lifecycle events in the debugger projection; no runtime effect lineage was fabricated.", "workaround": "Report only effect facts emitted by the runtime and retain missing lineage as a limitation."}
 }

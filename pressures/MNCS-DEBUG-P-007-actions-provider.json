@@ -1,7 +1,7 @@
 {
   "id": "MNCS-DEBUG-P-007",
   "title": "Debug provider registration and artifact projection need an actions contract",
-  "status": "prepared-for-integration",
+  "status": "reviewed",
   "severity": "medium",
   "owner_layer_candidate": "mncs-actions",
   "pinned_revisions": {
@@ -30,5 +30,6 @@
   "tests_evidence": ["integration/mncs-actions-provider.json", "docs/integration.md", "API stdio test"],
   "affected_files_or_modules": ["mncs-actions provider registry", "actions receipt/evidence manifest", "mncs-debug provider adapter"],
   "dependencies_on_other_pressures": ["MNCS-DEBUG-P-006"],
-  "resolution_criteria": "A later actions campaign registers the provider, runs a structured debug action, and verifies receipt/evidence digests against the returned witness without changing debugger semantics."
+  "resolution_criteria": "A later actions campaign registers the provider, runs a structured debug action, and verifies receipt/evidence digests against the returned witness without changing debugger semantics.",
+  "campaign_review": {"classification": "RESOLVED", "canonical_record": "MNCS-TOOLING-0C870FCAFFEB", "reproducer_status": "PASS", "evidence": "mncs-actions/tests/test_mncs_debug_action.py", "disposition": "The registered Actions provider validates witnesses, preserves layered verdicts, and packages digest-bound evidence.", "workaround": "not_needed"}
 }

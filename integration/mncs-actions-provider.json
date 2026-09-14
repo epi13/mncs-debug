@@ -2,7 +2,7 @@
   "schema_version": "mncs.debug-provider/1",
   "provider_id": "mncs-debug",
   "repository": "https://github.com/epi13/mncs-debug",
-  "status": "local-contract-not-registered",
+  "status": "registered",
   "purpose": "transport a structured MNCS debug session through action receipts and evidence manifests",
   "input": {
     "one_of": ["program_and_request", "mncs.test-result/1 artifact"],
@@ -19,6 +19,18 @@
     "replay",
     "minimize"
   ],
+  "registration": {
+    "repository": "epi13/mncs-actions",
+    "action": "actions/mncs-debug/action.yml",
+    "transport": "actions/mncs-debug/test.sh",
+    "check_result": "mncs.check-result/1",
+    "registration_status": "implemented-and-consumer-verified",
+    "verification": [
+      "failing mncs-test TestResult imports into a validated witness",
+      "witness projections are retained by run-check evidence manifests",
+      "failure-only capture returns UNKNOWN without changing a PASS test verdict"
+    ]
+  },
   "outputs": {
     "debug_witness": "mncs.debug-witness/1",
     "debug_trace": "mncs.debug-trace/1",
@@ -33,5 +45,5 @@
     "unestablished_claims_remain_distinct": true
   },
   "pinned_reference": "docs/baseline/revisions.json",
-  "registration_note": "Do not add this descriptor to the family registry until the later integration campaign reconciles mncs-actions changes."
+  "registration_note": "The provider is registered in mncs-actions; the family contract pins the exact actions revision after the coordinated merge."
 }

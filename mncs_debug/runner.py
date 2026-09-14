@@ -632,6 +632,33 @@ def build_witness(
     }
     integration: dict[str, Any] = {}
     if test_result is not None:
+        selected_test = test_result.get("selected_test")
+        selected_test = selected_test if isinstance(selected_test, dict) else {}
+        lineage = selected_test.get("execution_lineage")
+        lineage = lineage if isinstance(lineage, dict) else {}
+        test_result_artifact = test_result.get("test_result_artifact")
+        if not isinstance(test_result_artifact, dict):
+            test_result_artifact = {
+                "kind": "mncs-test-result",
+                "sha256": identity("test-result", test_result),
+                "available": False,
+                "path": None,
+            }
+        test_execution = {"test_id": test_result.get("test_id")}
+        test_execution.update({
+            key: lineage.get(key)
+            for key in (
+                "test_case_identity",
+                "declaration_identity",
+                "function_identity",
+                "module",
+                "subject_identity",
+                "execution_identity",
+                "observation_identity",
+                "oracle_evaluation_identity",
+            )
+            if lineage.get(key) is not None
+        })
         integration = {
             "kind": "mncs-test-result-import",
             "schema_version": test_result.get("schema_version"),
@@ -640,7 +667,15 @@ def build_witness(
             "test_id": test_result.get("test_id"),
             "classification": test_result.get("classification"),
             "verdict": test_result.get("verdict"),
-            "sha256": identity("test-result", test_result),
+            "test_result_reference": test_result_artifact,
+            "test_execution": test_execution,
+            "request": request_ref,
+            "sha256": identity("test-result-import", {
+                "reference": test_result_artifact,
+                "run_id": test_result.get("run_id"),
+                "test_id": test_result.get("test_id"),
+                "test_execution": lineage,
+            }),
             "result": test_result,
         }
     witness = {

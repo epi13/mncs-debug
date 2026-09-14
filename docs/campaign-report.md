@@ -1,5 +1,13 @@
 # mncs-debug first implementation campaign report
 
+> Historical handoff: this report describes the isolated debugger foundation.
+> The superseding 2026-09 family integration adds the owner-native
+> `mncs-test` handoff, registered Actions provider, Forge failure loop,
+> language-service source projection, and Commons pressure reconciliation.
+> See [`docs/integration.md`](integration.md), the checked-in reconciliation
+> ledger, and the final family campaign report in MNCS-Commons for current
+> delivery state.
+
 Date: 2026-09-13 (America/Anchorage)
 
 This report is the handoff for the first debugging excursion. Work was

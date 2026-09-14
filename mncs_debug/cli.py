@@ -354,6 +354,22 @@ def _validate_test_result(value: Any) -> None:
         raise ValueError(f"input is not a valid enough mncs.test-result/1 document; missing={missing}")
 
 
+def _validate_execution_request(value: Any) -> None:
+    if not isinstance(value, dict):
+        raise ValueError("selected test request must be an object")
+    target = value.get("target")
+    if (
+        value.get("schema_version") != "0.1"
+        or not isinstance(target, dict)
+        or not isinstance(target.get("module"), str)
+        or not isinstance(target.get("function"), str)
+        or not isinstance(value.get("arguments"), list)
+        or not isinstance(value.get("step_budget"), int)
+        or value["step_budget"] < 1
+    ):
+        raise ValueError("selected test request is not a canonical 0.1 execution request")
+
+
 def _cmd_import_test(args: argparse.Namespace) -> int:
     result_path = _path(args.result)
     result = load_json(result_path)
@@ -374,11 +390,16 @@ def _cmd_import_test(args: argparse.Namespace) -> int:
     program = _path(source) if Path(source).is_absolute() else (result_path.parent / source).resolve()
     if not isinstance(request_value, dict):
         raise ValueError("selected test has no embedded execution request; future mncs-test must supply one")
+    _validate_execution_request(request_value)
     with tempfile.TemporaryDirectory(prefix="mncs-debug-test-import-") as directory:
         request_path = Path(directory) / "request.json"
         request_path.write_text(json.dumps(request_value), encoding="utf-8")
         selected_result = dict(result)
         selected_result["test_id"] = selected.get("id")
+        selected_result["selected_test"] = selected
+        selected_result["test_result_artifact"] = file_artifact(
+            result_path, "mncs-test-result", relative_to=result_path.parent
+        )
         witness = build_witness(
             mncs_path=_runtime(args),
             program_path=program,
