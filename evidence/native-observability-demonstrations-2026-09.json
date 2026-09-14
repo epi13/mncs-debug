@@ -81,7 +81,7 @@
     "F_forge_diagnosis": {
       "status": "PASS",
       "consumer_repository": "mncs-forge-mcp",
-      "consumer_revision": "3aa93ee15a057932e12aaccd1133101e9a2c9209",
+      "consumer_revision": "7de0790fd54d4b3b963474247d425e32fa99dc7f",
       "test": "tests/test_mncs_development.py::test_failure_loop_preserves_lineage_and_verifies_exact_repair",
       "facts": ["mncs.execution-observation/1", "mncs.execution-source-map/1", "native frame/value references", "bounded repair and canonical verification"],
       "semantic_boundary": "Forge projects provider facts into diagnosis; it does not reconstruct dataflow or parse terminal output"
