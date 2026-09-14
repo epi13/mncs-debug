@@ -150,9 +150,9 @@ def capability_document(*, runtime_path: str | None = None, runtime_digest: str 
         },
         {
             "id": "actions_provider",
-            "state": "partially_supported",
+            "state": "supported",
             "owner": "mncs-actions",
-            "evidence": "a data-only provider descriptor and receipt/evidence projection are prepared locally; no action is changed",
+            "evidence": "mncs-actions/actions/mncs-debug validates and transports bounded witness, observation, source-map, trace, provenance, replay, receipt, and evidence-manifest artifacts",
         },
         {
             "id": "native_semantic_core",

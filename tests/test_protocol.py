@@ -46,6 +46,7 @@ class ProtocolTests(unittest.TestCase):
         states = {item["id"]: item["state"] for item in document["capabilities"]}
         self.assertEqual(states["deterministic_replay"], "unsupported")
         self.assertEqual(states["bounded_semantic_trace"], "supported")
+        self.assertEqual(states["actions_provider"], "supported")
 
     def test_minimization_protocol_is_known_to_validator(self) -> None:
         document = {

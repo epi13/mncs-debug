@@ -36,8 +36,10 @@ The API request envelope is `mncs.debug-api/1`:
 }
 ```
 
-The `provider` command is an alias for `api` during the bootstrap stage. It is
-not an `mncs-actions` registration.
+The `provider` command is an alias for `api` during the bootstrap stage. The
+Actions registration is owned separately by
+`mncs-actions/actions/mncs-debug`; this CLI alias is only its debugger-side
+JSONL transport.
 
 `--capture selected` requires one or more `--operation` identities. `--capture
 events` is retained as a compatibility alias for bounded capture. Current
