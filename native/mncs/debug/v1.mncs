@@ -23,8 +23,18 @@ record Decision {
     should_stop: bool,
 }
 
-// Debugger-owned evidence sufficiency. Numeric values cross only the host
-// transport membrane; the semantic stop/gap/next-operation choice is native.
+record SufficiencyInput {
+    has_failure_identity: bool,
+    has_operation_identity: bool,
+    observation_complete: bool,
+    provenance_observed: bool,
+    replay_required: bool,
+    minimization_required: bool,
+}
+
+// Debugger-owned evidence sufficiency. The request is a named typed record;
+// only the compact result codes cross the host transport membrane. The
+// semantic stop/gap/next-operation choice is native.
 record SufficiencyDecision {
     status_code: i32,
     next_operation_code: i32,
@@ -32,36 +42,34 @@ record SufficiencyDecision {
     sufficient: bool,
 }
 
-fn sufficiency(
-    has_failure_identity: i32,
-    has_operation_identity: i32,
-    observation_complete: i32,
-    provenance_observed: i32,
-    replay_required: i32,
-    minimization_required: i32,
-) -> (result: SufficiencyDecision) {
-    if has_failure_identity == 0 {
+fn sufficiency(input: SufficiencyInput) -> (result: SufficiencyDecision) {
+    if missing(input.has_failure_identity) {
         // A missing failure anchor is an ambiguity that a bounded trace can
         // resolve.  Unsupported evidence is reserved for the host adapter
         // when this native decision cannot be executed at all.
         return make_sufficiency(1, 1, 1, false);
     }
-    if has_operation_identity == 0 {
+    if missing(input.has_operation_identity) {
         return make_sufficiency(1, 1, 2, false);
     }
-    if observation_complete == 0 {
+    if missing(input.observation_complete) {
         return make_sufficiency(1, 1, 3, false);
     }
-    if provenance_observed == 0 {
+    if missing(input.provenance_observed) {
         return make_sufficiency(1, 2, 4, false);
     }
-    if replay_required == 1 {
+    if input.replay_required {
         return make_sufficiency(1, 3, 5, false);
     }
-    if minimization_required == 1 {
+    if input.minimization_required {
         return make_sufficiency(1, 4, 6, false);
     }
     return make_sufficiency(0, 0, 0, true);
+}
+
+fn missing(value: bool) -> (result: bool) {
+    if value { return false; }
+    return true;
 }
 
 fn make_sufficiency(status_code: i32, next_operation_code: i32, evidence_gap_code: i32, sufficient: bool) -> (result: SufficiencyDecision) {

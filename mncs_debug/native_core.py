@@ -156,13 +156,20 @@ def sufficiency(
     request = {
         "schema_version": "0.1",
         "target": {"module": "mncs.debug.v1", "function": "sufficiency"},
-        "arguments": [
-            {"integer": {"value": int(has_failure_identity), "type": {"bits": 32, "signed": True}}},
-            {"integer": {"value": int(has_operation_identity), "type": {"bits": 32, "signed": True}}},
-            {"integer": {"value": int(observation_complete), "type": {"bits": 32, "signed": True}}},
-            {"integer": {"value": int(provenance_observed), "type": {"bits": 32, "signed": True}}},
-            {"integer": {"value": int(replay_required), "type": {"bits": 32, "signed": True}}},
-            {"integer": {"value": int(minimization_required), "type": {"bits": 32, "signed": True}}},
+        "typed_arguments": [
+            {
+                "record": {
+                    "type": "SufficiencyInput",
+                    "fields": {
+                        "has_failure_identity": {"boolean": {"value": has_failure_identity}},
+                        "has_operation_identity": {"boolean": {"value": has_operation_identity}},
+                        "observation_complete": {"boolean": {"value": observation_complete}},
+                        "provenance_observed": {"boolean": {"value": provenance_observed}},
+                        "replay_required": {"boolean": {"value": replay_required}},
+                        "minimization_required": {"boolean": {"value": minimization_required}},
+                    },
+                }
+            }
         ],
         "step_budget": 128,
     }
