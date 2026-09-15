@@ -1,25 +1,65 @@
-mncs 0.5;
+mncs 0.7;
 
-// MNCS-owned debugger semantics. The launcher supplies only bounded
-// transport codes from the external execution boundary. This module decides
-// the semantic failure class and whether a diagnostic session should stop.
+// MNCS-owned debugger semantics. The launcher supplies only typed facts from
+// the external execution boundary. This module decides the semantic failure
+// class, stop policy, and evidence escalation vocabulary.
 module mncs.debug.v1;
 
-enum Outcome {
-    SUCCESS,
-    COMPILE_FAILURE,
-    RUNTIME_FAILURE,
-    ASSERTION_FAILURE,
-    EFFECT_FAILURE,
-    TIMEOUT,
-    UNSUPPORTED,
-    INVALID_INVOCATION,
-    INFRASTRUCTURE_FAILURE,
-    TEST_FAILURE,
+enum RuntimeStatus {
+    Returned,
+    RuntimeFailure,
+    Unsupported,
+    BudgetExhausted,
+    InvalidRequest,
+    CompileFailure,
+    TestFailure,
+    InfrastructureFailure,
+}
+
+enum DebugOutcome {
+    Success,
+    CompileFailure,
+    RuntimeFailure,
+    AssertionFailure,
+    EffectFailure,
+    TimeoutOrBudgetExhaustion,
+    Unsupported,
+    InvalidInvocation,
+    InfrastructureFailure,
+    TestFailure,
+}
+
+enum SufficiencyStatus { Sufficient, Ambiguous, Unsupported }
+enum DiagnosticOperation { NoOperation, Trace, Provenance, Replay, Minimization }
+enum EvidenceGap {
+    NoGap,
+    FailureIdentity,
+    OperationIdentity,
+    ObservationCompleteness,
+    Provenance,
+    Replay,
+    Minimization,
+}
+
+// These vocabularies are the typed boundary for bounded artifact observations.
+// Python may parse JSON and normalize a literal field into one of these
+// nominal values, but only this module decides which values establish a
+// debugger fact.
+enum EvidencePresence { Absent, Present }
+enum TraceCompleteness { Unknown, Partial, Complete, Truncated }
+enum ProvenanceClaimKind { Other, OperationIdentity, ValueOriginChain, EffectProvenance }
+enum ProvenanceClaimStatus { Unknown, Claimed, Available, Observed }
+enum ReplayStatus { Unknown, Available, Replayed, Reproduced, Mismatch }
+enum MinimizationStatus { Unknown, Candidate, Reduced, NoReduction, Blocked }
+
+record DecisionInput {
+    runtime_status: RuntimeStatus,
+    assertion_failed: bool,
+    effect_failed: bool,
 }
 
 record Decision {
-    outcome_code: i32,
+    outcome: DebugOutcome,
     should_stop: bool,
 }
 
@@ -32,39 +72,213 @@ record SufficiencyInput {
     minimization_required: bool,
 }
 
-// Debugger-owned evidence sufficiency. The request is a named typed record;
-// only the compact result codes cross the host transport membrane. The
-// semantic stop/gap/next-operation choice is native.
 record SufficiencyDecision {
-    status_code: i32,
-    next_operation_code: i32,
-    evidence_gap_code: i32,
+    status: SufficiencyStatus,
+    next_operation: DiagnosticOperation,
+    evidence_gap: EvidenceGap,
     sufficient: bool,
+}
+
+// Artifact parsing remains a bounded host transport concern. Once the host
+// has extracted literal observations, this native reducer owns the semantic
+// combination of those observations into debugger evidence facts.
+record TraceObservation {
+    failure_anchor: EvidencePresence,
+    operation_identity: EvidencePresence,
+    completeness: TraceCompleteness,
+}
+
+record ProvenanceObservation {
+    kind: ProvenanceClaimKind,
+    status: ProvenanceClaimStatus,
+}
+
+record EvidenceFactsInput {
+    traces: [TraceObservation; 16],
+    trace_count: u64,
+    trace_overflow: bool,
+    provenance: [ProvenanceObservation; 64],
+    provenance_count: u64,
+    provenance_overflow: bool,
+    replay: [ReplayStatus; 16],
+    replay_count: u64,
+    replay_overflow: bool,
+    minimization: [MinimizationStatus; 16],
+    minimization_count: u64,
+    minimization_overflow: bool,
+}
+
+record EvidenceFacts {
+    failure_anchor_present: bool,
+    operation_identity_present: bool,
+    observation_complete: bool,
+    provenance_binding_present: bool,
+    replay_established: bool,
+    minimization_established: bool,
+}
+
+fn evidence_facts(input: EvidenceFactsInput) -> (result: EvidenceFacts) {
+    let initial: EvidenceFacts = EvidenceFacts {
+        failure_anchor_present: false,
+        operation_identity_present: false,
+        observation_complete: false,
+        provenance_binding_present: false,
+        replay_established: false,
+        minimization_established: false,
+    };
+    iterate t over input.traces carrying trace_facts: EvidenceFacts = initial {
+        let include: bool = (t as i64) < (input.trace_count as i64) && no_overflow(input.trace_overflow);
+        next trace_facts = trace_step(trace_facts, input.traces[t], include);
+    }
+    iterate p over input.provenance carrying provenance_facts: EvidenceFacts = trace_facts {
+        let include: bool = (p as i64) < (input.provenance_count as i64) && no_overflow(input.provenance_overflow);
+        next provenance_facts = provenance_step(provenance_facts, input.provenance[p], include);
+    }
+    iterate r over input.replay carrying replay_facts: EvidenceFacts = provenance_facts {
+        let include: bool = (r as i64) < (input.replay_count as i64) && no_overflow(input.replay_overflow);
+        next replay_facts = replay_step(replay_facts, input.replay[r], include);
+    }
+    iterate m over input.minimization carrying minimization_facts: EvidenceFacts = replay_facts {
+        let include: bool = (m as i64) < (input.minimization_count as i64) && no_overflow(input.minimization_overflow);
+        next minimization_facts = minimization_step(minimization_facts, input.minimization[m], include);
+    }
+    return minimization_facts;
+}
+
+fn no_overflow(value: bool) -> (result: bool) {
+    if value { return false; }
+    return true;
+}
+
+fn trace_step(current: EvidenceFacts, observation: TraceObservation, include: bool) -> (result: EvidenceFacts) {
+    if include {
+        return EvidenceFacts {
+            ..current,
+            failure_anchor_present: current.failure_anchor_present || is_present(observation.failure_anchor),
+            operation_identity_present: current.operation_identity_present || is_present(observation.operation_identity),
+            observation_complete: current.observation_complete || is_complete(observation.completeness),
+        };
+    }
+    return current;
+}
+
+fn provenance_step(current: EvidenceFacts, observation: ProvenanceObservation, include: bool) -> (result: EvidenceFacts) {
+    if include {
+        let binding: bool = recognized_provenance(observation.kind) && established_claim(observation.status);
+        let operation: bool = operation_claim_observed(observation);
+        return EvidenceFacts {
+            ..current,
+            provenance_binding_present: current.provenance_binding_present || binding,
+            operation_identity_present: current.operation_identity_present || operation,
+        };
+    }
+    return current;
+}
+
+fn recognized_provenance(kind: ProvenanceClaimKind) -> (result: bool) {
+    return match kind {
+        ProvenanceClaimKind.OperationIdentity => true,
+        ProvenanceClaimKind.ValueOriginChain => true,
+        ProvenanceClaimKind.EffectProvenance => true,
+        ProvenanceClaimKind.Other => false,
+    };
+}
+
+fn established_claim(status: ProvenanceClaimStatus) -> (result: bool) {
+    return match status {
+        ProvenanceClaimStatus.Available => true,
+        ProvenanceClaimStatus.Observed => true,
+        ProvenanceClaimStatus.Unknown => false,
+        ProvenanceClaimStatus.Claimed => false,
+    };
+}
+
+fn is_present(value: EvidencePresence) -> (result: bool) {
+    return match value {
+        EvidencePresence.Present => true,
+        EvidencePresence.Absent => false,
+    };
+}
+
+fn is_complete(value: TraceCompleteness) -> (result: bool) {
+    return match value {
+        TraceCompleteness.Complete => true,
+        TraceCompleteness.Unknown => false,
+        TraceCompleteness.Partial => false,
+        TraceCompleteness.Truncated => false,
+    };
+}
+
+fn operation_claim_observed(observation: ProvenanceObservation) -> (result: bool) {
+    return match observation.kind {
+        ProvenanceClaimKind.OperationIdentity => match observation.status {
+            ProvenanceClaimStatus.Observed => true,
+            ProvenanceClaimStatus.Unknown => false,
+            ProvenanceClaimStatus.Claimed => false,
+            ProvenanceClaimStatus.Available => false,
+        },
+        ProvenanceClaimKind.Other => false,
+        ProvenanceClaimKind.ValueOriginChain => false,
+        ProvenanceClaimKind.EffectProvenance => false,
+    };
+}
+
+fn replay_step(current: EvidenceFacts, status: ReplayStatus, include: bool) -> (result: EvidenceFacts) {
+    if include {
+        let established: bool = replay_is_established(status);
+        return EvidenceFacts { ..current, replay_established: current.replay_established || established };
+    }
+    return current;
+}
+
+fn minimization_step(current: EvidenceFacts, status: MinimizationStatus, include: bool) -> (result: EvidenceFacts) {
+    if include {
+        let established: bool = minimization_is_established(status);
+        return EvidenceFacts { ..current, minimization_established: current.minimization_established || established };
+    }
+    return current;
+}
+
+fn replay_is_established(status: ReplayStatus) -> (result: bool) {
+    return match status {
+        ReplayStatus.Replayed => true,
+        ReplayStatus.Reproduced => true,
+        ReplayStatus.Unknown => false,
+        ReplayStatus.Available => false,
+        ReplayStatus.Mismatch => false,
+    };
+}
+
+fn minimization_is_established(status: MinimizationStatus) -> (result: bool) {
+    return match status {
+        MinimizationStatus.Reduced => true,
+        MinimizationStatus.NoReduction => true,
+        MinimizationStatus.Unknown => false,
+        MinimizationStatus.Candidate => false,
+        MinimizationStatus.Blocked => false,
+    };
 }
 
 fn sufficiency(input: SufficiencyInput) -> (result: SufficiencyDecision) {
     if missing(input.has_failure_identity) {
-        // A missing failure anchor is an ambiguity that a bounded trace can
-        // resolve.  Unsupported evidence is reserved for the host adapter
-        // when this native decision cannot be executed at all.
-        return make_sufficiency(1, 1, 1, false);
+        return make_sufficiency(SufficiencyStatus.Ambiguous, DiagnosticOperation.Trace, EvidenceGap.FailureIdentity, false);
     }
     if missing(input.has_operation_identity) {
-        return make_sufficiency(1, 1, 2, false);
+        return make_sufficiency(SufficiencyStatus.Ambiguous, DiagnosticOperation.Trace, EvidenceGap.OperationIdentity, false);
     }
     if missing(input.observation_complete) {
-        return make_sufficiency(1, 1, 3, false);
+        return make_sufficiency(SufficiencyStatus.Ambiguous, DiagnosticOperation.Trace, EvidenceGap.ObservationCompleteness, false);
     }
     if missing(input.provenance_observed) {
-        return make_sufficiency(1, 2, 4, false);
+        return make_sufficiency(SufficiencyStatus.Ambiguous, DiagnosticOperation.Provenance, EvidenceGap.Provenance, false);
     }
     if input.replay_required {
-        return make_sufficiency(1, 3, 5, false);
+        return make_sufficiency(SufficiencyStatus.Ambiguous, DiagnosticOperation.Replay, EvidenceGap.Replay, false);
     }
     if input.minimization_required {
-        return make_sufficiency(1, 4, 6, false);
+        return make_sufficiency(SufficiencyStatus.Ambiguous, DiagnosticOperation.Minimization, EvidenceGap.Minimization, false);
     }
-    return make_sufficiency(0, 0, 0, true);
+    return make_sufficiency(SufficiencyStatus.Sufficient, DiagnosticOperation.NoOperation, EvidenceGap.NoGap, true);
 }
 
 fn missing(value: bool) -> (result: bool) {
@@ -72,86 +286,64 @@ fn missing(value: bool) -> (result: bool) {
     return true;
 }
 
-fn make_sufficiency(status_code: i32, next_operation_code: i32, evidence_gap_code: i32, sufficient: bool) -> (result: SufficiencyDecision) {
+fn make_sufficiency(
+    status: SufficiencyStatus,
+    next_operation: DiagnosticOperation,
+    evidence_gap: EvidenceGap,
+    sufficient: bool
+) -> (result: SufficiencyDecision) {
     return SufficiencyDecision {
-        status_code: status_code,
-        next_operation_code: next_operation_code,
-        evidence_gap_code: evidence_gap_code,
+        status: status,
+        next_operation: next_operation,
+        evidence_gap: evidence_gap,
         sufficient: sufficient,
     };
 }
 
-// Status codes are a transport membrane, not semantic authority:
-// 0=returned, 1=runtime_failure, 2=unsupported, 3=budget_exhausted,
-// 4=invalid_request, 8=launcher/infrastructure. Test and effect flags are
-// explicit observations supplied by the owning adapter.
-fn decide(status_code: i32, assertion_failed: bool, effect_failed: bool) -> (result: Decision) {
-    if status_code == 0 {
-        if assertion_failed {
-            return make_decision(Outcome.ASSERTION_FAILURE);
-        }
-        if effect_failed {
-            return make_decision(Outcome.EFFECT_FAILURE);
-        }
-        return make_decision(Outcome.SUCCESS);
-    }
-    if status_code == 1 {
-        if effect_failed {
-            return make_decision(Outcome.EFFECT_FAILURE);
-        }
-        return make_decision(Outcome.RUNTIME_FAILURE);
-    }
-    if status_code == 2 {
-        return make_decision(Outcome.UNSUPPORTED);
-    }
-    if status_code == 3 {
-        return make_decision(Outcome.TIMEOUT);
-    }
-    if status_code == 4 {
-        return make_decision(Outcome.INVALID_INVOCATION);
-    }
-    if status_code == 5 {
-        return make_decision(Outcome.COMPILE_FAILURE);
-    }
-    if status_code == 6 {
-        return make_decision(Outcome.TEST_FAILURE);
-    }
-    return make_decision(Outcome.INFRASTRUCTURE_FAILURE);
+// RuntimeStatus is a nominal vocabulary for facts acquired by the host
+// launcher. The semantic DebugOutcome is selected only here.
+fn decide(input: DecisionInput) -> (result: Decision) {
+    return match input.runtime_status {
+        Returned => make_decision(returned_outcome(input)),
+        RuntimeFailure => make_decision(runtime_failure_outcome(input)),
+        Unsupported => make_decision(DebugOutcome.Unsupported),
+        BudgetExhausted => make_decision(DebugOutcome.TimeoutOrBudgetExhaustion),
+        InvalidRequest => make_decision(DebugOutcome.InvalidInvocation),
+        CompileFailure => make_decision(DebugOutcome.CompileFailure),
+        TestFailure => make_decision(DebugOutcome.TestFailure),
+        InfrastructureFailure => make_decision(DebugOutcome.InfrastructureFailure),
+    };
 }
 
-fn make_decision(outcome: Outcome) -> (result: Decision) {
+fn returned_outcome(input: DecisionInput) -> (result: DebugOutcome) {
+    if input.assertion_failed { return DebugOutcome.AssertionFailure; }
+    if input.effect_failed { return DebugOutcome.EffectFailure; }
+    return DebugOutcome.Success;
+}
+
+fn runtime_failure_outcome(input: DecisionInput) -> (result: DebugOutcome) {
+    if input.effect_failed { return DebugOutcome.EffectFailure; }
+    return DebugOutcome.RuntimeFailure;
+}
+
+fn make_decision(outcome: DebugOutcome) -> (result: Decision) {
     return Decision {
-        outcome_code: code_of(outcome),
+        outcome: outcome,
         should_stop: stop_for(outcome),
     };
 }
 
-fn code_of(outcome: Outcome) -> (result: i32) {
+fn stop_for(outcome: DebugOutcome) -> (result: bool) {
     return match outcome {
-        SUCCESS => 0,
-        COMPILE_FAILURE => 1,
-        RUNTIME_FAILURE => 2,
-        ASSERTION_FAILURE => 3,
-        EFFECT_FAILURE => 4,
-        TIMEOUT => 5,
-        UNSUPPORTED => 6,
-        INVALID_INVOCATION => 7,
-        INFRASTRUCTURE_FAILURE => 8,
-        TEST_FAILURE => 9,
-    };
-}
-
-fn stop_for(outcome: Outcome) -> (result: bool) {
-    return match outcome {
-        SUCCESS => false,
-        COMPILE_FAILURE => true,
-        RUNTIME_FAILURE => true,
-        ASSERTION_FAILURE => true,
-        EFFECT_FAILURE => true,
-        TIMEOUT => true,
-        UNSUPPORTED => true,
-        INVALID_INVOCATION => true,
-        INFRASTRUCTURE_FAILURE => true,
-        TEST_FAILURE => true,
+        Success => false,
+        CompileFailure => true,
+        RuntimeFailure => true,
+        AssertionFailure => true,
+        EffectFailure => true,
+        TimeoutOrBudgetExhaustion => true,
+        Unsupported => true,
+        InvalidInvocation => true,
+        InfrastructureFailure => true,
+        TestFailure => true,
     };
 }

@@ -17,6 +17,48 @@ OVERFLOW_REQUEST = ROOT / "tests/fixtures/checked-add-overflow-request.json"
 
 @unittest.skipUnless(RUNTIME.is_file() and os.access(RUNTIME, os.X_OK), "MNCS runtime not available")
 class DiagnosticLoopTests(unittest.TestCase):
+    def test_adversarial_artifacts_do_not_create_semantic_evidence(self) -> None:
+        from mncs_debug.analysis import _native_artifact_facts
+
+        facts = _native_artifact_facts(
+            [
+                {
+                    "schema_version": "mncs.debug-trace/1",
+                    "trace_id": "trace:wrong-location",
+                    "events": [{"payload": {"operation": "not-a-runtime-reference"}}],
+                    "completeness": {"status": "complete"},
+                    "truncated": True,
+                },
+                {
+                    "schema_version": "mncs.debug-provenance/1",
+                    "provenance_id": "provenance:wrong-status",
+                    "claims": [{"kind": "operation_identity", "status": "claimed"}],
+                },
+                {
+                    "schema_version": "mncs.debug-replay/1",
+                    "replay_id": "replay:not-reproduced",
+                    "status": "available",
+                },
+                {
+                    "schema_version": "mncs.debug-minimization/1",
+                    "minimization_id": "minimize:not-qualifying",
+                    "status": "candidate",
+                },
+                {
+                    "schema_version": "mncs.debug-provenance/1",
+                    "claims": [{"kind": "operation_identity", "status": 1}],
+                },
+            ],
+            mncs_path=RUNTIME,
+            core_path=None,
+        )
+        self.assertFalse(facts["failure_anchor_present"])
+        self.assertFalse(facts["operation_identity_present"])
+        self.assertFalse(facts["observation_complete"])
+        self.assertFalse(facts["provenance_binding_present"])
+        self.assertFalse(facts["replay_established"])
+        self.assertFalse(facts["minimization_established"])
+
     def test_inspection_sufficient_does_not_request_projection(self) -> None:
         with tempfile.TemporaryDirectory(prefix="mncs-debug-analysis-") as directory:
             root = Path(directory)

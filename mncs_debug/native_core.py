@@ -1,44 +1,36 @@
-"""Invoke the MNCS-owned debug semantic decision core.
+"""Generated-binding adapters for the MNCS-owned debug policy.
 
-The host adapter converts an external runtime status into a small transport
-code. The MNCS source decides the semantic outcome and stop policy. This
-module is intentionally boring process transport.
+This module owns only process supervision and presentation normalization. The
+generated binding owns the typed-call envelope, nominal enum identities, and
+record shape. Semantic outcome/status/operation decisions are never decoded
+through host integer tables.
 """
 
 from __future__ import annotations
 
-import json
-import os
-import subprocess
-import tempfile
+import re
 from pathlib import Path
 from typing import Any
 
-
-OUTCOME_NAMES = {
-    0: "success",
-    1: "compile_failure",
-    2: "runtime_failure",
-    3: "assertion_failure",
-    4: "effect_failure",
-    5: "timeout_or_budget_exhaustion",
-    6: "unsupported_debug_capability",
-    7: "invalid_invocation",
-    8: "infrastructure_bootstrap_failure",
-    9: "test_failure",
-}
-
-SUFFICIENCY_STATUS = {0: "sufficient", 1: "ambiguous", 2: "unsupported"}
-NEXT_OPERATIONS = {0: None, 1: "trace", 2: "provenance", 3: "replay", 4: "minimization"}
-EVIDENCE_GAPS = {
-    0: None,
-    1: "failure_identity",
-    2: "operation_identity",
-    3: "observation_completeness",
-    4: "provenance",
-    5: "replay",
-    6: "minimization",
-}
+from .generated.debug import (
+    Binding,
+    BindingError,
+    DebugOutcome,
+    DecisionInput,
+    DiagnosticOperation,
+    EvidenceGap,
+    EvidencePresence,
+    EvidenceFactsInput,
+    MinimizationStatus,
+    ProvenanceClaimKind,
+    ProvenanceClaimStatus,
+    ProvenanceObservation,
+    ReplayStatus,
+    RuntimeStatus,
+    SufficiencyInput,
+    TraceCompleteness,
+    TraceObservation,
+)
 
 
 class NativeCoreError(RuntimeError):
@@ -49,90 +41,76 @@ def default_core_path() -> Path:
     return Path(__file__).resolve().parents[1] / "native/mncs/debug/v1.mncs"
 
 
-def _integer(value: Any) -> int | None:
-    if isinstance(value, dict):
-        item = value.get("integer")
-        if isinstance(item, dict) and isinstance(item.get("value"), int):
-            return item["value"]
-    return None
+def _label(value: Any) -> str | None:
+    """Render a generated enum as the established JSON spelling.
+
+    This is presentation normalization only. It deliberately accepts enum
+    instances, not arbitrary integers or strings supplied as semantic codes.
+    """
+
+    if not isinstance(value, (DebugOutcome, DiagnosticOperation, EvidenceGap)):
+        return None
+    name = value.value
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
 
 
-def _boolean(value: Any) -> bool | None:
-    if isinstance(value, dict):
-        item = value.get("boolean")
-        if isinstance(item, dict) and isinstance(item.get("value"), bool):
-            return item["value"]
-    return None
+def _runtime_status(value: str | RuntimeStatus) -> RuntimeStatus:
+    if isinstance(value, RuntimeStatus):
+        return value
+    if not isinstance(value, str) or not value:
+        raise NativeCoreError("runtime_status must be a generated RuntimeStatus")
+    for candidate in RuntimeStatus:
+        if value in {candidate.value, candidate.name}:
+            return candidate
+        if value == _label_like(candidate.value):
+            return candidate
+    raise NativeCoreError(f"unknown runtime status: {value}")
+
+
+def _label_like(value: str) -> str:
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", value).lower()
+
+
+def _binding(
+    *, mncs_path: Path, core_path: Path | None, timeout_seconds: float
+) -> Binding:
+    core = core_path or default_core_path()
+    if not core.exists():
+        raise NativeCoreError(f"native debug core is missing: {core}")
+    return Binding(str(mncs_path), core, timeout=timeout_seconds)
 
 
 def decide(
     *,
     mncs_path: Path,
-    status_code: int,
+    runtime_status: str | RuntimeStatus,
     assertion_failed: bool = False,
     effect_failed: bool = False,
     core_path: Path | None = None,
     timeout_seconds: float = 10.0,
 ) -> dict[str, Any]:
-    """Ask the native core for one decision and return its typed record."""
+    """Ask the native core for one typed semantic decision."""
 
-    core = core_path or default_core_path()
-    if not core.exists():
-        raise NativeCoreError(f"native debug core is missing: {core}")
-    request = {
-        "schema_version": "0.1",
-        "target": {"module": "mncs.debug.v1", "function": "decide"},
-        "arguments": [
-            {"integer": {"value": status_code, "type": {"bits": 32, "signed": True}}},
-            {"boolean": {"value": assertion_failed}},
-            {"boolean": {"value": effect_failed}},
-        ],
-        "step_budget": 128,
-    }
-    with tempfile.TemporaryDirectory(prefix="mncs-debug-core-") as directory:
-        request_path = Path(directory) / "request.json"
-        request_path.write_text(json.dumps(request), encoding="utf-8")
-        try:
-            completed = subprocess.run(
-                [os.fspath(mncs_path), "execute", os.fspath(core), os.fspath(request_path)],
-                cwd=os.fspath(core.parent),
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=timeout_seconds,
-                check=False,
-            )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            raise NativeCoreError(f"native debug core invocation failed: {exc}") from exc
+    binding = _binding(
+        mncs_path=mncs_path, core_path=core_path, timeout_seconds=timeout_seconds
+    )
     try:
-        document = json.loads(completed.stdout.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise NativeCoreError(
-            f"native debug core did not emit JSON (exit {completed.returncode}): "
-            f"{completed.stderr.decode('utf-8', errors='replace')[:400]}"
-        ) from exc
-    if not isinstance(document, dict) or document.get("status") != "returned":
-        raise NativeCoreError(f"native debug core returned non-success execution: {document!r}")
-    returned = document.get("returned")
-    if not isinstance(returned, list) or len(returned) != 1:
-        raise NativeCoreError("native debug core returned an unexpected value shape")
-    record = returned[0].get("record") if isinstance(returned[0], dict) else None
-    fields = record.get("fields") if isinstance(record, dict) else None
-    if not isinstance(fields, list):
-        raise NativeCoreError("native debug core returned a non-record decision")
-    values: dict[str, Any] = {}
-    for pair in fields:
-        if isinstance(pair, list) and len(pair) == 2 and isinstance(pair[0], str):
-            values[pair[0]] = pair[1]
-    outcome_code = _integer(values.get("outcome_code"))
-    should_stop = _boolean(values.get("should_stop"))
-    if outcome_code is None or should_stop is None or outcome_code not in OUTCOME_NAMES:
-        raise NativeCoreError(f"native debug core returned invalid decision fields: {values!r}")
+        decision = binding.decide(
+            DecisionInput(
+                runtime_status=_runtime_status(runtime_status),
+                assertion_failed=assertion_failed,
+                effect_failed=effect_failed,
+            )
+        )
+    except (BindingError, ValueError, TypeError) as exc:
+        raise NativeCoreError(f"native debug decision failed: {exc}") from exc
+    outcome = _label(decision.outcome)
+    if outcome is None:
+        raise NativeCoreError("native debug core returned an unknown generated outcome")
     return {
-        "outcome_code": outcome_code,
-        "outcome": OUTCOME_NAMES[outcome_code],
-        "should_stop": should_stop,
-        "native_execution": document,
+        "outcome": outcome,
+        "should_stop": decision.should_stop,
+        "native_execution": binding.last_execution,
     }
 
 
@@ -148,78 +126,107 @@ def sufficiency(
     core_path: Path | None = None,
     timeout_seconds: float = 10.0,
 ) -> dict[str, Any]:
-    """Ask the native debugger policy whether the current evidence is enough."""
+    """Ask the native debugger policy for the next typed evidence operation."""
 
-    core = core_path or default_core_path()
-    if not core.exists():
-        raise NativeCoreError(f"native debug core is missing: {core}")
-    request = {
-        "schema_version": "0.1",
-        "target": {"module": "mncs.debug.v1", "function": "sufficiency"},
-        "typed_arguments": [
-            {
-                "record": {
-                    "type": "SufficiencyInput",
-                    "fields": {
-                        "has_failure_identity": {"boolean": {"value": has_failure_identity}},
-                        "has_operation_identity": {"boolean": {"value": has_operation_identity}},
-                        "observation_complete": {"boolean": {"value": observation_complete}},
-                        "provenance_observed": {"boolean": {"value": provenance_observed}},
-                        "replay_required": {"boolean": {"value": replay_required}},
-                        "minimization_required": {"boolean": {"value": minimization_required}},
-                    },
-                }
-            }
-        ],
-        "step_budget": 128,
-    }
-    with tempfile.TemporaryDirectory(prefix="mncs-debug-core-") as directory:
-        request_path = Path(directory) / "request.json"
-        request_path.write_text(json.dumps(request), encoding="utf-8")
-        try:
-            completed = subprocess.run(
-                [os.fspath(mncs_path), "execute", os.fspath(core), os.fspath(request_path)],
-                cwd=os.fspath(core.parent),
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=timeout_seconds,
-                check=False,
-            )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            raise NativeCoreError(f"native debug core invocation failed: {exc}") from exc
+    binding = _binding(
+        mncs_path=mncs_path, core_path=core_path, timeout_seconds=timeout_seconds
+    )
     try:
-        document = json.loads(completed.stdout.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise NativeCoreError(
-            f"native debug core did not emit JSON (exit {completed.returncode}): "
-            f"{completed.stderr.decode('utf-8', errors='replace')[:400]}"
-        ) from exc
-    if not isinstance(document, dict) or document.get("status") != "returned":
-        raise NativeCoreError(f"native debug core returned non-success execution: {document!r}")
-    returned = document.get("returned")
-    fields = returned[0].get("record", {}).get("fields") if isinstance(returned, list) and returned else None
-    if not isinstance(fields, list):
-        raise NativeCoreError("native debug core returned a non-record sufficiency decision")
-    values: dict[str, Any] = {}
-    for pair in fields:
-        if isinstance(pair, list) and len(pair) == 2 and isinstance(pair[0], str):
-            values[pair[0]] = pair[1]
-    status_code = _integer(values.get("status_code"))
-    next_code = _integer(values.get("next_operation_code"))
-    gap_code = _integer(values.get("evidence_gap_code"))
-    sufficient_value = _boolean(values.get("sufficient"))
-    if (
-        status_code not in SUFFICIENCY_STATUS
-        or next_code not in NEXT_OPERATIONS
-        or gap_code not in EVIDENCE_GAPS
-        or sufficient_value is None
-    ):
-        raise NativeCoreError(f"native debug core returned invalid sufficiency fields: {values!r}")
+        decision = binding.sufficiency(
+            SufficiencyInput(
+                has_failure_identity=has_failure_identity,
+                has_operation_identity=has_operation_identity,
+                observation_complete=observation_complete,
+                provenance_observed=provenance_observed,
+                replay_required=replay_required,
+                minimization_required=minimization_required,
+            )
+        )
+    except (BindingError, ValueError, TypeError) as exc:
+        raise NativeCoreError(f"native debug sufficiency failed: {exc}") from exc
+    status = _label_like(decision.status.value)
+    operation = None if decision.next_operation is DiagnosticOperation.NoOperation else _label(decision.next_operation)
+    gap = None if decision.evidence_gap is EvidenceGap.NoGap else _label(decision.evidence_gap)
+    if status is None or (decision.next_operation is not DiagnosticOperation.NoOperation and operation is None):
+        raise NativeCoreError("native debug core returned an unknown generated sufficiency value")
     return {
-        "status": SUFFICIENCY_STATUS[status_code],
-        "sufficient": sufficient_value,
-        "next_operation": NEXT_OPERATIONS[next_code],
-        "evidence_gap": EVIDENCE_GAPS[gap_code],
-        "native_execution": document,
+        "status": status,
+        "sufficient": decision.sufficient,
+        "next_operation": operation,
+        "evidence_gap": gap,
+        "native_execution": binding.last_execution,
+    }
+
+
+def reduce_evidence_facts(
+    *,
+    mncs_path: Path,
+    trace_observations: list[TraceObservation],
+    provenance_observations: list[ProvenanceObservation],
+    replay_statuses: list[ReplayStatus],
+    minimization_statuses: list[MinimizationStatus],
+    core_path: Path | None = None,
+    timeout_seconds: float = 10.0,
+) -> dict[str, Any]:
+    """Reduce bounded typed artifact observations through native policy."""
+
+    def fixed(values: list[Any], capacity: int, default: Any) -> tuple[tuple[Any, ...], int, bool]:
+        overflow = len(values) > capacity
+        bounded = list(values[:capacity])
+        bounded.extend(default for _ in range(capacity - len(bounded)))
+        return tuple(bounded), min(len(values), capacity), overflow
+
+    traces, trace_count, trace_overflow = fixed(
+        trace_observations,
+        16,
+        TraceObservation(
+            completeness=TraceCompleteness.Unknown,
+            failure_anchor=EvidencePresence.Absent,
+            operation_identity=EvidencePresence.Absent,
+        ),
+    )
+    provenance, provenance_count, provenance_overflow = fixed(
+        provenance_observations,
+        64,
+        ProvenanceObservation(
+            kind=ProvenanceClaimKind.Other,
+            status=ProvenanceClaimStatus.Unknown,
+        ),
+    )
+    replay, replay_count, replay_overflow = fixed(
+        replay_statuses, 16, ReplayStatus.Unknown
+    )
+    minimization, minimization_count, minimization_overflow = fixed(
+        minimization_statuses, 16, MinimizationStatus.Unknown
+    )
+
+    binding = _binding(
+        mncs_path=mncs_path, core_path=core_path, timeout_seconds=timeout_seconds
+    )
+    try:
+        facts = binding.evidence_facts(
+            EvidenceFactsInput(
+                traces=traces,
+                trace_count=trace_count,
+                trace_overflow=trace_overflow,
+                provenance=provenance,
+                provenance_count=provenance_count,
+                provenance_overflow=provenance_overflow,
+                replay=replay,
+                replay_count=replay_count,
+                replay_overflow=replay_overflow,
+                minimization=minimization,
+                minimization_count=minimization_count,
+                minimization_overflow=minimization_overflow,
+            )
+        )
+    except (BindingError, ValueError, TypeError) as exc:
+        raise NativeCoreError(f"native debug evidence reduction failed: {exc}") from exc
+    return {
+        "failure_anchor_present": facts.failure_anchor_present,
+        "operation_identity_present": facts.operation_identity_present,
+        "observation_complete": facts.observation_complete,
+        "provenance_binding_present": facts.provenance_binding_present,
+        "replay_established": facts.replay_established,
+        "minimization_established": facts.minimization_established,
     }

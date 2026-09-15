@@ -175,10 +175,11 @@ established.
 
 ## 7–8. Native versus host code and every host boundary
 
-Native semantic code is currently the outcome/stop decision core: 84 lines of
-MNCS source including comments and explicit transport mapping. The rest is
-host code because the current MNCS profile has no process, filesystem, JSON,
-compiler-artifact import, or live debug-session facilities.
+Native semantic code now includes outcome/stop decisions and the bounded
+artifact-evidence reducer. The generated binding carries nominal enums,
+records, and fixed-capacity evidence observations; the rest is host code
+because the current MNCS profile has no process, filesystem, JSON, or live
+debug-session facilities.
 
 | Host area | Classification | Semantic impact |
 | --- | --- | --- |

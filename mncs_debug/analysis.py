@@ -26,6 +26,16 @@ from .protocol import (
     validate_witness_integrity,
 )
 from .runner import RunnerError, build_witness, run_process, resolve_mncs
+from .generated.debug import (
+    EvidencePresence,
+    MinimizationStatus,
+    ProvenanceClaimKind,
+    ProvenanceClaimStatus,
+    ProvenanceObservation,
+    ReplayStatus,
+    TraceCompleteness,
+    TraceObservation,
+)
 
 
 def load_witness(path: Path) -> dict[str, Any]:
@@ -211,7 +221,11 @@ def diagnostic_sufficiency(
     from the supplied artifact contents can change the native inputs.
     """
 
-    from .native_core import NativeCoreError, sufficiency as native_sufficiency
+    from .native_core import (
+        NativeCoreError,
+        reduce_evidence_facts,
+        sufficiency as native_sufficiency,
+    )
 
     inspection = inspection if isinstance(inspection, dict) else inspect_witness(witness)
     outcome = witness.get("outcome") if isinstance(witness.get("outcome"), dict) else {}
@@ -257,7 +271,33 @@ def diagnostic_sufficiency(
         if isinstance(inspection.get("values"), list)
     )
     artifacts = [artifact for artifact in evidence_artifacts if isinstance(artifact, dict)]
-    artifact_facts = _evidence_facts_from_artifacts(artifacts)
+    structural_artifact_facts = _evidence_facts_from_artifacts(artifacts)
+    evidence_reduction_error: str | None = None
+    try:
+        artifact_facts = {
+            **reduce_evidence_facts(
+                mncs_path=mncs_path,
+                trace_observations=structural_artifact_facts["traces"],
+                provenance_observations=structural_artifact_facts["provenance"],
+                replay_statuses=structural_artifact_facts["replay"],
+                minimization_statuses=structural_artifact_facts["minimization"],
+                core_path=core_path,
+            ),
+            "artifact_ids": structural_artifact_facts["artifact_ids"],
+        }
+    except NativeCoreError as error:
+        # A missing semantic reducer cannot create evidence. Preserve the
+        # artifact identities for diagnosis, but fail closed on every fact.
+        evidence_reduction_error = str(error)
+        artifact_facts = {
+            "failure_anchor_present": False,
+            "operation_identity_present": False,
+            "observation_complete": False,
+            "provenance_binding_present": False,
+            "replay_established": False,
+            "minimization_established": False,
+            "artifact_ids": structural_artifact_facts["artifact_ids"],
+        }
     trace_failure_anchor = any(
         isinstance(event, dict)
         and (
@@ -345,25 +385,24 @@ def diagnostic_sufficiency(
         "requested_projection": supplemental_operation,
         "authority": "mncs-debug",
         "native_execution": decision.get("native_execution"),
-        "error": decision.get("error"),
+        "error": decision.get("error") or evidence_reduction_error,
     }
 
 
 def _evidence_facts_from_artifacts(artifacts: Iterable[dict[str, Any]]) -> dict[str, Any]:
-    """Extract only structurally demonstrated facts from projection artifacts.
+    """Extract bounded typed observations without deciding their meaning.
 
-    This adapter does not decide sufficiency.  It reports bounded facts such
-    as an observed event reference or a complete provenance claim to the
-    MNCS-native sufficiency function.
+    The native reducer owns the predicates that turn these observations into
+    debugger evidence. This adapter only validates document shape enough to
+    normalize literal fields into the native vocabulary and retains artifact
+    identities for provenance.
     """
 
     facts = {
-        "failure_anchor_present": False,
-        "operation_identity_present": False,
-        "observation_complete": False,
-        "provenance_binding_present": False,
-        "replay_established": False,
-        "minimization_established": False,
+        "traces": [],
+        "provenance": [],
+        "replay": [],
+        "minimization": [],
         "artifact_ids": [],
     }
     for artifact in artifacts:
@@ -374,6 +413,8 @@ def _evidence_facts_from_artifacts(artifacts: Iterable[dict[str, Any]]) -> dict[
                 facts["artifact_ids"].append(value)
         if schema == TRACE_SCHEMA:
             events = artifact.get("events") if isinstance(artifact.get("events"), list) else []
+            failure_anchor = False
+            operation_identity = False
             for event in events:
                 if not isinstance(event, dict):
                     continue
@@ -381,49 +422,92 @@ def _evidence_facts_from_artifacts(artifacts: Iterable[dict[str, Any]]) -> dict[
                 location = event.get("location") if isinstance(event.get("location"), dict) else {}
                 runtime_location = location.get("runtime") if isinstance(location.get("runtime"), dict) else {}
                 if event.get("kind") == "failure" or isinstance(payload.get("failure_identity"), str):
-                    facts["failure_anchor_present"] = True
+                    failure_anchor = True
                 if isinstance(runtime_location.get("operation"), str) or isinstance(
                     payload.get("operation_identity"), str
                 ):
-                    facts["operation_identity_present"] = True
+                    operation_identity = True
             completeness = artifact.get("completeness") if isinstance(artifact.get("completeness"), dict) else {}
-            facts["observation_complete"] = facts["observation_complete"] or (
-                completeness.get("status") == "complete" and artifact.get("truncated") is False
+            completeness_status = completeness.get("status")
+            if completeness_status == "complete" and artifact.get("truncated") is False:
+                trace_completeness = TraceCompleteness.Complete
+            elif completeness_status == "truncated" or artifact.get("truncated") is True:
+                trace_completeness = TraceCompleteness.Truncated
+            elif completeness_status == "partial":
+                trace_completeness = TraceCompleteness.Partial
+            else:
+                trace_completeness = TraceCompleteness.Unknown
+            facts["traces"].append(
+                TraceObservation(
+                    failure_anchor=(EvidencePresence.Present if failure_anchor else EvidencePresence.Absent),
+                    operation_identity=(EvidencePresence.Present if operation_identity else EvidencePresence.Absent),
+                    completeness=trace_completeness,
+                )
             )
         elif schema == PROVENANCE_SCHEMA:
             claims = artifact.get("claims") if isinstance(artifact.get("claims"), list) else []
-            facts["provenance_binding_present"] = facts["provenance_binding_present"] or any(
-                isinstance(claim, dict)
-                and claim.get("kind") in {"operation_identity", "value_origin_chain", "effect_provenance"}
-                and (
-                    claim.get("status") in {"observed", "available"}
-                    or (
-                        claim.get("kind") == "operation_identity"
-                        and isinstance(claim.get("operation"), dict)
-                        and claim["operation"].get("status") == "observed"
-                    )
-                )
-                for claim in claims
-            )
-            facts["operation_identity_present"] = facts["operation_identity_present"] or any(
-                isinstance(claim, dict)
-                and claim.get("kind") == "operation_identity"
-                and isinstance(claim.get("operation"), dict)
-                and claim["operation"].get("status") == "observed"
-                for claim in claims
-            )
+            for claim in claims:
+                if not isinstance(claim, dict):
+                    continue
+                kind = {
+                    "operation_identity": ProvenanceClaimKind.OperationIdentity,
+                    "value_origin_chain": ProvenanceClaimKind.ValueOriginChain,
+                    "effect_provenance": ProvenanceClaimKind.EffectProvenance,
+                }.get(claim.get("kind"), ProvenanceClaimKind.Other)
+                status = {
+                    "claimed": ProvenanceClaimStatus.Claimed,
+                    "available": ProvenanceClaimStatus.Available,
+                    "observed": ProvenanceClaimStatus.Observed,
+                }.get(claim.get("status"), ProvenanceClaimStatus.Unknown)
+                nested_operation = claim.get("operation")
+                if kind is ProvenanceClaimKind.OperationIdentity and isinstance(nested_operation, dict):
+                    status = {
+                        "claimed": ProvenanceClaimStatus.Claimed,
+                        "available": ProvenanceClaimStatus.Available,
+                        "observed": ProvenanceClaimStatus.Observed,
+                    }.get(nested_operation.get("status"), status)
+                facts["provenance"].append(ProvenanceObservation(kind=kind, status=status))
         elif schema == REPLAY_SCHEMA:
-            facts["replay_established"] = facts["replay_established"] or artifact.get("status") in {
-                "replayed",
-                "reproduced",
-            }
+            facts["replay"].append(
+                {
+                    "replayed": ReplayStatus.Replayed,
+                    "reproduced": ReplayStatus.Reproduced,
+                    "available": ReplayStatus.Available,
+                    "mismatch": ReplayStatus.Mismatch,
+                }.get(artifact.get("status"), ReplayStatus.Unknown)
+            )
         elif schema == "mncs.debug-minimization/1":
-            facts["minimization_established"] = facts["minimization_established"] or artifact.get("status") in {
-                "reduced",
-                "no_reduction",
-            }
+            facts["minimization"].append(
+                {
+                    "candidate": MinimizationStatus.Candidate,
+                    "reduced": MinimizationStatus.Reduced,
+                    "no_reduction": MinimizationStatus.NoReduction,
+                    "blocked": MinimizationStatus.Blocked,
+                }.get(artifact.get("status"), MinimizationStatus.Unknown)
+            )
     facts["artifact_ids"] = sorted(set(facts["artifact_ids"]))
     return facts
+
+
+def _native_artifact_facts(
+    artifacts: Iterable[dict[str, Any]], *, mncs_path: Path, core_path: Path | None
+) -> dict[str, Any]:
+    """Run the typed native evidence reducer for one bounded artifact set."""
+
+    from .native_core import reduce_evidence_facts
+
+    structural = _evidence_facts_from_artifacts(artifacts)
+    return {
+        **reduce_evidence_facts(
+            mncs_path=mncs_path,
+            trace_observations=structural["traces"],
+            provenance_observations=structural["provenance"],
+            replay_statuses=structural["replay"],
+            minimization_statuses=structural["minimization"],
+            core_path=core_path,
+        ),
+        "artifact_ids": structural["artifact_ids"],
+    }
 
 
 def diagnostic_loop(
@@ -534,7 +618,17 @@ def diagnostic_loop(
                 None,
             ),
         }
-        after = _evidence_facts_from_artifacts([artifact])
+        try:
+            after = _native_artifact_facts([artifact], mncs_path=mncs_path, core_path=core_path)
+        except NativeCoreError:
+            after = {
+                "failure_anchor_present": False,
+                "operation_identity_present": False,
+                "observation_complete": False,
+                "provenance_binding_present": False,
+                "replay_established": False,
+                "minimization_established": False,
+            }
         step["evidence_increased"] = any(
             bool(after.get(field)) and not bool(decision_inputs.get(field))
             for field in (
@@ -562,7 +656,18 @@ def diagnostic_loop(
     status = final_decision.get("status") if stopping_reason == "sufficient" else (
         "unsupported" if stopping_reason == "unsupported" else "unknown"
     )
-    facts = _evidence_facts_from_artifacts(artifacts)
+    try:
+        facts = _native_artifact_facts(artifacts, mncs_path=mncs_path, core_path=core_path)
+    except NativeCoreError:
+        facts = {
+            "failure_anchor_present": False,
+            "operation_identity_present": False,
+            "observation_complete": False,
+            "provenance_binding_present": False,
+            "replay_established": False,
+            "minimization_established": False,
+            "artifact_ids": _evidence_facts_from_artifacts(artifacts)["artifact_ids"],
+        }
     requested_projections = [
         step["projection"]
         for step in steps

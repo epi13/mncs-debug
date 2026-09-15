@@ -200,20 +200,27 @@ def _read_input(path: Path) -> bytes:
         raise RunnerError(f"unable to read {path}: {exc}") from exc
 
 
-def _result_status_code(execution: Any, validation: Any = None, timed_out: bool = False) -> int:
+def _runtime_status(execution: Any, validation: Any = None, timed_out: bool = False) -> str:
+    """Translate platform execution facts into the native status vocabulary."""
+
     if timed_out:
-        return 3
+        return "BudgetExhausted"
     if isinstance(validation, dict) and validation.get("valid") is False:
-        return 5
+        return "CompileFailure"
     if not isinstance(execution, dict):
-        return 8
-    return {
-        "returned": 0,
-        "runtime_failure": 1,
-        "unsupported": 2,
-        "budget_exhausted": 3,
-        "invalid_request": 4,
-    }.get(execution.get("status"), 8)
+        return "InfrastructureFailure"
+    status = execution.get("status")
+    if status == "returned":
+        return "Returned"
+    if status == "runtime_failure":
+        return "RuntimeFailure"
+    if status == "unsupported":
+        return "Unsupported"
+    if status == "budget_exhausted":
+        return "BudgetExhausted"
+    if status == "invalid_request":
+        return "InvalidRequest"
+    return "InfrastructureFailure"
 
 
 def classify_with_native_core(
@@ -227,7 +234,7 @@ def classify_with_native_core(
 ) -> dict[str, Any]:
     """Use native semantics to classify the boundary outcome."""
 
-    status_code = _result_status_code(execution, validation, timed_out)
+    runtime_status = _runtime_status(execution, validation, timed_out)
     failure = execution.get("failure") if isinstance(execution, dict) else None
     effect_failed = bool(isinstance(failure, dict) and "effect" in str(failure.get("reason", "")).lower())
     assertion_failed = False
@@ -241,7 +248,7 @@ def classify_with_native_core(
     try:
         decision = native_decide(
             mncs_path=mncs_path,
-            status_code=status_code,
+            runtime_status=runtime_status,
             assertion_failed=assertion_failed,
             effect_failed=effect_failed,
             core_path=core_path,
@@ -250,11 +257,11 @@ def classify_with_native_core(
         return {
             "available": False,
             "error": str(exc),
-            "status_code": status_code,
+            "runtime_status": runtime_status,
             "input_assertion_failed": assertion_failed,
             "input_effect_failed": effect_failed,
         }
-    return {"available": True, **decision, "status_code": status_code}
+    return {"available": True, **decision, "runtime_status": runtime_status}
 
 
 def build_static_index(
