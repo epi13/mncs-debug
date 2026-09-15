@@ -1,0 +1,20 @@
+{
+  "schema_version": "commons.mncs.semantic-contract-declarations/v1",
+  "repository_id": "mncs-debug",
+  "revision": "1",
+  "provides": [],
+  "consumes": [
+    {
+      "contract_identity": "mncs.execution-observation/1",
+      "contract_revision": "1",
+      "consumer_identity": "mncs-debug:observation",
+      "evidence": "docs/architecture.md"
+    },
+    {
+      "contract_identity": "mncs.test-result/1",
+      "contract_revision": "1",
+      "consumer_identity": "mncs-debug:test-result",
+      "evidence": "AGENTS.md"
+    }
+  ]
+}

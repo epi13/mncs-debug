@@ -10,12 +10,11 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
-import os
 import platform
 import sys
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
-
+from typing import Any
 
 SESSION_SCHEMA = "mncs.debug-session/1"
 EVENT_SCHEMA = "mncs.debug-event/1"
@@ -29,6 +28,7 @@ API_SCHEMA = "mncs.debug-api/1"
 VALIDATION_SCHEMA = "mncs.debug-validation/1"
 MINIMIZATION_SCHEMA = "mncs.debug-minimization/1"
 SUFFICIENCY_SCHEMA = "mncs.debug-sufficiency/1"
+DIAGNOSIS_SCHEMA = "mncs.debug-diagnosis/1"
 DEMONSTRATIONS_SCHEMA = "mncs.debug-demonstrations/1"
 OVERHEAD_SCHEMA = "mncs.debug-overhead/1"
 PROTOCOL_VERSION = 1
@@ -270,6 +270,7 @@ def validate_document(value: Any, expected_schema: str | None = None) -> list[st
         VALIDATION_SCHEMA: ("schema_version", "protocol_version", "valid", "kind", "errors"),
         MINIMIZATION_SCHEMA: ("schema_version", "protocol_version", "minimization_id", "witness_id", "status", "message", "attempts", "changes", "equivalence", "conservative"),
         SUFFICIENCY_SCHEMA: ("schema_version", "protocol_version", "sufficiency_id", "witness_id", "status", "sufficient", "next_operation", "evidence_gap"),
+        DIAGNOSIS_SCHEMA: ("schema_version", "protocol_version", "diagnosis_id", "witness_id", "status", "sufficient", "stopping_reason", "budget", "steps", "requested_projections", "projections", "final_sufficiency"),
         DEMONSTRATIONS_SCHEMA: ("schema_version", "captured_at", "baseline_file", "selected_runtime", "demonstrations", "interpretation"),
         OVERHEAD_SCHEMA: ("schema_version", "protocol_version", "measurement_id", "program", "request", "runtime", "iterations", "direct", "record", "median_overhead", "interpretation", "boundedness"),
     }
@@ -316,6 +317,21 @@ def validate_document(value: Any, expected_schema: str | None = None) -> list[st
             errors.append("sufficiency status is invalid")
         if not isinstance(value.get("sufficient"), bool):
             errors.append("sufficiency sufficient must be boolean")
+    if schema == DIAGNOSIS_SCHEMA:
+        if value.get("status") not in {"sufficient", "unknown", "unsupported"}:
+            errors.append("diagnosis status is invalid")
+        if not isinstance(value.get("sufficient"), bool):
+            errors.append("diagnosis sufficient must be boolean")
+        if not isinstance(value.get("steps"), list):
+            errors.append("diagnosis steps must be an array")
+        if not isinstance(value.get("requested_projections"), list):
+            errors.append("diagnosis requested_projections must be an array")
+        if not isinstance(value.get("projections"), list):
+            errors.append("diagnosis projections must be an array")
+        if not isinstance(value.get("budget"), dict):
+            errors.append("diagnosis budget must be an object")
+        if not isinstance(value.get("final_sufficiency"), dict):
+            errors.append("diagnosis final_sufficiency must be an object")
     return errors
 
 
