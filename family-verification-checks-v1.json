@@ -1,0 +1,18 @@
+{
+  "schema_version": "commons.mncs.family-verification-checks/v1",
+  "repository_id": "mncs-debug",
+  "checks": [
+    {
+      "identity": "mncs-debug:observation-contract",
+      "contract_identity": "mncs.execution-observation/1",
+      "runner": "declaration",
+      "surface": "diagnostic-observation-input"
+    },
+    {
+      "identity": "mncs-debug:test-result-contract",
+      "contract_identity": "mncs.test-result/1",
+      "runner": "declaration",
+      "surface": "diagnostic-test-input"
+    }
+  ]
+}

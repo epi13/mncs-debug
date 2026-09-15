@@ -8,13 +8,25 @@
       "contract_identity": "mncs.execution-observation/1",
       "contract_revision": "1",
       "consumer_identity": "mncs-debug:observation",
-      "evidence": "docs/architecture.md"
+      "evidence": "docs/architecture.md",
+      "verification": {
+        "check_identity": "mncs-debug:observation-contract",
+        "executor": "mncs-debug",
+        "surface": "diagnostic-observation-input",
+        "evidence": "family-verification-checks-v1.json"
+      }
     },
     {
       "contract_identity": "mncs.test-result/1",
       "contract_revision": "1",
       "consumer_identity": "mncs-debug:test-result",
-      "evidence": "AGENTS.md"
+      "evidence": "AGENTS.md",
+      "verification": {
+        "check_identity": "mncs-debug:test-result-contract",
+        "executor": "mncs-debug",
+        "surface": "diagnostic-test-input",
+        "evidence": "family-verification-checks-v1.json"
+      }
     }
   ]
 }
