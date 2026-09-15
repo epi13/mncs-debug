@@ -217,16 +217,17 @@ recorded signature.
 
 ## Native/host trust boundary
 
-The native file `native/mncs/debug/v1.mncs` owns the outcome enum mapping and
-stop policy. Its numeric inputs are an explicitly documented transport membrane
-from the current runtime's status vocabulary. The Python adapter owns:
+The native file `native/mncs/debug/v1.mncs` owns outcome/stop policy and the
+predicates that establish evidence from bounded artifact observations. The
+generated Python binding owns the typed-call transport. The remaining Python
+adapter owns:
 
 | Host dependency | Classification | Why it remains |
 | --- | --- | --- |
 | process creation, timeout, stdout/stderr pipes | legitimate platform/bootstrap boundary | MNCS cannot yet supervise an external compiler/runtime process or OS timeout |
 | JSON file read/write, bounded base64/text, SHA-256 | legitimate transport/artifact boundary | cross-process artifact transport is outside the current native program model |
 | legacy HIR/SSA/source-study normalization | versioned compatibility fallback caused by identified MNCS pressure | older runtimes do not expose `execution-observation/1`; native witnesses do not use it |
-| witness queries and JSON projection | canonical debugger semantic consumer | `mncs-debug` interprets native facts into inspection/provenance contracts; it does not reconstruct them |
+| witness queries and JSON projection | canonical debugger semantic consumer | `mncs-debug` projects native facts into inspection/provenance contracts; it does not decide evidence sufficiency |
 | selected `mncs` executable | independent differential/reference witness | this campaign must consume current runtime behavior without modifying it |
 
 There is no host fallback for semantic outcome classification. If the MNCS
