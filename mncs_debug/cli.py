@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .analysis import (
+    diagnostic_loop,
     inspect_witness,
     diagnostic_sufficiency,
     load_witness,
@@ -119,9 +120,20 @@ def _build_parser() -> argparse.ArgumentParser:
     sufficiency.add_argument("--inspection")
     sufficiency.add_argument("--mncs")
     sufficiency.add_argument("--core")
+    sufficiency.add_argument("--evidence-artifact", action="append", default=[], help="typed projection artifact JSON; may be repeated")
     sufficiency.add_argument("--evidence-operation", choices=("trace", "provenance", "replay", "minimization"))
     sufficiency.add_argument("--output")
     sufficiency.add_argument("--format", choices=("json", "text"), default="json")
+
+    diagnose = sub.add_parser("diagnose", help="run the bounded native evidence-sufficiency loop")
+    diagnose.add_argument("witness")
+    diagnose.add_argument("--mncs")
+    diagnose.add_argument("--core")
+    diagnose.add_argument("--max-steps", type=int, default=4)
+    diagnose.add_argument("--inspection", help="reuse a previously produced inspection artifact")
+    diagnose.add_argument("--evidence-artifact", action="append", default=[], help="reuse a typed projection artifact; may be repeated")
+    diagnose.add_argument("--output")
+    diagnose.add_argument("--format", choices=("json", "text"), default="json")
 
     trace = sub.add_parser("trace", help="return a bounded trace or trace slice")
     trace.add_argument("witness")
@@ -284,12 +296,36 @@ def _cmd_sufficiency(args: argparse.Namespace) -> int:
     inspection = load_json(_path(args.inspection)) if args.inspection else inspect_witness(witness)
     if not isinstance(inspection, dict):
         raise ValueError("inspection must be a JSON object")
+    artifacts = [load_json(_path(path)) for path in args.evidence_artifact]
+    if not all(isinstance(artifact, dict) for artifact in artifacts):
+        raise ValueError("evidence artifacts must be JSON objects")
     document = diagnostic_sufficiency(
         witness,
         inspection,
         mncs_path=_runtime(args),
         core_path=_path(args.core) if args.core else None,
+        evidence_artifacts=artifacts,
         supplemental_operation=args.evidence_operation,
+    )
+    _write(document, args.output, text=_text_summary(document) if args.format == "text" else None)
+    return EXIT_SUCCESS if document.get("status") == "sufficient" else EXIT_FAILURE
+
+
+def _cmd_diagnose(args: argparse.Namespace) -> int:
+    witness = load_witness(_path(args.witness))
+    inspection = load_json(_path(args.inspection)) if args.inspection else None
+    artifacts = [load_json(_path(path)) for path in args.evidence_artifact]
+    if inspection is not None and not isinstance(inspection, dict):
+        raise ValueError("inspection must be a JSON object")
+    if not all(isinstance(artifact, dict) for artifact in artifacts):
+        raise ValueError("evidence artifacts must be JSON objects")
+    document = diagnostic_loop(
+        witness,
+        mncs_path=_runtime(args),
+        core_path=_path(args.core) if args.core else None,
+        max_steps=args.max_steps,
+        initial_inspection=inspection,
+        initial_evidence_artifacts=artifacts,
     )
     _write(document, args.output, text=_text_summary(document) if args.format == "text" else None)
     return EXIT_SUCCESS if document.get("status") == "sufficient" else EXIT_FAILURE
@@ -616,6 +652,7 @@ def main(argv: list[str] | None = None) -> int:
             "run": _cmd_record,
             "inspect": _cmd_inspect,
             "sufficiency": _cmd_sufficiency,
+            "diagnose": _cmd_diagnose,
             "trace": _cmd_trace,
             "why": _cmd_why,
             "open": _cmd_open,

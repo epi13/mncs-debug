@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-debug/blob/main/schemas/debug-diagnosis.schema.json",
+  "title": "MNCS bounded debug diagnosis",
+  "type": "object",
+  "required": ["schema_version", "protocol_version", "diagnosis_id", "witness_id", "status", "sufficient", "stopping_reason", "budget", "steps", "requested_projections", "projections", "final_sufficiency"],
+  "properties": {
+    "schema_version": {"const": "mncs.debug-diagnosis/1"},
+    "protocol_version": {"const": 1},
+    "diagnosis_id": {"type": "string", "minLength": 1},
+    "witness_id": {"type": "string", "minLength": 1},
+    "status": {"enum": ["sufficient", "unknown", "unsupported"]},
+    "sufficient": {"type": "boolean"},
+    "stopping_reason": {"type": "string", "minLength": 1},
+    "budget": {"type": "object"},
+    "steps": {"type": "array", "items": {"type": "object"}},
+    "requested_projections": {"type": "array", "items": {"type": "object"}},
+    "projections": {"type": "array", "items": {"type": "object"}},
+    "final_sufficiency": {"type": "object"}
+  },
+  "additionalProperties": true
+}

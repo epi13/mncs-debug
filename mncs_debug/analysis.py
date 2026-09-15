@@ -7,7 +7,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 from .protocol import (
     INSPECTION_SCHEMA,
@@ -201,9 +201,15 @@ def diagnostic_sufficiency(
     *,
     mncs_path: Path,
     core_path: Path | None = None,
+    evidence_artifacts: Iterable[dict[str, Any]] = (),
     supplemental_operation: str | None = None,
 ) -> dict[str, Any]:
-    """Return the native, typed decision for the next useful diagnostic query."""
+    """Return the native, typed decision for the next useful diagnostic query.
+
+    ``supplemental_operation`` is retained as a transport compatibility field
+    for older callers.  It is deliberately not evidence: only facts extracted
+    from the supplied artifact contents can change the native inputs.
+    """
 
     from .native_core import NativeCoreError, sufficiency as native_sufficiency
 
@@ -236,12 +242,22 @@ def diagnostic_sufficiency(
             )
         )
     )
-    # A complete native inspection can bind a test-owned assertion to the
-    # active frame/value neighborhood even when the runtime returned normally
-    # and therefore emitted no runtime failure identity.
-    has_operation_identity = has_operation_identity or bool(
-        inspection.get("frames") or inspection.get("values") or inspection.get("effects")
+    # A concrete inspected frame/value/effect is a structural observation of
+    # the operation neighborhood.  Empty containers do not establish one.
+    has_operation_identity = has_operation_identity or any(
+        isinstance(frame, dict)
+        and (isinstance(frame.get("function_identity"), str) or isinstance(frame.get("runtime_identity"), str))
+        for frame in inspection.get("frames", [])
+        if isinstance(inspection.get("frames"), list)
     )
+    has_operation_identity = has_operation_identity or any(
+        isinstance(item, dict)
+        and (isinstance(item.get("operation"), str) or isinstance(item.get("output_identity"), str))
+        for item in inspection.get("values", [])
+        if isinstance(inspection.get("values"), list)
+    )
+    artifacts = [artifact for artifact in evidence_artifacts if isinstance(artifact, dict)]
+    artifact_facts = _evidence_facts_from_artifacts(artifacts)
     trace_failure_anchor = any(
         isinstance(event, dict)
         and (
@@ -257,16 +273,25 @@ def diagnostic_sufficiency(
     runtime = witness.get("runtime") if isinstance(witness.get("runtime"), dict) else {}
     observation = runtime.get("observation") if isinstance(runtime.get("observation"), dict) else {}
     completeness = observation.get("completeness") if isinstance(observation.get("completeness"), dict) else {}
-    has_operation_identity = has_operation_identity or supplemental_operation in {"trace", "provenance", "replay"}
     has_failure_anchor = bool(failure_identity) or test_failure_anchor or trace_failure_anchor
-    observation_complete = completeness.get("status") == "complete" or supplemental_operation in {"trace", "replay"}
-    provenance_observed = bool(
-        inspection.get("values")
-        or inspection.get("effects")
-        or _source_operation_index(witness).get(operation_identity)
+    observation_complete = (
+        completeness.get("status") == "complete"
+        or inspection.get("trace", {}).get("completeness", {}).get("status") == "complete"
+        or artifact_facts["observation_complete"]
     )
-    provenance_observed = provenance_observed or supplemental_operation in {"provenance", "replay"}
-    replay_required = outcome.get("status") in {"budget_exhausted", "infrastructure_failure"}
+    provenance_observed = artifact_facts["provenance_binding_present"] or any(
+        isinstance(frame, dict)
+        and isinstance(frame.get("source_location"), dict)
+        and frame["source_location"].get("confidence") == "compiler_exact"
+        for frame in inspection.get("frames", [])
+        if isinstance(inspection.get("frames"), list)
+    )
+    has_operation_identity = has_operation_identity or artifact_facts["operation_identity_present"]
+    has_failure_anchor = has_failure_anchor or artifact_facts["failure_anchor_present"]
+    replay_required = (
+        outcome.get("status") in {"budget_exhausted", "infrastructure_failure"}
+        and not artifact_facts["replay_established"]
+    )
     try:
         decision = native_sufficiency(
             mncs_path=mncs_path,
@@ -288,6 +313,8 @@ def diagnostic_sufficiency(
     material = {
         "witness_id": witness.get("witness_id"),
         "inspection_id": inspection.get("inspection_id"),
+        "artifact_ids": artifact_facts["artifact_ids"],
+        "facts": artifact_facts,
         "decision": decision,
     }
     return {
@@ -301,15 +328,271 @@ def diagnostic_sufficiency(
         "evidence_gap": decision.get("evidence_gap"),
         "inputs": {
             "failure_identity": failure_identity,
+            "failure_anchor_present": has_failure_anchor,
+            "operation_identity_present": has_operation_identity,
+            "observation_complete": observation_complete,
+            "provenance_binding_present": provenance_observed,
+            "replay_established": artifact_facts["replay_established"],
+            "minimization_established": artifact_facts["minimization_established"],
+            "replay_required": replay_required,
+            # Compatibility aliases for consumers of the pre-hardening
+            # sufficiency document.  They are derived from the same facts.
             "failure_anchor_observed": has_failure_anchor,
             "operation_identity_observed": has_operation_identity,
-            "observation_complete": observation_complete,
             "provenance_observed": provenance_observed,
-            "replay_required": replay_required,
         },
+        "evidence_facts": artifact_facts,
+        "requested_projection": supplemental_operation,
         "authority": "mncs-debug",
         "native_execution": decision.get("native_execution"),
         "error": decision.get("error"),
+    }
+
+
+def _evidence_facts_from_artifacts(artifacts: Iterable[dict[str, Any]]) -> dict[str, Any]:
+    """Extract only structurally demonstrated facts from projection artifacts.
+
+    This adapter does not decide sufficiency.  It reports bounded facts such
+    as an observed event reference or a complete provenance claim to the
+    MNCS-native sufficiency function.
+    """
+
+    facts = {
+        "failure_anchor_present": False,
+        "operation_identity_present": False,
+        "observation_complete": False,
+        "provenance_binding_present": False,
+        "replay_established": False,
+        "minimization_established": False,
+        "artifact_ids": [],
+    }
+    for artifact in artifacts:
+        schema = artifact.get("schema_version")
+        for key in ("trace_id", "provenance_id", "replay_id", "minimization_id"):
+            value = artifact.get(key)
+            if isinstance(value, str) and value:
+                facts["artifact_ids"].append(value)
+        if schema == TRACE_SCHEMA:
+            events = artifact.get("events") if isinstance(artifact.get("events"), list) else []
+            for event in events:
+                if not isinstance(event, dict):
+                    continue
+                payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+                location = event.get("location") if isinstance(event.get("location"), dict) else {}
+                runtime_location = location.get("runtime") if isinstance(location.get("runtime"), dict) else {}
+                if event.get("kind") == "failure" or isinstance(payload.get("failure_identity"), str):
+                    facts["failure_anchor_present"] = True
+                if isinstance(runtime_location.get("operation"), str) or isinstance(
+                    payload.get("operation_identity"), str
+                ):
+                    facts["operation_identity_present"] = True
+            completeness = artifact.get("completeness") if isinstance(artifact.get("completeness"), dict) else {}
+            facts["observation_complete"] = facts["observation_complete"] or (
+                completeness.get("status") == "complete" and artifact.get("truncated") is False
+            )
+        elif schema == PROVENANCE_SCHEMA:
+            claims = artifact.get("claims") if isinstance(artifact.get("claims"), list) else []
+            facts["provenance_binding_present"] = facts["provenance_binding_present"] or any(
+                isinstance(claim, dict)
+                and claim.get("kind") in {"operation_identity", "value_origin_chain", "effect_provenance"}
+                and (
+                    claim.get("status") in {"observed", "available"}
+                    or (
+                        claim.get("kind") == "operation_identity"
+                        and isinstance(claim.get("operation"), dict)
+                        and claim["operation"].get("status") == "observed"
+                    )
+                )
+                for claim in claims
+            )
+            facts["operation_identity_present"] = facts["operation_identity_present"] or any(
+                isinstance(claim, dict)
+                and claim.get("kind") == "operation_identity"
+                and isinstance(claim.get("operation"), dict)
+                and claim["operation"].get("status") == "observed"
+                for claim in claims
+            )
+        elif schema == REPLAY_SCHEMA:
+            facts["replay_established"] = facts["replay_established"] or artifact.get("status") in {
+                "replayed",
+                "reproduced",
+            }
+        elif schema == "mncs.debug-minimization/1":
+            facts["minimization_established"] = facts["minimization_established"] or artifact.get("status") in {
+                "reduced",
+                "no_reduction",
+            }
+    facts["artifact_ids"] = sorted(set(facts["artifact_ids"]))
+    return facts
+
+
+def diagnostic_loop(
+    witness: dict[str, Any],
+    *,
+    mncs_path: Path,
+    core_path: Path | None = None,
+    max_steps: int = 4,
+    initial_inspection: dict[str, Any] | None = None,
+    initial_evidence_artifacts: Iterable[dict[str, Any]] = (),
+) -> dict[str, Any]:
+    """Run one bounded, debugger-owned evidence escalation loop.
+
+    Each iteration asks the native sufficiency authority for exactly one next
+    projection.  Projections operate on the existing witness; the loop never
+    reruns the successful test execution.  Minimization is the only operation
+    that may perform its own explicitly bounded candidate replays.
+    """
+
+    if not 1 <= max_steps <= 4:
+        raise ValueError("diagnostic evidence budget must be between 1 and 4")
+    inspection = initial_inspection if isinstance(initial_inspection, dict) else inspect_witness(witness)
+    artifacts: list[dict[str, Any]] = [
+        artifact for artifact in initial_evidence_artifacts if isinstance(artifact, dict)
+    ]
+    reused_artifact_count = len(artifacts)
+    steps: list[dict[str, Any]] = []
+    attempted = {
+        "trace"
+        for artifact in artifacts
+        if artifact.get("schema_version") == TRACE_SCHEMA
+    }
+    attempted.update(
+        {
+            "provenance"
+            for artifact in artifacts
+            if artifact.get("schema_version") == PROVENANCE_SCHEMA
+        }
+    )
+    attempted.update(
+        {
+            "replay"
+            for artifact in artifacts
+            if artifact.get("schema_version") == REPLAY_SCHEMA
+        }
+    )
+    attempted.update(
+        {
+            "minimization"
+            for artifact in artifacts
+            if artifact.get("schema_version") == "mncs.debug-minimization/1"
+        }
+    )
+    stopping_reason = "budget_exhausted"
+    final_decision: dict[str, Any] | None = None
+
+    for index in range(max_steps + 1):
+        decision = diagnostic_sufficiency(
+            witness,
+            inspection,
+            mncs_path=mncs_path,
+            core_path=core_path,
+            evidence_artifacts=artifacts,
+        )
+        final_decision = decision
+        step: dict[str, Any] = {"index": index, "sufficiency": decision}
+        if decision.get("status") == "sufficient":
+            stopping_reason = "sufficient"
+            steps.append(step)
+            break
+        if decision.get("status") == "unsupported":
+            stopping_reason = "unsupported"
+            steps.append(step)
+            break
+        operation = decision.get("next_operation")
+        if not isinstance(operation, str):
+            stopping_reason = "no_next_operation"
+            steps.append(step)
+            break
+        if operation in attempted:
+            stopping_reason = "projection_did_not_increase_evidence"
+            steps.append(step)
+            break
+        if index >= max_steps:
+            stopping_reason = "budget_exhausted"
+            steps.append(step)
+            break
+        attempted.add(operation)
+        decision_inputs = decision.get("inputs") if isinstance(decision.get("inputs"), dict) else {}
+        if operation == "trace":
+            artifact = trace_slice(witness, limit=512)
+        elif operation == "provenance":
+            artifact = provenance_query(witness)
+        elif operation == "replay":
+            artifact = replay_trace(witness)
+        elif operation == "minimization":
+            _, artifact = minimize_witness(witness, max_attempts=8)
+        else:
+            stopping_reason = "unsupported_projection"
+            steps.append(step)
+            break
+        artifacts.append(artifact)
+        step["projection"] = {
+            "operation": operation,
+            "schema_version": artifact.get("schema_version"),
+            "artifact_id": next(
+                (artifact.get(field) for field in ("trace_id", "provenance_id", "replay_id", "minimization_id") if artifact.get(field)),
+                None,
+            ),
+        }
+        after = _evidence_facts_from_artifacts([artifact])
+        step["evidence_increased"] = any(
+            bool(after.get(field)) and not bool(decision_inputs.get(field))
+            for field in (
+                "failure_anchor_present",
+                "operation_identity_present",
+                "observation_complete",
+                "provenance_binding_present",
+                "replay_established",
+                "minimization_established",
+            )
+        )
+        steps.append(step)
+        if not step["evidence_increased"]:
+            stopping_reason = "projection_did_not_increase_evidence"
+            break
+    else:
+        stopping_reason = "budget_exhausted"
+
+    final_decision = final_decision or {
+        "status": "unsupported",
+        "sufficient": False,
+        "next_operation": None,
+        "evidence_gap": "no_decision",
+    }
+    status = final_decision.get("status") if stopping_reason == "sufficient" else (
+        "unsupported" if stopping_reason == "unsupported" else "unknown"
+    )
+    facts = _evidence_facts_from_artifacts(artifacts)
+    requested_projections = [
+        step["projection"]
+        for step in steps
+        if isinstance(step.get("projection"), dict)
+    ]
+    return {
+        "schema_version": "mncs.debug-diagnosis/1",
+        "protocol_version": PROTOCOL_VERSION,
+        "diagnosis_id": identity(
+            "diagnosis",
+            {"witness_id": witness.get("witness_id"), "steps": steps, "stopping_reason": stopping_reason},
+        ),
+        "witness_id": witness.get("witness_id"),
+        "status": status,
+        "sufficient": status == "sufficient",
+        "stopping_reason": stopping_reason,
+        "budget": {
+            "max_steps": max_steps,
+            "used": len(artifacts) - reused_artifact_count,
+            "reused_artifacts": reused_artifact_count,
+        },
+        "steps": steps,
+        # The full projection list includes artifacts supplied by a caller for
+        # reuse.  Keep the newly requested subset explicit so transports do
+        # not mistake reused evidence for an escalation operation.
+        "requested_projections": requested_projections,
+        "projections": artifacts,
+        "evidence_facts": facts,
+        "final_sufficiency": final_decision,
+        "authority": "mncs-debug",
     }
 
 
@@ -346,6 +629,9 @@ def trace_slice(
         "events": selected,
         "filters": {"kind": kind, "operation": operation, "start": start, "limit": limit},
     }
+    source_completeness = source.get("completeness") if isinstance(source.get("completeness"), dict) else {}
+    source_stream = source_completeness.get("stream") if isinstance(source_completeness.get("stream"), dict) else {}
+    source_complete = source_completeness.get("status") == "complete" or source_stream.get("status") == "complete"
     return {
         "schema_version": TRACE_SCHEMA,
         "protocol_version": PROTOCOL_VERSION,
@@ -395,6 +681,16 @@ def trace_slice(
         "truncated": truncated or bool(source.get("truncated")),
         "filters": {"kind": kind, "operation": operation, "start": start, "limit": limit},
         "completeness": {
+            "status": (
+                "complete"
+                if not truncated
+                and not source.get("truncated", False)
+                and source_complete
+                and kind is None
+                and operation is None
+                and start is None
+                else "partial"
+            ),
             "ordering": "preserved_from_parent_trace",
             "causality": "preserved event relationships; omitted events may be outside the slice",
         },
