@@ -10,11 +10,11 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-GENERATOR_VERSION = 'mncs-host-bindings/0.1'
+GENERATOR_VERSION = 'mncs-host-bindings/0.2'
 MODULE_IDENTITY = 'mncs.debug.v1'
 INTERFACE_IDENTITY = 'b4cb7f60c4be8a2bb5e4457e4553c2bba275ac82594c2cf406f0e4830095c9ab'
 TYPED_CALL_SCHEMA_VERSION = 'mncs.typed-call/1'
-BINDING_CONTENT_IDENTITY = '11c5bc45a9e10cfde02db016142936f84eb45bdb196935ecd8d1f8cacc06481c'
+BINDING_CONTENT_IDENTITY = 'd539785c7e3a09a1780628cb196e4d5ddf3f4793bb5afd1cedc508db959759d0'
 
 class BindingError(RuntimeError):
     pass
@@ -54,6 +54,8 @@ def _encode(value: Any) -> Any:
         return {'integer': {'value': value}}
     if isinstance(value, float):
         return {'float': {'value': value}}
+    if isinstance(value, (bytes, bytearray)):
+        return {'sequence': {'values': [{'byte': {'value': item}} for item in value]}}
     if isinstance(value, (tuple, list)):
         return {'sequence': {'values': [_encode(item) for item in value]}}
     return value
@@ -72,14 +74,15 @@ def _decode(descriptor: str, value: Any) -> Any:
         if cls is None:
             raise BindingError(f'generated record type is missing: {descriptor}')
         return cls.from_host_value(value)
-    if descriptor.startswith('sequence:') or descriptor.startswith('vector:'):
+    if descriptor.startswith('view:') or descriptor.startswith('sequence:') or descriptor.startswith('vector:'):
         sequence = value.get('sequence') if isinstance(value, dict) else None
         values = sequence.get('values') if isinstance(sequence, dict) else None
         if not isinstance(values, list):
             raise BindingError('returned value is not a typed sequence')
         parts = descriptor.split(':')
         element_descriptor = ':'.join(parts[1:-1])
-        return tuple(_decode(element_descriptor, item) for item in values)
+        decoded = tuple(_decode(element_descriptor, item) for item in values)
+        return bytes(decoded) if element_descriptor == 'byte' else decoded
     if descriptor == 'bool':
         boolean = value.get('boolean') if isinstance(value, dict) else None
         return boolean.get('value') if isinstance(boolean, dict) else value
@@ -416,9 +419,9 @@ class Binding:
         self._config = _BindingConfig(mncs, Path(source), tuple(Path(path) for path in libraries), timeout)
         self.last_execution: dict[str, Any] | None = None
 
-    def _call(self, module: str, function: str, argument: Any) -> dict[str, Any]:
+    def _call(self, module: str, function: str, *arguments: Any) -> dict[str, Any]:
         request = {'schema_version': '0.1', 'target': {'module': module, 'function': function},
-                   'typed_arguments': [_encode(argument)], 'expected_interface_identity': INTERFACE_IDENTITY, 'step_budget': 8192}
+                   'typed_arguments': [_encode(argument) for argument in arguments], 'expected_interface_identity': INTERFACE_IDENTITY, 'step_budget': 8192}
         with tempfile.TemporaryDirectory(prefix='mncs-generated-binding-') as directory:
             request_path = Path(directory) / 'request.json'
             request_path.write_text(json.dumps(request, separators=(',', ':')), encoding='utf-8')
@@ -463,9 +466,17 @@ class Binding:
         response = self._call('mncs.debug.v1', 'make_decision', input_value)
         return _decode('record:Decision', response['returned'][0])
 
+    def make_sufficiency(self, status: SufficiencyStatus, next_operation: DiagnosticOperation, evidence_gap: EvidenceGap, sufficient: bool) -> SufficiencyDecision:
+        response = self._call('mncs.debug.v1', 'make_sufficiency', status, next_operation, evidence_gap, sufficient)
+        return _decode('record:SufficiencyDecision', response['returned'][0])
+
     def minimization_is_established(self, input_value: MinimizationStatus) -> bool:
         response = self._call('mncs.debug.v1', 'minimization_is_established', input_value)
         return _decode('bool', response['returned'][0])
+
+    def minimization_step(self, current: EvidenceFacts, status: MinimizationStatus, include: bool) -> EvidenceFacts:
+        response = self._call('mncs.debug.v1', 'minimization_step', current, status, include)
+        return _decode('record:EvidenceFacts', response['returned'][0])
 
     def missing(self, input_value: bool) -> bool:
         response = self._call('mncs.debug.v1', 'missing', input_value)
@@ -479,6 +490,10 @@ class Binding:
         response = self._call('mncs.debug.v1', 'operation_claim_observed', input_value)
         return _decode('bool', response['returned'][0])
 
+    def provenance_step(self, current: EvidenceFacts, observation: ProvenanceObservation, include: bool) -> EvidenceFacts:
+        response = self._call('mncs.debug.v1', 'provenance_step', current, observation, include)
+        return _decode('record:EvidenceFacts', response['returned'][0])
+
     def recognized_provenance(self, input_value: ProvenanceClaimKind) -> bool:
         response = self._call('mncs.debug.v1', 'recognized_provenance', input_value)
         return _decode('bool', response['returned'][0])
@@ -486,6 +501,10 @@ class Binding:
     def replay_is_established(self, input_value: ReplayStatus) -> bool:
         response = self._call('mncs.debug.v1', 'replay_is_established', input_value)
         return _decode('bool', response['returned'][0])
+
+    def replay_step(self, current: EvidenceFacts, status: ReplayStatus, include: bool) -> EvidenceFacts:
+        response = self._call('mncs.debug.v1', 'replay_step', current, status, include)
+        return _decode('record:EvidenceFacts', response['returned'][0])
 
     def returned_outcome(self, input_value: DecisionInput) -> DebugOutcome:
         response = self._call('mncs.debug.v1', 'returned_outcome', input_value)
@@ -502,6 +521,10 @@ class Binding:
     def sufficiency(self, input_value: SufficiencyInput) -> SufficiencyDecision:
         response = self._call('mncs.debug.v1', 'sufficiency', input_value)
         return _decode('record:SufficiencyDecision', response['returned'][0])
+
+    def trace_step(self, current: EvidenceFacts, observation: TraceObservation, include: bool) -> EvidenceFacts:
+        response = self._call('mncs.debug.v1', 'trace_step', current, observation, include)
+        return _decode('record:EvidenceFacts', response['returned'][0])
 
 
 BINDING_METADATA = {
