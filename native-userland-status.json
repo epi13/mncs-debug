@@ -14,6 +14,9 @@
     "replay request planning"
   ],
   "next_migration_slice": "native artifact ingress and replay request transport over generic filesystem/process effects",
+  "runtime_effect_dogfood": {
+    "process": "tests/test_native_shadow.py invokes mncs process with explicit argv, bounded capture, and a deadline"
+  },
   "host_paths": [
     {
       "path": "mncs_debug/cli.py",
