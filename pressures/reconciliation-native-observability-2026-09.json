@@ -6,17 +6,17 @@
   "profile": "0.17",
   "rule": "capability landed is distinct from consumer verified; layered PASS, FAIL, UNKNOWN, INVALID, and partial evidence remain distinct",
   "pressures": [
-    {"local_id": "MNCS-DEBUG-P-001", "commons_id": "MNCS-RUNTIME-F42CEFCE989D", "classification": "PARTIALLY_RESOLVED", "before": "FAIL", "after": "PASS for bounded typed producer/input/output observations; full read/write history remains open", "owner": "mncs-language/runtime", "consumers": ["mncs-debug", "mncs-forge-mcp"]},
-    {"local_id": "MNCS-DEBUG-P-002", "commons_id": "MNCS-COMPILER-E445EECC9F96", "classification": "RESOLVED", "before": "FAIL", "after": "PASS for semantic operation to exact source-span correspondence, debug, Forge, and language-service consumers", "owner": "mncs-language/compiler", "consumers": ["mncs-debug", "mncs-forge-mcp", "mncs-language-service"]},
-    {"local_id": "MNCS-DEBUG-P-003", "commons_id": "MNCS-RUNTIME-D5179B1A5E9D", "classification": "PARTIALLY_RESOLVED", "before": "FAIL", "after": "PASS for nested/repeated execution-scoped frames; task ancestry remains unavailable", "owner": "mncs-language/runtime", "consumers": ["mncs-debug", "mncs-forge-mcp"]},
+    {"local_id": "MNCS-DEBUG-P-001", "commons_id": "MNCS-RUNTIME-F42CEFCE989D", "classification": "PARTIALLY_RESOLVED", "before": "FAIL", "after": "PASS for bounded typed producer/input/output observations; full read/write history remains open", "owner": "mncs-language/runtime", "consumers": ["mncs-debug", "mncs-forge"]},
+    {"local_id": "MNCS-DEBUG-P-002", "commons_id": "MNCS-COMPILER-E445EECC9F96", "classification": "RESOLVED", "before": "FAIL", "after": "PASS for semantic operation to exact source-span correspondence, debug, Forge, and language-service consumers", "owner": "mncs-language/compiler", "consumers": ["mncs-debug", "mncs-forge", "mncs-language-service"]},
+    {"local_id": "MNCS-DEBUG-P-003", "commons_id": "MNCS-RUNTIME-D5179B1A5E9D", "classification": "PARTIALLY_RESOLVED", "before": "FAIL", "after": "PASS for nested/repeated execution-scoped frames; task ancestry remains unavailable", "owner": "mncs-language/runtime", "consumers": ["mncs-debug", "mncs-forge"]},
     {"local_id": "MNCS-DEBUG-P-004", "commons_id": "MNCS-RUNTIME-A32B31916255", "classification": "STILL_OPEN", "before": "FAIL", "after": "FAIL; immutable bounded observations do not provide suspension/resume", "owner": "mncs-language/runtime"},
     {"local_id": "MNCS-DEBUG-P-005", "commons_id": "MNCS-RUNTIME-6382A1A44458", "classification": "STILL_OPEN", "before": "FAIL", "after": "FAIL; effect lineage is not deterministic replay", "owner": "mncs-language/runtime"},
     {"local_id": "MNCS-DEBUG-P-006", "commons_id": "MNCS-VERIFY-54B12B4A78DF", "classification": "RESOLVED", "before": "PASS", "after": "PASS; native test-result import retains test ownership and bounded observation", "owner": "mncs-test + mncs-debug"},
     {"local_id": "MNCS-DEBUG-P-007", "commons_id": "MNCS-TOOLING-0C870FCAFFEB", "classification": "RESOLVED", "before": "PASS", "after": "PASS; Actions provider transports native observation/source-map evidence", "owner": "mncs-actions"},
     {"local_id": "MNCS-DEBUG-P-008", "commons_id": "MNCS-TOOLING-673C8430E951", "classification": "PARTIALLY_RESOLVED", "before": "UNKNOWN", "after": "PASS for operation source resolution; live breakpoint execution remains unsupported", "owner": "mncs-language-service + compiler", "consumers": ["mncs-debug", "mncs-language-service"]},
     {"local_id": "MNCS-DEBUG-P-009", "commons_id": "MNCS-COMPILER-94428E41EEAC", "classification": "RESOLVED", "before": "PASS", "after": "PASS; structured compile/runtime boundary remains intact", "owner": "mncs-language/compiler + mncs-debug"},
-    {"local_id": "MNCS-DEBUG-P-010", "commons_id": "MNCS-TOOLING-A74DFC47DDB6", "classification": "PARTIALLY_RESOLVED", "before": "FAIL", "after": "PASS for near-direct native observation cost; aggregate debug record remains bootstrap/semantic-core bound", "owner": "mncs-debug + mncs-language", "consumers": ["mncs-actions", "mncs-forge-mcp"]},
-    {"local_id": "MNCS-DEBUG-P-011", "commons_id": "MNCS-RUNTIME-3B723B6FADD8", "classification": "PARTIALLY_RESOLVED", "before": "FAIL", "after": "PASS for supported effect invoke/result identity and frame/capability lineage; task/environment/input/result coverage remains open", "owner": "mncs-language/runtime", "consumers": ["mncs-debug", "mncs-forge-mcp"]},
+    {"local_id": "MNCS-DEBUG-P-010", "commons_id": "MNCS-TOOLING-A74DFC47DDB6", "classification": "PARTIALLY_RESOLVED", "before": "FAIL", "after": "PASS for near-direct native observation cost; aggregate debug record remains bootstrap/semantic-core bound", "owner": "mncs-debug + mncs-language", "consumers": ["mncs-actions", "mncs-forge"]},
+    {"local_id": "MNCS-DEBUG-P-011", "commons_id": "MNCS-RUNTIME-3B723B6FADD8", "classification": "PARTIALLY_RESOLVED", "before": "FAIL", "after": "PASS for supported effect invoke/result identity and frame/capability lineage; task/environment/input/result coverage remains open", "owner": "mncs-language/runtime", "consumers": ["mncs-debug", "mncs-forge"]},
     {"local_id": "MNCS-DEBUG-P-012", "commons_id": "MNCS-TOOLING-14E88C1C7431", "classification": "PLATFORM_BOUNDARY", "before": "UNKNOWN", "after": "UNKNOWN; workspace storage is not a semantic runtime result", "owner": "campaign platform / CI storage"}
   ],
   "evidence": [
@@ -25,6 +25,6 @@
     "mncs-language/tests and mncs-language CLI observe/source-map tests",
     "mncs-language-service cargo test -p mncs-service-core",
     "mncs-actions/tests/test_mncs_debug_action.py",
-    "mncs-forge-mcp/tests/test_mncs_development.py"
+    "mncs-forge/tests/test_mncs_development.py"
   ]
 }

@@ -31,5 +31,5 @@
   "affected_files_or_modules": ["mncs-test per-test result", "mncs-test reproduction evidence", "mncs-debug import-test"],
   "dependencies_on_other_pressures": ["MNCS-DEBUG-P-002", "MNCS-DEBUG-P-005"],
   "resolution_criteria": "The first-class test result has a documented, content-addressed program/request/replay reference for every debuggable failure and import works without command-text parsing.",
-  "campaign_review": {"classification": "RESOLVED", "canonical_record": "MNCS-VERIFY-54B12B4A78DF", "reproducer_status": "PASS", "evidence": "mncs-forge-mcp/tests/test_mncs_development.py", "disposition": "Canonical request, artifact digest, source span, and execution lineage now traverse mncs-test -> mncs-debug -> Actions -> Forge.", "workaround": "not_needed"}
+  "campaign_review": {"classification": "RESOLVED", "canonical_record": "MNCS-VERIFY-54B12B4A78DF", "reproducer_status": "PASS", "evidence": "mncs-forge/tests/test_mncs_development.py", "disposition": "Canonical request, artifact digest, source span, and execution lineage now traverse mncs-test -> mncs-debug -> Actions -> Forge.", "workaround": "not_needed"}
 }

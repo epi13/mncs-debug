@@ -80,7 +80,7 @@
     },
     "F_forge_diagnosis": {
       "status": "PASS",
-      "consumer_repository": "mncs-forge-mcp",
+      "consumer_repository": "mncs-forge",
       "consumer_revision": "7de0790fd54d4b3b963474247d425e32fa99dc7f",
       "test": "tests/test_mncs_development.py::test_failure_loop_preserves_lineage_and_verifies_exact_repair",
       "facts": ["mncs.execution-observation/1", "mncs.execution-source-map/1", "native frame/value references", "bounded repair and canonical verification"],

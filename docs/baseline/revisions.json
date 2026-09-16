@@ -33,8 +33,8 @@
       "sha": "78ed96b3bf89ade67e98a079d1aff022f55d3091",
       "role": "current language-service/LSP-adjacent tooling reference"
     },
-    "mncs-forge-mcp": {
-      "repository": "https://github.com/epi13/mncs-forge-mcp.git",
+    "mncs-forge": {
+      "repository": "https://github.com/epi13/mncs-forge.git",
       "ref": "refs/heads/main",
       "sha": "d9f89df51130b1dbb499e97ee2982892d17ad7af",
       "role": "development orchestration and micro-debugging boundary reference"

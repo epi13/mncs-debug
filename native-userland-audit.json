@@ -1,0 +1,35 @@
+{
+  "schema_version": "mncs.native-userland-audit/1",
+  "repository": "mncs-debug",
+  "status": "hybrid",
+  "canonical_mncs_surfaces": [
+    "debug semantic decisions",
+    "witness and sufficiency contracts",
+    "source-span and execution-observation identities"
+  ],
+  "host_canonical_responsibilities": [
+    {
+      "area": "CLI/service orchestration and protocol encoding",
+      "classification": "small_application_refactor",
+      "eliminating_capability": "native argv, UTF-8/bytes, and canonical JSON effects"
+    },
+    {
+      "area": "replay/minimization process and temporary artifact management",
+      "classification": "missing_reusable_runtime_capability",
+      "eliminating_capability": "bounded process, deadline, temporary-resource, and filesystem effects"
+    },
+    {
+      "area": "external debugger/API adapters",
+      "classification": "external_interoperability_only",
+      "eliminating_capability": "none; retain as an adapter around native debug modules"
+    }
+  ],
+  "existing_pressures": [
+    "MNCS-RUNTIME-F42CEFCE989D",
+    "MNCS-RUNTIME-3B723B6FADD8",
+    "MNCS-TOOLING-A74DFC47DDB6",
+    "MNCS-LANG-52A5E0C72A39"
+  ],
+  "migration_order": 3,
+  "next_native_slice": "native bounded witness materialization and replay request planning"
+}

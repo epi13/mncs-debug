@@ -25,7 +25,7 @@ branches were not followed after capture.
 | `mncs-actions` | `d8337dfff2d2d4ad8d14a676c784a448dc943f3d` | action transport, receipts, manifests, registry |
 | `mncs-compiler` | `0222ebdab0dd56bbce00c77e0369af501751cd6b` | compiler architecture/pass provenance reference |
 | `mncs-language-service` | `78ed96b3bf89ade67e98a079d1aff022f55d3091` | current LSP-adjacent service reference |
-| `mncs-forge-mcp` | `d9f89df51130b1dbb499e97ee2982892d17ad7af` | Forge orchestration boundary |
+| `mncs-forge` | `d9f89df51130b1dbb499e97ee2982892d17ad7af` | Forge orchestration boundary |
 | `MNCS-Commons` | `e93bbfaceb57e5ad28e4948d1bab2925c76fcdf9` | coordination/pressure conventions |
 | `RAVEL` | `c156d9ce7b3405562bdcdcb1e7b0a6e7532aa067` | runtime/compiler execution consumer |
 | `mncs-index` | `ee6a0a7fc57969ebdc6c9f571ce189438766e8bb` | family registry/discovery reference |

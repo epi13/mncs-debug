@@ -22,6 +22,6 @@
     "mncs-test/tests/test_runner.py",
     "mncs-debug/evidence/campaign-demonstrations.json",
     "mncs-actions/tests/test_mncs_debug_action.py",
-    "mncs-forge-mcp/tests/test_mncs_development.py"
+    "mncs-forge/tests/test_mncs_development.py"
   ]
 }
