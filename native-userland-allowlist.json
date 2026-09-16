@@ -1,0 +1,22 @@
+{
+  "schema_version": "mncs.native-userland-allowlist/1",
+  "repository_id": "mncs-debug",
+  "canonical_status": "native_shadow",
+  "entries": [
+    {
+      "path": "mncs_debug/cli.py",
+      "class": "external_adapter",
+      "reason": "It retains CLI/artifact transport and invokes the native shadow through the generic launcher."
+    },
+    {
+      "path": "mncs_debug/native_core.py",
+      "class": "compatibility_oracle",
+      "reason": "Python semantic core remains only for parity while the bounded materialization/planning slice migrates."
+    },
+    {
+      "path": "mncs_debug/generated/debug.py",
+      "class": "generated_binding",
+      "reason": "Compiler-generated typed transport adapter; it carries interface identity and no application policy."
+    }
+  ]
+}

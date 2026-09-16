@@ -1,11 +1,12 @@
 {
   "schema_version": "mncs.native-userland-audit/1",
   "repository": "mncs-debug",
-  "status": "hybrid",
+  "status": "native_shadow",
   "canonical_mncs_surfaces": [
     "debug semantic decisions",
     "witness and sufficiency contracts",
-    "source-span and execution-observation identities"
+    "source-span and execution-observation identities",
+    "bounded witness materialization and replay request planning"
   ],
   "host_canonical_responsibilities": [
     {
@@ -17,6 +18,11 @@
       "area": "replay/minimization process and temporary artifact management",
       "classification": "missing_reusable_runtime_capability",
       "eliminating_capability": "bounded process, deadline, temporary-resource, and filesystem effects"
+    },
+    {
+      "area": "bounded witness materialization and replay request planning",
+      "classification": "native_shadow_parity_path",
+      "eliminating_capability": "generic typed application calls plus bounded process and temporary-resource effects"
     },
     {
       "area": "external debugger/API adapters",
@@ -31,5 +37,12 @@
     "MNCS-LANG-52A5E0C72A39"
   ],
   "migration_order": 3,
-  "next_native_slice": "native bounded witness materialization and replay request planning"
+  "next_native_slice": "native artifact ingress and replay request transport over generic filesystem/process effects",
+  "shadow_entrypoint": "mncs call native/mncs/debug/v1.mncs --module mncs.debug.v1 --function materialize_witness",
+  "shadow_authority": "mncs.debug.v1",
+  "host_fallback": {
+    "allowed": true,
+    "failure_mode": "explicit_compatibility_oracle",
+    "canonical_semantic_fallback": false
+  }
 }

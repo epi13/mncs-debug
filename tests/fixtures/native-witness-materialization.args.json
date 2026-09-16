@@ -1,0 +1,21 @@
+[
+  {
+    "record": {
+      "type": "WitnessMaterializationInput",
+      "fields": {
+        "failure_identity_present": {"boolean": {"value": true}},
+        "operation_identity_present": {"boolean": {"value": true}},
+        "observation_complete": {"boolean": {"value": true}},
+        "provenance_observed": {"boolean": {"value": true}},
+        "event_count": {"integer": {"value": 4}},
+        "value_count": {"integer": {"value": 3}},
+        "byte_count": {"integer": {"value": 128}},
+        "max_events": {"integer": {"value": 16}},
+        "max_values": {"integer": {"value": 64}},
+        "max_bytes": {"integer": {"value": 4096}},
+        "replay_required": {"boolean": {"value": true}},
+        "minimization_required": {"boolean": {"value": false}}
+      }
+    }
+  }
+]

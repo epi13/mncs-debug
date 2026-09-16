@@ -12,9 +12,9 @@ from typing import Any
 
 GENERATOR_VERSION = 'mncs-host-bindings/0.2'
 MODULE_IDENTITY = 'mncs.debug.v1'
-INTERFACE_IDENTITY = 'b4cb7f60c4be8a2bb5e4457e4553c2bba275ac82594c2cf406f0e4830095c9ab'
+INTERFACE_IDENTITY = '57bc43c3192e300fc5f263d9af98e03a5b7b81eff541a677be9faee08ec0431c'
 TYPED_CALL_SCHEMA_VERSION = 'mncs.typed-call/1'
-BINDING_CONTENT_IDENTITY = 'd539785c7e3a09a1780628cb196e4d5ddf3f4793bb5afd1cedc508db959759d0'
+BINDING_CONTENT_IDENTITY = '37a843446f51c09e1f160773f6030effa2a856559b5feec4efd4a3ca0a67a609'
 
 class BindingError(RuntimeError):
     pass
@@ -187,6 +187,12 @@ class TraceCompleteness(str, Enum):
     Partial = 'Partial'
     Complete = 'Complete'
     Truncated = 'Truncated'
+
+
+class WitnessStatus(str, Enum):
+    Ready = 'Ready'
+    Incomplete = 'Incomplete'
+    Rejected = 'Rejected'
 
 
 @dataclass(frozen=True)
@@ -408,6 +414,89 @@ class TraceObservation:
 
 
 @dataclass(frozen=True)
+class WitnessMaterializationInput:
+    byte_count: int
+    event_count: int
+    failure_identity_present: bool
+    max_bytes: int
+    max_events: int
+    max_values: int
+    minimization_required: bool
+    observation_complete: bool
+    operation_identity_present: bool
+    provenance_observed: bool
+    replay_required: bool
+    value_count: int
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'byte_count': _encode(self.byte_count),
+            'event_count': _encode(self.event_count),
+            'failure_identity_present': _encode(self.failure_identity_present),
+            'max_bytes': _encode(self.max_bytes),
+            'max_events': _encode(self.max_events),
+            'max_values': _encode(self.max_values),
+            'minimization_required': _encode(self.minimization_required),
+            'observation_complete': _encode(self.observation_complete),
+            'operation_identity_present': _encode(self.operation_identity_present),
+            'provenance_observed': _encode(self.provenance_observed),
+            'replay_required': _encode(self.replay_required),
+            'value_count': _encode(self.value_count),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> WitnessMaterializationInput:
+        fields = _fields(value)
+        byte_count = _decode('int', fields.get('byte_count'))
+        event_count = _decode('int', fields.get('event_count'))
+        failure_identity_present = _decode('bool', fields.get('failure_identity_present'))
+        max_bytes = _decode('int', fields.get('max_bytes'))
+        max_events = _decode('int', fields.get('max_events'))
+        max_values = _decode('int', fields.get('max_values'))
+        minimization_required = _decode('bool', fields.get('minimization_required'))
+        observation_complete = _decode('bool', fields.get('observation_complete'))
+        operation_identity_present = _decode('bool', fields.get('operation_identity_present'))
+        provenance_observed = _decode('bool', fields.get('provenance_observed'))
+        replay_required = _decode('bool', fields.get('replay_required'))
+        value_count = _decode('int', fields.get('value_count'))
+        return cls(byte_count=byte_count, event_count=event_count, failure_identity_present=failure_identity_present, max_bytes=max_bytes, max_events=max_events, max_values=max_values, minimization_required=minimization_required, observation_complete=observation_complete, operation_identity_present=operation_identity_present, provenance_observed=provenance_observed, replay_required=replay_required, value_count=value_count)
+
+
+@dataclass(frozen=True)
+class WitnessMaterializationPlan:
+    minimization_requested: bool
+    reason_code: int
+    replay_requested: bool
+    retained_bytes: int
+    retained_events: int
+    retained_values: int
+    status: WitnessStatus
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'minimization_requested': _encode(self.minimization_requested),
+            'reason_code': _encode(self.reason_code),
+            'replay_requested': _encode(self.replay_requested),
+            'retained_bytes': _encode(self.retained_bytes),
+            'retained_events': _encode(self.retained_events),
+            'retained_values': _encode(self.retained_values),
+            'status': _encode(self.status),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> WitnessMaterializationPlan:
+        fields = _fields(value)
+        minimization_requested = _decode('bool', fields.get('minimization_requested'))
+        reason_code = _decode('int', fields.get('reason_code'))
+        replay_requested = _decode('bool', fields.get('replay_requested'))
+        retained_bytes = _decode('int', fields.get('retained_bytes'))
+        retained_events = _decode('int', fields.get('retained_events'))
+        retained_values = _decode('int', fields.get('retained_values'))
+        status = _decode('finite:WitnessStatus', fields.get('status'))
+        return cls(minimization_requested=minimization_requested, reason_code=reason_code, replay_requested=replay_requested, retained_bytes=retained_bytes, retained_events=retained_events, retained_values=retained_values, status=status)
+
+
+@dataclass(frozen=True)
 class _BindingConfig:
     mncs: str
     source: Path
@@ -442,6 +531,10 @@ class Binding:
         self.last_execution = response
         return response
 
+    def bounded_count(self, value: int, limit: int) -> int:
+        response = self._call('mncs.debug.v1', 'bounded_count', value, limit)
+        return _decode('int', response['returned'][0])
+
     def decide(self, input_value: DecisionInput) -> Decision:
         response = self._call('mncs.debug.v1', 'decide', input_value)
         return _decode('record:Decision', response['returned'][0])
@@ -469,6 +562,10 @@ class Binding:
     def make_sufficiency(self, status: SufficiencyStatus, next_operation: DiagnosticOperation, evidence_gap: EvidenceGap, sufficient: bool) -> SufficiencyDecision:
         response = self._call('mncs.debug.v1', 'make_sufficiency', status, next_operation, evidence_gap, sufficient)
         return _decode('record:SufficiencyDecision', response['returned'][0])
+
+    def materialize_witness(self, input_value: WitnessMaterializationInput) -> WitnessMaterializationPlan:
+        response = self._call('mncs.debug.v1', 'materialize_witness', input_value)
+        return _decode('record:WitnessMaterializationPlan', response['returned'][0])
 
     def minimization_is_established(self, input_value: MinimizationStatus) -> bool:
         response = self._call('mncs.debug.v1', 'minimization_is_established', input_value)

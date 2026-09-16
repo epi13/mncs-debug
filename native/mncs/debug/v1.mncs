@@ -347,3 +347,88 @@ fn stop_for(outcome: DebugOutcome) -> (result: bool) {
         TestFailure => true,
     };
 }
+
+// Bounded witness materialization and replay planning.  The host supplies
+// already-bound facts and byte/event counts; this module decides whether a
+// witness is admissible and which bounded follow-up operations are requested.
+enum WitnessStatus { Ready, Incomplete, Rejected }
+
+fn bounded_count(value: u64, limit: u64) -> (result: u64) {
+    if value > limit { return limit; }
+    return value;
+}
+
+record WitnessMaterializationInput {
+    failure_identity_present: bool,
+    operation_identity_present: bool,
+    observation_complete: bool,
+    provenance_observed: bool,
+    event_count: u64,
+    value_count: u64,
+    byte_count: u64,
+    max_events: u64,
+    max_values: u64,
+    max_bytes: u64,
+    replay_required: bool,
+    minimization_required: bool
+}
+
+record WitnessMaterializationPlan {
+    status: WitnessStatus,
+    replay_requested: bool,
+    minimization_requested: bool,
+    retained_events: u64,
+    retained_values: u64,
+    retained_bytes: u64,
+    reason_code: u64
+}
+
+fn materialize_witness(input: WitnessMaterializationInput) -> (result: WitnessMaterializationPlan) {
+    if input.max_events == 0 || input.max_values == 0 || input.max_bytes == 0 {
+        return WitnessMaterializationPlan {
+            status: WitnessStatus.Rejected,
+            replay_requested: false,
+            minimization_requested: false,
+            retained_events: 0,
+            retained_values: 0,
+            retained_bytes: 0,
+            reason_code: 30
+        };
+    }
+    if input.event_count > input.max_events
+        || input.value_count > input.max_values
+        || input.byte_count > input.max_bytes {
+        return WitnessMaterializationPlan {
+            status: WitnessStatus.Rejected,
+            replay_requested: false,
+            minimization_requested: false,
+            retained_events: bounded_count(input.event_count, input.max_events),
+            retained_values: bounded_count(input.value_count, input.max_values),
+            retained_bytes: bounded_count(input.byte_count, input.max_bytes),
+            reason_code: 31
+        };
+    }
+    if missing(input.failure_identity_present)
+        || missing(input.operation_identity_present)
+        || missing(input.observation_complete)
+        || missing(input.provenance_observed) {
+        return WitnessMaterializationPlan {
+            status: WitnessStatus.Incomplete,
+            replay_requested: input.replay_required,
+            minimization_requested: input.minimization_required,
+            retained_events: input.event_count,
+            retained_values: input.value_count,
+            retained_bytes: input.byte_count,
+            reason_code: 32
+        };
+    }
+    return WitnessMaterializationPlan {
+        status: WitnessStatus.Ready,
+        replay_requested: input.replay_required,
+        minimization_requested: input.minimization_required,
+        retained_events: input.event_count,
+        retained_values: input.value_count,
+        retained_bytes: input.byte_count,
+        reason_code: 0
+    };
+}

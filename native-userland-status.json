@@ -1,0 +1,35 @@
+{
+  "schema_version": "mncs.native-userland-status/1",
+  "repository_id": "mncs-debug",
+  "status": "native_shadow",
+  "canonical_entrypoint": "bin/mncs-debug",
+  "native_sources": {
+    "debug-core": "native/mncs/debug/v1.mncs"
+  },
+  "semantic_modules": [
+    "native/mncs/debug/v1.mncs"
+  ],
+  "native_shadow_slices": [
+    "bounded witness materialization",
+    "replay request planning"
+  ],
+  "next_migration_slice": "native artifact ingress and replay request transport over generic filesystem/process effects",
+  "host_paths": [
+    {
+      "path": "mncs_debug/cli.py",
+      "role": "canonical transport and artifact orchestration",
+      "canonical": true,
+      "semantic_authority": "native shadow only for materialization/planning slice"
+    },
+    {
+      "path": "mncs_debug/native_core.py",
+      "role": "compatibility oracle",
+      "canonical": false
+    }
+  ],
+  "host_fallback": {
+    "allowed": true,
+    "failure_mode": "explicit_compatibility_oracle",
+    "silent_fallback": false
+  }
+}
