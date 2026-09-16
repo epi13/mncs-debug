@@ -13,31 +13,21 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def _run_native_call_through_process(binary: str) -> tuple[dict, dict]:
-    """Use the generic bounded process effect for the Debug shadow call."""
+def _run_native_call(binary: str) -> tuple[dict, dict]:
+    """Use the generic MNCS application boundary for the Debug shadow call."""
 
     command = [
         binary,
-        "process",
-        binary,
-        "--arg",
         "call",
-        "--arg",
         str(ROOT / "native/mncs/debug/v1.mncs"),
-        "--arg",
+        "--library",
+        str(ROOT.parent / "mncs-language" / "library"),
         "--module",
-        "--arg",
         "mncs.debug.v1",
-        "--arg",
         "--function",
-        "--arg",
         "materialize_witness",
-        "--arg",
         "--args",
-        "--arg",
         str(ROOT / "tests/fixtures/native-witness-materialization.args.json"),
-        "--deadline-ms",
-        "300000",
     ]
     completed = subprocess.run(
         command,
@@ -47,28 +37,45 @@ def _run_native_call_through_process(binary: str) -> tuple[dict, dict]:
         check=False,
         timeout=305,
     )
-    if completed.returncode != 0 and (
-        "unknown command \"process\"" in completed.stderr
-        or "invalid choice: 'process'" in completed.stderr
-    ):
-        pytest.skip("native MNCS launcher predates the generic process capability")
     assert completed.returncode == 0, completed.stderr
-    process_document = json.loads(completed.stdout)
-    assert process_document["schema_version"] == "mncs.process-result/1"
-    assert process_document["success"] is True
-    assert process_document["timed_out"] is False
-    call_document = json.loads(process_document["stdout"])
-    return call_document, process_document
+    call_document = json.loads(completed.stdout)
+    return call_document, {
+        "schema_version": call_document["schema_version"],
+        "subprocess_count": 1,
+        "transport": "generic-mncs-call",
+    }
 
 
 def test_native_witness_materialization_and_replay_plan() -> None:
     binary = os.environ.get("MNCS_BINARY", "mncs")
     try:
-        document, process_document = _run_native_call_through_process(binary)
+        document, process_document = _run_native_call(binary)
     except (OSError, subprocess.SubprocessError) as error:
         pytest.skip(f"native MNCS launcher unavailable: {error}")
-    assert process_document["stdout_truncated"] is False
+    assert process_document["subprocess_count"] == 1
     fields = dict(document["call"]["returned"][0]["record"]["fields"])
     assert fields["status"]["finite"]["variant_identity"].endswith("::Ready")
     assert fields["replay_requested"]["boolean"]["value"] is True
     assert fields["retained_bytes"]["integer"]["value"] == 128
+
+
+def test_native_debug_process_effect_returns_typed_status_and_output() -> None:
+    from mncs_debug.native_core import run_process
+
+    binary = Path(os.environ.get("MNCS_BINARY", "mncs"))
+    if not binary.is_file():
+        pytest.skip("native MNCS launcher unavailable")
+    result = run_process(
+        mncs_path=binary,
+        program="/bin/printf",
+        argv=["debug-process"],
+        cwd=ROOT,
+        environment={},
+        stdout_limit=64,
+        stderr_limit=64,
+        deadline_ms=5_000,
+    )
+    assert result["success"] is True
+    assert result["stdout"] == b"debug-process"
+    assert result["timed_out"] is False
+    assert result["subprocess_count"] == 1

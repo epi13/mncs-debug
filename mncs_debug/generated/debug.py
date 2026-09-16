@@ -12,9 +12,9 @@ from typing import Any
 
 GENERATOR_VERSION = 'mncs-host-bindings/0.2'
 MODULE_IDENTITY = 'mncs.debug.v1'
-INTERFACE_IDENTITY = '57bc43c3192e300fc5f263d9af98e03a5b7b81eff541a677be9faee08ec0431c'
+INTERFACE_IDENTITY = 'b1a206c960382725dae138e379e7e64e3bf70a145f79999365d3c00834565478'
 TYPED_CALL_SCHEMA_VERSION = 'mncs.typed-call/1'
-BINDING_CONTENT_IDENTITY = '37a843446f51c09e1f160773f6030effa2a856559b5feec4efd4a3ca0a67a609'
+BINDING_CONTENT_IDENTITY = '419b8637e34ea20ccfbb8198d9bf2323c8d8a983ff20351ee631f45f14de2ef4'
 
 class BindingError(RuntimeError):
     pass
@@ -237,6 +237,25 @@ class DecisionInput:
 
 
 @dataclass(frozen=True)
+class EnvironmentEntry:
+    key: bytes
+    value: bytes
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'key': _encode(self.key),
+            'value': _encode(self.value),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> EnvironmentEntry:
+        fields = _fields(value)
+        key = _decode('sequence:byte:', fields.get('key'))
+        value = _decode('sequence:byte:', fields.get('value'))
+        return cls(key=key, value=value)
+
+
+@dataclass(frozen=True)
 class EvidenceFacts:
     failure_anchor_present: bool
     minimization_established: bool
@@ -314,6 +333,89 @@ class EvidenceFactsInput:
         trace_overflow = _decode('bool', fields.get('trace_overflow'))
         traces = _decode('sequence:record:TraceObservation:16', fields.get('traces'))
         return cls(minimization=minimization, minimization_count=minimization_count, minimization_overflow=minimization_overflow, provenance=provenance, provenance_count=provenance_count, provenance_overflow=provenance_overflow, replay=replay, replay_count=replay_count, replay_overflow=replay_overflow, trace_count=trace_count, trace_overflow=trace_overflow, traces=traces)
+
+
+@dataclass(frozen=True)
+class ProcessRequest:
+    argv: tuple[Any, ...]
+    argv_count: int
+    current_dir: bytes
+    deadline_ms: int
+    environment: tuple[Any, ...]
+    environment_count: int
+    program: bytes
+    stderr_limit: int
+    stdin: bytes
+    stdout_limit: int
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'argv': _encode(self.argv),
+            'argv_count': _encode(self.argv_count),
+            'current_dir': _encode(self.current_dir),
+            'deadline_ms': _encode(self.deadline_ms),
+            'environment': _encode(self.environment),
+            'environment_count': _encode(self.environment_count),
+            'program': _encode(self.program),
+            'stderr_limit': _encode(self.stderr_limit),
+            'stdin': _encode(self.stdin),
+            'stdout_limit': _encode(self.stdout_limit),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ProcessRequest:
+        fields = _fields(value)
+        argv = _decode('sequence:sequence:byte::', fields.get('argv'))
+        argv_count = _decode('int', fields.get('argv_count'))
+        current_dir = _decode('sequence:byte:', fields.get('current_dir'))
+        deadline_ms = _decode('int', fields.get('deadline_ms'))
+        environment = _decode('sequence:record:EnvironmentEntry:', fields.get('environment'))
+        environment_count = _decode('int', fields.get('environment_count'))
+        program = _decode('sequence:byte:', fields.get('program'))
+        stderr_limit = _decode('int', fields.get('stderr_limit'))
+        stdin = _decode('sequence:byte:', fields.get('stdin'))
+        stdout_limit = _decode('int', fields.get('stdout_limit'))
+        return cls(argv=argv, argv_count=argv_count, current_dir=current_dir, deadline_ms=deadline_ms, environment=environment, environment_count=environment_count, program=program, stderr_limit=stderr_limit, stdin=stdin, stdout_limit=stdout_limit)
+
+
+@dataclass(frozen=True)
+class ProcessResult:
+    duration_ms: int
+    exit_code: int
+    has_exit_code: bool
+    stderr: bytes
+    stderr_truncated: bool
+    stdout: bytes
+    stdout_truncated: bool
+    success: bool
+    timed_out: bool
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'duration_ms': _encode(self.duration_ms),
+            'exit_code': _encode(self.exit_code),
+            'has_exit_code': _encode(self.has_exit_code),
+            'stderr': _encode(self.stderr),
+            'stderr_truncated': _encode(self.stderr_truncated),
+            'stdout': _encode(self.stdout),
+            'stdout_truncated': _encode(self.stdout_truncated),
+            'success': _encode(self.success),
+            'timed_out': _encode(self.timed_out),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ProcessResult:
+        fields = _fields(value)
+        duration_ms = _decode('int', fields.get('duration_ms'))
+        exit_code = _decode('int', fields.get('exit_code'))
+        has_exit_code = _decode('bool', fields.get('has_exit_code'))
+        stderr = _decode('sequence:byte:', fields.get('stderr'))
+        stderr_truncated = _decode('bool', fields.get('stderr_truncated'))
+        stdout = _decode('sequence:byte:', fields.get('stdout'))
+        stdout_truncated = _decode('bool', fields.get('stdout_truncated'))
+        success = _decode('bool', fields.get('success'))
+        timed_out = _decode('bool', fields.get('timed_out'))
+        return cls(duration_ms=duration_ms, exit_code=exit_code, has_exit_code=has_exit_code, stderr=stderr, stderr_truncated=stderr_truncated, stdout=stdout, stdout_truncated=stdout_truncated, success=success, timed_out=timed_out)
 
 
 @dataclass(frozen=True)
@@ -509,15 +611,14 @@ class Binding:
         self.last_execution: dict[str, Any] | None = None
 
     def _call(self, module: str, function: str, *arguments: Any) -> dict[str, Any]:
-        request = {'schema_version': '0.1', 'target': {'module': module, 'function': function},
-                   'typed_arguments': [_encode(argument) for argument in arguments], 'expected_interface_identity': INTERFACE_IDENTITY, 'step_budget': 8192}
+        typed_arguments = [_encode(argument) for argument in arguments]
+        encoded_arguments = json.dumps(typed_arguments, separators=(',', ':'))
         with tempfile.TemporaryDirectory(prefix='mncs-generated-binding-') as directory:
-            request_path = Path(directory) / 'request.json'
-            request_path.write_text(json.dumps(request, separators=(',', ':')), encoding='utf-8')
             environment = dict(os.environ)
-            if self._config.libraries:
-                environment['MNCS_LIBRARY_PATH'] = os.pathsep.join(str(path.resolve()) for path in self._config.libraries)
-            result = subprocess.run([self._config.mncs, 'execute', str(self._config.source), str(request_path)],
+            command = [self._config.mncs, 'call', str(self._config.source), '--module', module, '--function', function, '--args-json', encoded_arguments, '--interface-identity', INTERFACE_IDENTITY]
+            for library in self._config.libraries:
+                command.extend(('--library', str(library.resolve())))
+            result = subprocess.run(command,
                                      text=True, capture_output=True, env=environment, timeout=self._config.timeout)
         if result.returncode != 0:
             detail = result.stderr.strip() or result.stdout.strip() or 'typed call failed'
@@ -526,10 +627,10 @@ class Binding:
             response = json.loads(result.stdout)
         except json.JSONDecodeError as error:
             raise BindingError('mncs returned non-JSON output') from error
-        if response.get('status') != 'returned':
-            raise BindingError(f'mncs typed call did not return: {response!r}')
+        if response.get('status') != 'returned' or not isinstance(response.get('call'), dict):
+            raise BindingError(f'mncs application call did not return: {response!r}')
         self.last_execution = response
-        return response
+        return response['call']
 
     def bounded_count(self, value: int, limit: int) -> int:
         response = self._call('mncs.debug.v1', 'bounded_count', value, limit)
@@ -599,6 +700,10 @@ class Binding:
         response = self._call('mncs.debug.v1', 'replay_is_established', input_value)
         return _decode('bool', response['returned'][0])
 
+    def replay_process(self, input_value: ProcessRequest) -> ProcessResult:
+        response = self._call('mncs.debug.v1', 'replay_process', input_value)
+        return _decode('record:ProcessResult', response['returned'][0])
+
     def replay_step(self, current: EvidenceFacts, status: ReplayStatus, include: bool) -> EvidenceFacts:
         response = self._call('mncs.debug.v1', 'replay_step', current, status, include)
         return _decode('record:EvidenceFacts', response['returned'][0])
@@ -606,6 +711,10 @@ class Binding:
     def returned_outcome(self, input_value: DecisionInput) -> DebugOutcome:
         response = self._call('mncs.debug.v1', 'returned_outcome', input_value)
         return _decode('finite:DebugOutcome', response['returned'][0])
+
+    def run(self, input_value: ProcessRequest) -> ProcessResult:
+        response = self._call('mncs.std.process.v1', 'run', input_value)
+        return _decode('record:ProcessResult', response['returned'][0])
 
     def runtime_failure_outcome(self, input_value: DecisionInput) -> DebugOutcome:
         response = self._call('mncs.debug.v1', 'runtime_failure_outcome', input_value)

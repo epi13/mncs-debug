@@ -25,7 +25,8 @@ from .protocol import (
     sha256_file,
     validate_witness_integrity,
 )
-from .runner import RunnerError, build_witness, run_process, resolve_mncs
+from .runner import ProcessObservation, RunnerError, build_witness, resolve_mncs
+from .native_core import NativeCoreError
 from .generated.debug import (
     EvidencePresence,
     MinimizationStatus,
@@ -271,7 +272,17 @@ def diagnostic_sufficiency(
         if isinstance(inspection.get("values"), list)
     )
     artifacts = [artifact for artifact in evidence_artifacts if isinstance(artifact, dict)]
+    integration = witness.get("integration") if isinstance(witness.get("integration"), dict) else {}
+    imported_result = integration.get("result")
+    if isinstance(imported_result, dict):
+        # A TestResult is an evidence artifact, not a host assertion. Keep it
+        # in the same bounded observation stream as trace/provenance/replay
+        # documents so the native reducer sees the actual failure contents.
+        artifacts.append(imported_result)
     structural_artifact_facts = _evidence_facts_from_artifacts(artifacts)
+    witness_observations = _witness_observations(witness, inspection)
+    structural_artifact_facts["traces"].extend(witness_observations["traces"])
+    structural_artifact_facts["provenance"].extend(witness_observations["provenance"])
     evidence_reduction_error: str | None = None
     try:
         artifact_facts = {
@@ -298,36 +309,13 @@ def diagnostic_sufficiency(
             "minimization_established": False,
             "artifact_ids": structural_artifact_facts["artifact_ids"],
         }
-    trace_failure_anchor = any(
-        isinstance(event, dict)
-        and (
-            (
-                isinstance(event.get("payload"), dict)
-                and isinstance(event["payload"].get("failure_identity"), str)
-                and bool(event["payload"]["failure_identity"])
-            )
-            or event.get("kind") == "failure"
-        )
-        for event in events
-    )
-    runtime = witness.get("runtime") if isinstance(witness.get("runtime"), dict) else {}
-    observation = runtime.get("observation") if isinstance(runtime.get("observation"), dict) else {}
-    completeness = observation.get("completeness") if isinstance(observation.get("completeness"), dict) else {}
-    has_failure_anchor = bool(failure_identity) or test_failure_anchor or trace_failure_anchor
-    observation_complete = (
-        completeness.get("status") == "complete"
-        or inspection.get("trace", {}).get("completeness", {}).get("status") == "complete"
-        or artifact_facts["observation_complete"]
-    )
-    provenance_observed = artifact_facts["provenance_binding_present"] or any(
-        isinstance(frame, dict)
-        and isinstance(frame.get("source_location"), dict)
-        and frame["source_location"].get("confidence") == "compiler_exact"
-        for frame in inspection.get("frames", [])
-        if isinstance(inspection.get("frames"), list)
-    )
-    has_operation_identity = has_operation_identity or artifact_facts["operation_identity_present"]
-    has_failure_anchor = has_failure_anchor or artifact_facts["failure_anchor_present"]
+    # These are all native-reduced facts. The host preserves the original
+    # failure identity for traceability, but it does not promote that identity
+    # (or a caller-supplied assertion) into sufficiency.
+    has_failure_anchor = artifact_facts["failure_anchor_present"]
+    has_operation_identity = artifact_facts["operation_identity_present"]
+    observation_complete = artifact_facts["observation_complete"]
+    provenance_observed = artifact_facts["provenance_binding_present"]
     replay_required = (
         outcome.get("status") in {"budget_exhausted", "infrastructure_failure"}
         and not artifact_facts["replay_established"]
@@ -476,6 +464,26 @@ def _evidence_facts_from_artifacts(artifacts: Iterable[dict[str, Any]]) -> dict[
                     "mismatch": ReplayStatus.Mismatch,
                 }.get(artifact.get("status"), ReplayStatus.Unknown)
             )
+        elif schema in {"mncs.test-result/1", "mncs.check-result/1"}:
+            # TestResult/CheckResult artifacts establish that a bounded
+            # provider observed a failure, but do not by themselves establish
+            # the runtime operation or a complete trace.
+            verdict = artifact.get("verdict")
+            failure = artifact.get("failure")
+            failed = verdict == "FAIL" or isinstance(failure, dict) and bool(failure)
+            tests = artifact.get("tests") if isinstance(artifact.get("tests"), list) else []
+            failed = failed or any(
+                isinstance(test, dict)
+                and (test.get("verdict") == "FAIL" or isinstance(test.get("failure"), dict) and bool(test.get("failure")))
+                for test in tests
+            )
+            facts["traces"].append(
+                TraceObservation(
+                    failure_anchor=(EvidencePresence.Present if failed else EvidencePresence.Absent),
+                    operation_identity=EvidencePresence.Absent,
+                    completeness=TraceCompleteness.Partial,
+                )
+            )
         elif schema == "mncs.debug-minimization/1":
             facts["minimization"].append(
                 {
@@ -487,6 +495,80 @@ def _evidence_facts_from_artifacts(artifacts: Iterable[dict[str, Any]]) -> dict[
             )
     facts["artifact_ids"] = sorted(set(facts["artifact_ids"]))
     return facts
+
+
+def _witness_observations(
+    witness: dict[str, Any], inspection: dict[str, Any]
+) -> dict[str, list[Any]]:
+    """Normalize facts already present in a witness into native observations.
+
+    This is deliberately a codec, not a sufficiency decision. The reducer
+    receives the concrete failure/event/effect/source facts and decides what
+    they establish.
+    """
+
+    outcome = witness.get("outcome") if isinstance(witness.get("outcome"), dict) else {}
+    failure = outcome.get("failure") if isinstance(outcome.get("failure"), dict) else {}
+    trace = witness.get("trace") if isinstance(witness.get("trace"), dict) else {}
+    events = trace.get("events") if isinstance(trace.get("events"), list) else []
+    failure_anchor = bool(failure.get("identity")) or any(
+        isinstance(event, dict)
+        and (
+            event.get("kind") == "failure"
+            or isinstance(event.get("payload"), dict)
+            and isinstance(event["payload"].get("failure_identity"), str)
+        )
+        for event in events
+    )
+    operation_identity = any(
+        isinstance(event, dict)
+        and (
+            isinstance(event.get("location"), dict)
+            and isinstance(event["location"].get("runtime"), dict)
+            and isinstance(event["location"]["runtime"].get("operation"), str)
+            or isinstance(event.get("payload"), dict)
+            and isinstance(event["payload"].get("operation_identity"), str)
+        )
+        for event in events
+    )
+    completeness = trace.get("completeness") if isinstance(trace.get("completeness"), dict) else {}
+    stream = completeness.get("stream") if isinstance(completeness.get("stream"), dict) else {}
+    runtime = witness.get("runtime") if isinstance(witness.get("runtime"), dict) else {}
+    runtime_observation = runtime.get("observation") if isinstance(runtime.get("observation"), dict) else {}
+    runtime_completeness = runtime_observation.get("completeness") if isinstance(runtime_observation.get("completeness"), dict) else {}
+    if trace.get("truncated") is True or runtime_completeness.get("status") == "truncated":
+        trace_completeness = TraceCompleteness.Truncated
+    elif completeness.get("status") == "complete" or stream.get("status") == "complete" or runtime_completeness.get("status") == "complete":
+        trace_completeness = TraceCompleteness.Complete
+    elif completeness.get("status") == "partial" or stream.get("status") == "partial" or runtime_completeness.get("status") == "partial":
+        trace_completeness = TraceCompleteness.Partial
+    else:
+        trace_completeness = TraceCompleteness.Unknown
+
+    provenance: list[ProvenanceObservation] = []
+    frames = inspection.get("frames") if isinstance(inspection.get("frames"), list) else []
+    if any(
+        isinstance(frame, dict)
+        and isinstance(frame.get("source_location"), dict)
+        and frame["source_location"].get("confidence") == "compiler_exact"
+        for frame in frames
+    ):
+        provenance.append(
+            ProvenanceObservation(
+                kind=ProvenanceClaimKind.ValueOriginChain,
+                status=ProvenanceClaimStatus.Available,
+            )
+        )
+    return {
+        "traces": [
+            TraceObservation(
+                failure_anchor=(EvidencePresence.Present if failure_anchor else EvidencePresence.Absent),
+                operation_identity=(EvidencePresence.Present if operation_identity else EvidencePresence.Absent),
+                completeness=trace_completeness,
+            )
+        ],
+        "provenance": provenance,
+    }
 
 
 def _native_artifact_facts(
@@ -619,7 +701,7 @@ def diagnostic_loop(
             ),
         }
         try:
-            after = _native_artifact_facts([artifact], mncs_path=mncs_path, core_path=core_path)
+            after = _native_artifact_facts(artifacts, mncs_path=mncs_path, core_path=core_path)
         except NativeCoreError:
             after = {
                 "failure_anchor_present": False,
@@ -1191,6 +1273,24 @@ def replay_trace(witness: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _decode_native_process_json(result: dict[str, Any]) -> Any:
+    try:
+        return json.loads(bytes(result["stdout"]).decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError):
+        return None
+
+
+def _process_observation_from_native(result: dict[str, Any]) -> ProcessObservation:
+    return ProcessObservation(
+        command=[],
+        cwd=Path("."),
+        returncode=(int(result["exit_code"]) if result.get("has_exit_code") else None),
+        stdout=bytes(result.get("stdout", b"")),
+        stderr=bytes(result.get("stderr", b"")),
+        timed_out=bool(result.get("timed_out")),
+    )
+
+
 def replay_execute(witness: dict[str, Any], *, mncs_override: Path | None = None, timeout_seconds: float | None = None, deterministic: bool = False) -> dict[str, Any]:
     if deterministic:
         return _blocked_replay(witness, "deterministic replay is unsupported: scheduler/effect/environment capture is absent")
@@ -1211,27 +1311,38 @@ def replay_execute(witness: dict[str, Any], *, mncs_override: Path | None = None
     try:
         with _replay_inputs(witness) as (program_path, request_path, cwd):
             limit = timeout_seconds or float(replay.get("timeout_seconds", 30.0))
-            validation_observation = run_process(
-                [os.fspath(mncs_path), "validate", os.fspath(program_path)],
+            from .native_core import run_process as native_process_effect
+
+            validation_result = native_process_effect(
+                mncs_path=mncs_path,
+                program=os.fspath(mncs_path),
+                argv=["validate", os.fspath(program_path)],
                 cwd=cwd,
-                timeout_seconds=limit,
                 environment=environment,
+                stdout_limit=1024,
+                stderr_limit=1024,
+                deadline_ms=max(1, min(int(limit * 1000), 300_000)),
             )
-            validation = validation_observation.json
+            validation = _decode_native_process_json(validation_result)
             if isinstance(validation, dict) and validation.get("valid") is False:
-                observation = validation_observation
+                observation = _process_observation_from_native(validation_result)
                 execution = None
                 observed = _validation_signature(validation)
             else:
-                observation = run_process(
-                    [os.fspath(mncs_path), "execute", os.fspath(program_path), os.fspath(request_path)],
+                execution_result = native_process_effect(
+                    mncs_path=mncs_path,
+                    program=os.fspath(mncs_path),
+                    argv=["execute", os.fspath(program_path), os.fspath(request_path)],
                     cwd=cwd,
-                    timeout_seconds=limit,
                     environment=environment,
+                    stdout_limit=1024,
+                    stderr_limit=1024,
+                    deadline_ms=max(1, min(int(limit * 1000), 300_000)),
                 )
-                execution = observation.json
+                observation = _process_observation_from_native(execution_result)
+                execution = _decode_native_process_json(execution_result)
                 observed = _execution_signature(execution, observation.timed_out)
-    except RunnerError as exc:
+    except (RunnerError, NativeCoreError) as exc:
         return _blocked_replay(witness, str(exc))
     expected = _witness_signature(witness)
     same = observed == expected
@@ -1282,6 +1393,8 @@ def minimize_witness(
     baseline = _witness_signature(witness)
     changes: list[dict[str, Any]] = []
     attempts = 0
+    from .native_core import run_process as native_process_effect
+
     with _replay_inputs(witness) as (program_path, original_request_path, cwd):
         current = copy.deepcopy(request)
         for index, argument in enumerate(list(args)):
@@ -1299,14 +1412,27 @@ def minimize_witness(
                 candidate_path = Path(candidate_name)
                 try:
                     candidate_path.write_text(json.dumps(candidate), encoding="utf-8")
-                    observation = run_process(
-                        [os.fspath(mncs_path), "execute", os.fspath(program_path), os.fspath(candidate_path)],
+                    native_result = native_process_effect(
+                        mncs_path=mncs_path,
+                        program=os.fspath(mncs_path),
+                        argv=["execute", os.fspath(program_path), os.fspath(candidate_path)],
                         cwd=cwd,
-                        timeout_seconds=timeout_seconds or float(replay.get("timeout_seconds", 30.0)),
                         environment=environment,
+                        stdout_limit=1024,
+                        stderr_limit=1024,
+                        deadline_ms=max(
+                            1,
+                            min(
+                                int(timeout_seconds or float(replay.get("timeout_seconds", 30.0))) * 1000,
+                                300_000,
+                            ),
+                        ),
                     )
-                    observed = _execution_signature(observation.json, observation.timed_out)
-                except RunnerError:
+                    observation = _process_observation_from_native(native_result)
+                    observed = _execution_signature(
+                        _decode_native_process_json(native_result), observation.timed_out
+                    )
+                except (RunnerError, NativeCoreError):
                     observed = {"status": "infrastructure_failure"}
                 finally:
                     try:
@@ -1476,7 +1602,11 @@ def _replay_environment(witness: dict[str, Any]) -> tuple[dict[str, str], list[P
         if recorded_digest and recorded_digest != observed_digest:
             raise RunnerError(f"replay library digest changed: {path}")
         libraries.append(path)
-    environment = dict(os.environ)
+    # The replay contract intentionally does not inherit the host environment.
+    # Only the content-addressed library locator is needed by the absolute
+    # runtime executable; keeping this projection bounded makes the same
+    # request legal for the native ProcessRequest effect.
+    environment: dict[str, str] = {}
     if libraries:
         environment["MNCS_LIBRARY_PATH"] = os.pathsep.join(os.fspath(path) for path in libraries)
     else:

@@ -1,9 +1,11 @@
-mncs 0.7;
+mncs 0.16;
 
 // MNCS-owned debugger semantics. The launcher supplies only typed facts from
 // the external execution boundary. This module decides the semantic failure
 // class, stop policy, and evidence escalation vocabulary.
 module mncs.debug.v1;
+
+use mncs.std.process.v1;
 
 enum RuntimeStatus {
     Returned,
@@ -56,6 +58,18 @@ record DecisionInput {
     runtime_status: RuntimeStatus,
     assertion_failed: bool,
     effect_failed: bool,
+}
+
+// Debug owns the reason for a bounded replay/process request; the generic
+// runtime owns executable admission, argv-only spawning, environment clearing,
+// capture limits, deadline enforcement, and fail-closed status realization.
+// This is intentionally a typed application effect, not a Debug-specific CLI
+// operation.
+fn replay_process(request: ProcessRequest) -> (result: ProcessResult)
+    capability debug_process
+    effect process_run authorized_by debug_process
+{
+    return process_run(request);
 }
 
 record Decision {

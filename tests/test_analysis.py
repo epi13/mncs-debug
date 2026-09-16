@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import copy
+import json
 import os
 import tempfile
 import unittest
 from pathlib import Path
 
-from mncs_debug.analysis import diagnostic_loop, inspect_witness
+from mncs_debug.analysis import diagnostic_loop, inspect_witness, replay_execute
 from mncs_debug.runner import build_witness
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -58,6 +59,36 @@ class DiagnosticLoopTests(unittest.TestCase):
         self.assertFalse(facts["provenance_binding_present"])
         self.assertFalse(facts["replay_established"])
         self.assertFalse(facts["minimization_established"])
+
+    def test_failing_test_result_artifact_becomes_native_failure_fact(self) -> None:
+        from mncs_debug.analysis import _native_artifact_facts
+
+        artifact = json.loads(
+            (ROOT / "tests/fixtures/mncs-test-failed-assertion-result.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        facts = _native_artifact_facts(
+            [artifact], mncs_path=RUNTIME, core_path=None
+        )
+        self.assertTrue(facts["failure_anchor_present"])
+        self.assertFalse(facts["operation_identity_present"])
+        self.assertFalse(facts["observation_complete"])
+
+    def test_replay_uses_native_process_effect_and_feeds_result_to_sufficiency(self) -> None:
+        from mncs_debug.analysis import _native_artifact_facts
+
+        witness = build_witness(
+            mncs_path=RUNTIME,
+            program_path=PROGRAM,
+            request_path=OVERFLOW_REQUEST,
+            cwd=PROGRAM.parent,
+        )
+        replay = replay_execute(witness)
+        self.assertEqual(replay["status"], "reproduced")
+        self.assertEqual(replay["process"]["returncode"], 1)
+        facts = _native_artifact_facts([replay], mncs_path=RUNTIME, core_path=None)
+        self.assertTrue(facts["replay_established"])
 
     def test_inspection_sufficient_does_not_request_projection(self) -> None:
         with tempfile.TemporaryDirectory(prefix="mncs-debug-analysis-") as directory:
