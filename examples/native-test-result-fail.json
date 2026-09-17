@@ -1,0 +1,11 @@
+{
+  "schema_version": "mncs.test-result/1",
+  "verdict": "FAIL",
+  "execution": {
+    "run_identity": "mncs:language:experiment-run:native-debug-failing-canary",
+    "test_case_identities": ["test:one"]
+  },
+  "selection": {
+    "selected_test_identities": ["test:one"]
+  }
+}

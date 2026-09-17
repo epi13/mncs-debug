@@ -1,4 +1,4 @@
-mncs 0.16;
+mncs 0.18;
 
 // MNCS-owned debugger semantics. The launcher supplies only typed facts from
 // the external execution boundary. This module decides the semantic failure
@@ -6,6 +6,8 @@ mncs 0.16;
 module mncs.debug.v1;
 
 use mncs.std.process.v1;
+use mncs.std.application.v1;
+use mncs.commons.family.artifact.v1;
 
 enum RuntimeStatus {
     Returned,
@@ -129,6 +131,87 @@ record EvidenceFacts {
     provenance_binding_present: bool,
     replay_established: bool,
     minimization_established: bool,
+}
+
+// Generic artifact ingress keeps the external JSON envelope out of Debug's
+// semantic layer.  The decoder admits this Commons/language-owned nominal
+// record, then Debug applies the same reducer used by the diagnostic loop.
+// The host may supply the bounded path and capability grant, but it cannot
+// replace the typed observation stream with a verdict or sufficiency flag.
+fn evidence_facts_artifact_app(context: ApplicationContext) -> (result: ApplicationExit)
+    capability debug_artifact
+    effect structured_read authorized_by debug_artifact
+    effect structured_write authorized_by debug_artifact
+{
+    if !context_is_bounded(context) {
+        return failure([98, 111, 117, 110, 100, 115], 2);
+    }
+    if context.argv_count < 2 {
+        return failure([97, 114, 103, 118, 32, 114, 101, 113, 117, 105, 114, 101, 115, 32, 105, 110, 112, 117, 116, 32, 97, 110, 100, 32, 111, 117, 116, 112, 117, 116], 2);
+    }
+    let input_schema: [byte; 33] = [109, 110, 99, 115, 46, 100, 101, 98, 117, 103, 46, 101, 118, 105, 100, 101, 110, 99, 101, 45, 102, 97, 99, 116, 115, 45, 105, 110, 112, 117, 116, 47, 49];
+    let output_schema: [byte; 27] = [109, 110, 99, 115, 46, 100, 101, 98, 117, 103, 46, 101, 118, 105, 100, 101, 110, 99, 101, 45, 102, 97, 99, 116, 115, 47, 49];
+    let input: EvidenceFactsInput = structured_read(context.argv[0], input_schema);
+    let facts: EvidenceFacts = evidence_facts(input);
+    let published: u64 = structured_write(context.argv[1], output_schema, facts);
+    if published == 0 {
+        return failure([115, 116, 114, 117, 99, 116, 117, 114, 101, 100, 32, 112, 117, 98, 108, 105, 99, 97, 116, 105, 111, 110, 32, 119, 97, 115, 32, 101, 109, 112, 116, 121], 3);
+    }
+    return success([]);
+}
+
+// Direct raw TestResult ingress. The generic codec decodes the actual
+// mncs.test-result/1 document into the Commons-owned wire view; Debug, not
+// Python, interprets its verdict and creates the bounded observation needed
+// by the native evidence reducer. Missing trace/provenance remains an honest
+// partial observation and therefore preserves progressive escalation.
+fn test_result_artifact_app(context: ApplicationContext) -> (result: ApplicationExit)
+    capability debug_artifact
+    effect structured_read authorized_by debug_artifact
+    effect structured_write authorized_by debug_artifact
+{
+    if !context_is_bounded(context) {
+        return failure([98, 111, 117, 110, 100, 115], 2);
+    }
+    if context.argv_count < 2 {
+        return failure([97, 114, 103, 118, 32, 114, 101, 113, 117, 105, 114, 101, 115, 32, 105, 110, 112, 117, 116, 32, 97, 110, 100, 32, 111, 117, 116, 112, 117, 116], 2);
+    }
+    let test_schema: [byte; 18] = [109, 110, 99, 115, 46, 116, 101, 115, 116, 45, 114, 101, 115, 117, 108, 116, 47, 49];
+    let facts_schema: [byte; 27] = [109, 110, 99, 115, 46, 100, 101, 98, 117, 103, 46, 101, 118, 105, 100, 101, 110, 99, 101, 45, 102, 97, 99, 116, 115, 47, 49];
+    let test_result: TestResultArtifact = structured_read(context.argv[0], test_schema);
+    let failed: bool = match test_result.verdict {
+        ArtifactVerdict.FAIL => true,
+        ArtifactVerdict.PASS => false,
+        ArtifactVerdict.UNKNOWN => false
+    };
+    let trace: TraceObservation = TraceObservation {
+        failure_anchor: select(failed, EvidencePresence.Present, EvidencePresence.Absent),
+        operation_identity: EvidencePresence.Absent,
+        completeness: TraceCompleteness.Partial
+    };
+    let input: EvidenceFactsInput = EvidenceFactsInput {
+        traces: [trace; 16],
+        trace_count: 1,
+        trace_overflow: false,
+        provenance: [ProvenanceObservation {
+            kind: ProvenanceClaimKind.Other,
+            status: ProvenanceClaimStatus.Unknown
+        }; 64],
+        provenance_count: 0,
+        provenance_overflow: false,
+        replay: [ReplayStatus.Unknown; 16],
+        replay_count: 0,
+        replay_overflow: false,
+        minimization: [MinimizationStatus.Unknown; 16],
+        minimization_count: 0,
+        minimization_overflow: false
+    };
+    let facts: EvidenceFacts = evidence_facts(input);
+    let published: u64 = structured_write(context.argv[1], facts_schema, facts);
+    if published == 0 {
+        return failure([112, 117, 98, 108, 105, 115, 104, 32, 102, 97, 105, 108, 101, 100], 3);
+    }
+    return success([]);
 }
 
 fn evidence_facts(input: EvidenceFactsInput) -> (result: EvidenceFacts) {
