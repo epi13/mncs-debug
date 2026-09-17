@@ -22,6 +22,8 @@ def _run_native_call(binary: str) -> tuple[dict, dict]:
         str(ROOT / "native/mncs/debug/v1.mncs"),
         "--library",
         str(ROOT.parent / "mncs-language" / "library"),
+        "--library",
+        str(ROOT.parent / "MNCS-Commons" / "src" / "mncs_commons" / "mesh" / "mncs"),
         "--module",
         "mncs.debug.v1",
         "--function",

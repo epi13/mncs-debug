@@ -1,0 +1,16 @@
+{
+  "schema_version": "mncs.native-application/1",
+  "application_identity": "mncs-debug.evidence-facts",
+  "source": "../native/mncs/debug/v1.mncs",
+  "module": "mncs.debug.v1",
+  "entry_function": "evidence_facts_artifact_app",
+  "profile": "0.18",
+  "interface_identity": "b23db47ea81d613806ee1100638dddf631afd826f8e08f51adb54ffaecb57328",
+  "libraries": [
+    "../../mncs-language/library"
+  ],
+  "environment_keys": [],
+  "required_capabilities": [
+    "debug_artifact"
+  ]
+}

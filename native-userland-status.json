@@ -4,16 +4,24 @@
   "status": "native_shadow",
   "canonical_entrypoint": "bin/mncs-debug",
   "native_sources": {
-    "debug-core": "native/mncs/debug/v1.mncs"
+    "debug-core": "native/mncs/debug/v1.mncs",
+    "artifact-facts-app": "native/mncs/debug/v1.mncs",
+    "test-result-artifact-app": "native/mncs/debug/v1.mncs"
   },
   "semantic_modules": [
     "native/mncs/debug/v1.mncs"
   ],
   "native_shadow_slices": [
     "bounded witness materialization",
-    "replay request planning"
+    "replay request planning",
+    "typed evidence-facts artifact ingress and reduction"
   ],
-  "next_migration_slice": "native artifact ingress and replay request transport over generic filesystem/process effects",
+  "native_application_descriptor": "native-applications/debug-test-result.json",
+  "native_application_descriptors": {
+    "test-result-artifact": "native-applications/debug-test-result.json",
+    "evidence-facts": "native-applications/debug-evidence-facts.json"
+  },
+  "next_migration_slice": "native witness/trace/provenance artifact decoding and native replay result ingress",
   "runtime_effect_dogfood": {
     "process": "tests/test_native_shadow.py invokes mncs process with explicit argv, bounded capture, and a deadline"
   },

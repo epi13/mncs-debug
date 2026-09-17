@@ -77,21 +77,29 @@ def _label_like(value: str) -> str:
     return re.sub(r"(?<!^)(?=[A-Z])", "_", value).lower()
 
 
+def _libraries(core: Path) -> list[Path]:
+    configured = os.environ.get("MNCS_LIBRARY_PATH", "")
+    libraries = [Path(item) for item in configured.split(os.pathsep) if item]
+    workspace = core.parents[3].parent
+    for candidate in (
+        workspace / "mncs-language" / "library",
+        workspace / "MNCS-Commons" / "src" / "mncs_commons" / "mesh" / "mncs",
+    ):
+        if candidate.is_dir() and candidate not in libraries:
+            libraries.append(candidate)
+    return libraries
+
+
 def _binding(
     *, mncs_path: Path, core_path: Path | None, timeout_seconds: float
 ) -> Binding:
     core = core_path or default_core_path()
     if not core.exists():
         raise NativeCoreError(f"native debug core is missing: {core}")
-    configured = os.environ.get("MNCS_LIBRARY_PATH", "")
-    libraries = [Path(item) for item in configured.split(os.pathsep) if item]
-    sibling = core.parents[3].parent / "mncs-language" / "library"
-    if sibling.is_dir() and sibling not in libraries:
-        libraries.append(sibling)
     return Binding(
         str(mncs_path),
         core,
-        libraries=tuple(libraries),
+        libraries=tuple(_libraries(core)),
         timeout=max(timeout_seconds, 60.0),
     )
 
@@ -113,11 +121,7 @@ def run_process(
     """Request one bounded process effect from the native Debug application."""
 
     core = core_path or default_core_path()
-    configured = os.environ.get("MNCS_LIBRARY_PATH", "")
-    libraries = [Path(item) for item in configured.split(os.pathsep) if item]
-    sibling = core.parents[3].parent / "mncs-language" / "library"
-    if sibling.is_dir() and sibling not in libraries:
-        libraries.append(sibling)
+    libraries = _libraries(core)
     request = ProcessRequest(
         program=program.encode("utf-8"),
         argv=tuple(item.encode("utf-8") for item in argv),

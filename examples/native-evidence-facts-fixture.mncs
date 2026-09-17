@@ -1,0 +1,39 @@
+mncs 0.18;
+
+// Test-only external-boundary fixture.  It constructs the typed observation
+// record so the canary exercises the generic encoder; the Debug application
+// still reads the resulting bounded artifact through structured_read.
+module examples.native_evidence_facts_fixture;
+
+use mncs.debug.v1;
+
+fn write_input(path: [byte; up_to 1024]) -> (result: u64)
+    capability debug_artifact
+    effect structured_write authorized_by debug_artifact
+{
+    let trace: TraceObservation = TraceObservation {
+        failure_anchor: EvidencePresence.Present,
+        operation_identity: EvidencePresence.Present,
+        completeness: TraceCompleteness.Complete,
+    };
+    let provenance: ProvenanceObservation = ProvenanceObservation {
+        kind: ProvenanceClaimKind.ValueOriginChain,
+        status: ProvenanceClaimStatus.Available,
+    };
+    let input: EvidenceFactsInput = EvidenceFactsInput {
+        traces: [trace; 16],
+        trace_count: 1,
+        trace_overflow: false,
+        provenance: [provenance; 64],
+        provenance_count: 1,
+        provenance_overflow: false,
+        replay: [ReplayStatus.Unknown; 16],
+        replay_count: 0,
+        replay_overflow: false,
+        minimization: [MinimizationStatus.Unknown; 16],
+        minimization_count: 0,
+        minimization_overflow: false,
+    };
+    let schema: [byte; 33] = [109, 110, 99, 115, 46, 100, 101, 98, 117, 103, 46, 101, 118, 105, 100, 101, 110, 99, 101, 45, 102, 97, 99, 116, 115, 45, 105, 110, 112, 117, 116, 47, 49];
+    return structured_write(path, schema, input);
+}
