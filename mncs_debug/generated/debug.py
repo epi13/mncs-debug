@@ -12,9 +12,9 @@ from typing import Any
 
 GENERATOR_VERSION = 'mncs-host-bindings/0.2'
 MODULE_IDENTITY = 'mncs.debug'
-INTERFACE_IDENTITY = '2e25ee40c0cb00ea96848070d17fbbb3cd22b50f26ee1e4c976d679781acfecd'
+INTERFACE_IDENTITY = '0e22e8acc601c891ca703fe9f0b96c6915e44a5e31b96c43cdd7c532fc643ca4'
 TYPED_CALL_SCHEMA_VERSION = 'mncs.typed-call/1'
-BINDING_CONTENT_IDENTITY = '2cc749d44979e3baa0e4072630c398da2bcecb4ca5cb6fac1f328070fc31923f'
+BINDING_CONTENT_IDENTITY = 'ea64bcbc53d45c5cb257e402ce1df67b99e09d7849befeb018f1a121b378061a'
 
 class BindingError(RuntimeError):
     pass
@@ -682,6 +682,70 @@ class DecisionInput:
         effect_failed = _decode('bool', fields.get('effect_failed'))
         runtime_status = _decode('finite:RuntimeStatus', fields.get('runtime_status'))
         return cls(assertion_failed=assertion_failed, effect_failed=effect_failed, runtime_status=runtime_status)
+
+
+@dataclass(frozen=True)
+class DiagnosticArtifact:
+    artifact_identity: bytes
+    evidence_gap: EvidenceGap
+    evidence_identity: bytes
+    failure_anchor_present: bool
+    lineage_artifact_count: int
+    minimization_required: bool
+    next_operation: DiagnosticOperation
+    observation_complete: bool
+    operation_identity_present: bool
+    outcome: DebugOutcome
+    proof_identity: bytes
+    provenance_observed: bool
+    provider_check_identity: bytes
+    provider_result_identity: bytes
+    receipt_identity: bytes
+    replay_required: bool
+    sufficiency: SufficiencyStatus
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'artifact_identity': _encode(self.artifact_identity),
+            'evidence_gap': _encode(self.evidence_gap),
+            'evidence_identity': _encode(self.evidence_identity),
+            'failure_anchor_present': _encode(self.failure_anchor_present),
+            'lineage_artifact_count': _encode(self.lineage_artifact_count),
+            'minimization_required': _encode(self.minimization_required),
+            'next_operation': _encode(self.next_operation),
+            'observation_complete': _encode(self.observation_complete),
+            'operation_identity_present': _encode(self.operation_identity_present),
+            'outcome': _encode(self.outcome),
+            'proof_identity': _encode(self.proof_identity),
+            'provenance_observed': _encode(self.provenance_observed),
+            'provider_check_identity': _encode(self.provider_check_identity),
+            'provider_result_identity': _encode(self.provider_result_identity),
+            'receipt_identity': _encode(self.receipt_identity),
+            'replay_required': _encode(self.replay_required),
+            'sufficiency': _encode(self.sufficiency),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> DiagnosticArtifact:
+        fields = _fields(value)
+        artifact_identity = _decode('sequence:byte:32', fields.get('artifact_identity'))
+        evidence_gap = _decode('finite:EvidenceGap', fields.get('evidence_gap'))
+        evidence_identity = _decode('sequence:byte:32', fields.get('evidence_identity'))
+        failure_anchor_present = _decode('bool', fields.get('failure_anchor_present'))
+        lineage_artifact_count = _decode('int', fields.get('lineage_artifact_count'))
+        minimization_required = _decode('bool', fields.get('minimization_required'))
+        next_operation = _decode('finite:DiagnosticOperation', fields.get('next_operation'))
+        observation_complete = _decode('bool', fields.get('observation_complete'))
+        operation_identity_present = _decode('bool', fields.get('operation_identity_present'))
+        outcome = _decode('finite:DebugOutcome', fields.get('outcome'))
+        proof_identity = _decode('sequence:byte:32', fields.get('proof_identity'))
+        provenance_observed = _decode('bool', fields.get('provenance_observed'))
+        provider_check_identity = _decode('sequence:byte:', fields.get('provider_check_identity'))
+        provider_result_identity = _decode('sequence:byte:32', fields.get('provider_result_identity'))
+        receipt_identity = _decode('sequence:byte:32', fields.get('receipt_identity'))
+        replay_required = _decode('bool', fields.get('replay_required'))
+        sufficiency = _decode('finite:SufficiencyStatus', fields.get('sufficiency'))
+        return cls(artifact_identity=artifact_identity, evidence_gap=evidence_gap, evidence_identity=evidence_identity, failure_anchor_present=failure_anchor_present, lineage_artifact_count=lineage_artifact_count, minimization_required=minimization_required, next_operation=next_operation, observation_complete=observation_complete, operation_identity_present=operation_identity_present, outcome=outcome, proof_identity=proof_identity, provenance_observed=provenance_observed, provider_check_identity=provider_check_identity, provider_result_identity=provider_result_identity, receipt_identity=receipt_identity, replay_required=replay_required, sufficiency=sufficiency)
 
 
 @dataclass(frozen=True)
@@ -2683,6 +2747,14 @@ class Binding:
     def decide(self, input_value: DecisionInput) -> Decision:
         response = self._call('mncs.debug', 'decide', input_value)
         return _decode('record:Decision', response['returned'][0])
+
+    def diagnostic_artifact_app(self, input_value: ApplicationContext) -> ApplicationExit:
+        response = self._call('mncs.debug', 'diagnostic_artifact_app', input_value)
+        return _decode('record:ApplicationExit', response['returned'][0])
+
+    def diagnostic_artifact_schema(self) -> bytes:
+        response = self._call('mncs.debug', 'diagnostic_artifact_schema')
+        return _decode('view:byte:64', response['returned'][0])
 
     def equals(self, left: Any, right: Any) -> bool:
         response = self._call('mncs.core.sequences.v1', 'equals', left, right)

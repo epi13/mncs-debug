@@ -245,6 +245,30 @@ record FailureLineage {
     artifact_count: u64,
 }
 
+// The canonical bounded diagnostic artifact is produced from the native
+// failure lineage.  Host code may transport and render this record, but it
+// cannot replace the outcome, sufficiency, next operation, or evidence gap
+// with a host-side summary.
+record DiagnosticArtifact {
+    artifact_identity: [byte; 32],
+    outcome: DebugOutcome,
+    sufficiency: SufficiencyStatus,
+    next_operation: DiagnosticOperation,
+    evidence_gap: EvidenceGap,
+    failure_anchor_present: bool,
+    operation_identity_present: bool,
+    observation_complete: bool,
+    provenance_observed: bool,
+    replay_required: bool,
+    minimization_required: bool,
+    provider_result_identity: [byte; 32],
+    provider_check_identity: [byte; up_to 256],
+    receipt_identity: [byte; 32],
+    evidence_identity: [byte; 32],
+    proof_identity: [byte; 32],
+    lineage_artifact_count: u64,
+}
+
 fn failure_lineage_schema() -> (result: [byte; up_to 64]) {
     return [109, 110, 99, 115, 46, 100, 101, 98, 117, 103, 46, 102, 97, 105, 108, 117, 114, 101, 45, 108, 105, 110, 101, 97, 103, 101, 47, 49];
 }
@@ -454,6 +478,58 @@ fn actions_failure_artifact_app(context: ApplicationContext) -> (result: Applica
     let published: u64 = structured_write(context.argv[5], failure_lineage_schema(), lineage);
     if published == 0 {
         return failure([100, 101, 98, 117, 103, 32, 108, 105, 110, 101, 97, 103, 101, 32, 112, 117, 98, 108, 105, 115, 104, 32, 102, 97, 105, 108, 101, 100], 3);
+    }
+    return success([]);
+}
+
+fn diagnostic_artifact_schema() -> (result: [byte; up_to 64]) {
+    return [109, 110, 99, 115, 46, 100, 101, 98, 117, 103, 46, 100, 105, 97, 103, 110, 111, 115, 116, 105, 99, 45, 97, 114, 116, 105, 102, 97, 99, 116, 47, 49];
+}
+
+fn diagnostic_artifact_app(context: ApplicationContext) -> (result: ApplicationExit)
+    capability debug_artifact
+    capability debug_digest
+    effect structured_read authorized_by debug_artifact
+    effect structured_read_identity authorized_by debug_artifact
+    effect structured_write authorized_by debug_artifact
+    effect structured_digest authorized_by debug_digest
+{
+    if !context_is_bounded(context) || context.argv_count < 2 {
+        return failure([97, 114, 103, 118, 32, 114, 101, 113, 117, 105, 114, 101, 115, 32, 50, 32, 100, 105, 97, 103, 110, 111, 115, 116, 105, 99, 32, 97, 114, 116, 105, 102, 97, 99, 116, 32, 112, 97, 116, 104, 115], 2);
+    }
+    let extension_policy: [byte; up_to 128] = contracts.identity_extension_policy();
+    let lineage: FailureLineage = structured_read_identity(
+        context.argv[0],
+        failure_lineage_schema(),
+        extension_policy
+    );
+    let material: DiagnosticArtifact = DiagnosticArtifact {
+        artifact_identity: [0; 32],
+        outcome: lineage.outcome,
+        sufficiency: select(lineage.sufficient, SufficiencyStatus.Sufficient, SufficiencyStatus.Ambiguous),
+        next_operation: lineage.next_operation,
+        evidence_gap: lineage.evidence_gap,
+        failure_anchor_present: lineage.failure_anchor_present,
+        operation_identity_present: lineage.operation_identity_present,
+        observation_complete: lineage.observation_complete,
+        provenance_observed: lineage.provenance_observed,
+        replay_required: lineage.replay_required,
+        minimization_required: lineage.minimization_required,
+        provider_result_identity: lineage.provider_result_identity,
+        provider_check_identity: lineage.provider_check_identity,
+        receipt_identity: lineage.receipt_identity,
+        evidence_identity: lineage.evidence_identity,
+        proof_identity: lineage.proof_identity,
+        lineage_artifact_count: lineage.artifact_count,
+    };
+    let artifact_identity: [byte; 32] = debug_copy_digest(structured_digest(material));
+    let artifact: DiagnosticArtifact = DiagnosticArtifact {
+        ..material,
+        artifact_identity: artifact_identity
+    };
+    let published: u64 = structured_write(context.argv[1], diagnostic_artifact_schema(), artifact);
+    if published == 0 {
+        return failure([100, 105, 97, 103, 110, 111, 115, 116, 105, 99, 32, 97, 114, 116, 105, 102, 97, 99, 116, 32, 112, 117, 98, 108, 105, 115, 104, 32, 102, 97, 105, 108, 101, 100], 3);
     }
     return success([]);
 }
