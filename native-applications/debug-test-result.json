@@ -1,11 +1,11 @@
 {
   "schema_version": "mncs.native-application/1",
   "application_identity": "mncs-debug.test-result-artifact",
-  "source": "../native/mncs/debug/v1.mncs",
-  "module": "mncs.debug.v1",
+  "source": "../native/mncs/debug/debug.mncs",
+  "module": "mncs.debug",
   "entry_function": "test_result_artifact_app",
   "profile": "0.18",
-  "interface_identity": "21a654308539dbf62638e9a0858609ac238a4dbcb25800e14d264e2f2fc2ff28",
+  "interface_identity": "2e25ee40c0cb00ea96848070d17fbbb3cd22b50f26ee1e4c976d679781acfecd",
   "libraries": [
     "../../mncs-language/library",
     "../../MNCS-Commons/src/mncs_commons/mesh/mncs",

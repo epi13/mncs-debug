@@ -3,14 +3,14 @@ mncs 0.18;
 // MNCS-owned debugger semantics. The launcher supplies only typed facts from
 // the external execution boundary. This module decides the semantic failure
 // class, stop policy, and evidence escalation vocabulary.
-module mncs.debug.v1;
+module mncs.debug;
 
 use mncs.std.process.v1;
 use mncs.std.application.v1;
 use mncs.commons.family.artifact.v1;
 use mncs.commons.family.contracts.v1 as contracts;
 use mncs.core.sequences.v1 as sequences;
-use mncs.test.assertions.v1;
+use mncs.test.assertions;
 use mncs.test.provider_protocol.v1 as provider_protocol;
 
 enum RuntimeStatus {

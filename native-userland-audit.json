@@ -38,11 +38,11 @@
   ],
   "migration_order": 3,
   "next_native_slice": "native artifact ingress and replay request transport over generic filesystem/process effects",
-  "shadow_entrypoint": "mncs call native/mncs/debug/v1.mncs --module mncs.debug.v1 --function materialize_witness",
-  "shadow_authority": "mncs.debug.v1",
+  "shadow_entrypoint": "mncs call native/mncs/debug/debug.mncs --module mncs.debug --function materialize_witness",
+  "shadow_authority": "mncs.debug",
   "runtime_effect_dogfood": {
     "process": "native shadow canary invokes the generic mncs process capability with explicit argv, bounded UTF-8 capture, and a deadline",
-    "structured_data": "typed call arguments/results cross the generic structured boundary; Debug policy remains in mncs.debug.v1"
+    "structured_data": "typed call arguments/results cross the generic structured boundary; Debug policy remains in mncs.debug"
   },
   "host_fallback": {
     "allowed": true,

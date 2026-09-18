@@ -199,7 +199,7 @@ Stage 4  not reached: debugger cannot yet suspend/debug its own live process
 Stage 5  future: host tools retained only as differential/emergency oracles
 ```
 
-The semantic core at [`native/mncs/debug/v1.mncs`](native/mncs/debug/v1.mncs)
+The semantic core at [`native/mncs/debug/debug.mncs`](native/mncs/debug/debug.mncs)
 classifies the explicit transport status and test/effect flags. The launcher
 does not contain a fallback semantic interpreter: if the core cannot execute,
 the witness records that semantic classification is unavailable.

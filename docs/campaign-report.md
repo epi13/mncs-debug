@@ -52,7 +52,7 @@ was retained as an observed witness, not silently treated as the pinned build.
 ## 2. Repository architecture created
 
 ```text
-native/mncs/debug/v1.mncs       MNCS-owned outcome/stop semantic core
+native/mncs/debug/debug.mncs    MNCS-owned outcome/stop semantic core
 mncs_debug/protocol.py          canonical JSON, identity, bounds, validation
 mncs_debug/runner.py            narrow runtime/compiler process adapter
 mncs_debug/trace.py             event/trace normalization and completeness
@@ -168,7 +168,7 @@ The campaign reached Stage 3:
 5  host tools only as emergency/differential witnesses — future direction
 ```
 
-The native file `native/mncs/debug/v1.mncs` is invoked for every recording and
+The native file `native/mncs/debug/debug.mncs` is invoked for every recording and
 decides `Outcome` plus `should_stop`. There is no host semantic fallback. If
 the core is unavailable, the witness explicitly says classification is not
 established.

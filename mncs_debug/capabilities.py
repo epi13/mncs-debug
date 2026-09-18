@@ -158,7 +158,7 @@ def capability_document(*, runtime_path: str | None = None, runtime_digest: str 
             "id": "native_semantic_core",
             "state": "supported",
             "owner": "mncs-language/mncs-debug",
-            "evidence": "native/mncs/debug/v1.mncs is invoked through the current executor for outcome decisions",
+            "evidence": "native/mncs/debug/debug.mncs is invoked through the current executor for outcome decisions",
         },
     ]
     material = {

@@ -118,7 +118,7 @@ operation:
 2. invoke `mncs observe` without a shell and with an OS timeout; this returns
    `execution-result/0.1`, `execution-observation/1`, validation, and (for a
    valid source program) `execution-source-map/1`;
-3. invoke `native/mncs/debug/v1.mncs` through `mncs execute` to classify the
+3. invoke `native/mncs/debug/debug.mncs` through `mncs execute` to classify the
    explicit runtime status plus assertion/effect flags. The sufficiency call
    uses the language-owned `mncs.typed-call/1` boundary with a named
    `SufficiencyInput` record; the adapter no longer encodes six boolean facts
@@ -217,7 +217,7 @@ recorded signature.
 
 ## Native/host trust boundary
 
-The native file `native/mncs/debug/v1.mncs` owns outcome/stop policy and the
+The native file `native/mncs/debug/debug.mncs` owns outcome/stop policy and the
 predicates that establish evidence from bounded artifact observations. The
 generated Python binding owns the typed-call transport. The remaining Python
 adapter owns:

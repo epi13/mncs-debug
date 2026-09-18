@@ -19,7 +19,7 @@ def _run_native_call(binary: str) -> tuple[dict, dict]:
     command = [
         binary,
         "call",
-        str(ROOT / "native/mncs/debug/v1.mncs"),
+        str(ROOT / "native/mncs/debug/debug.mncs"),
         "--library",
         str(ROOT.parent / "mncs-language" / "library"),
         "--library",
@@ -29,7 +29,7 @@ def _run_native_call(binary: str) -> tuple[dict, dict]:
         "--library",
         str(ROOT.parent / "mncs-test" / "native"),
         "--module",
-        "mncs.debug.v1",
+        "mncs.debug",
         "--function",
         "materialize_witness",
         "--args",

@@ -4,13 +4,13 @@
   "status": "native_shadow",
   "canonical_entrypoint": "bin/mncs-debug",
   "native_sources": {
-    "debug-core": "native/mncs/debug/v1.mncs",
-    "artifact-facts-app": "native/mncs/debug/v1.mncs",
-    "test-result-artifact-app": "native/mncs/debug/v1.mncs",
-    "actions-failure-lineage-app": "native/mncs/debug/v1.mncs"
+    "debug-core": "native/mncs/debug/debug.mncs",
+    "artifact-facts-app": "native/mncs/debug/debug.mncs",
+    "test-result-artifact-app": "native/mncs/debug/debug.mncs",
+    "actions-failure-lineage-app": "native/mncs/debug/debug.mncs"
   },
   "semantic_modules": [
-    "native/mncs/debug/v1.mncs"
+    "native/mncs/debug/debug.mncs"
   ],
   "native_shadow_slices": [
     "bounded witness materialization",

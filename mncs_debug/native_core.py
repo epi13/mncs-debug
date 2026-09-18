@@ -45,7 +45,7 @@ class NativeCoreError(RuntimeError):
 
 
 def default_core_path() -> Path:
-    return Path(__file__).resolve().parents[1] / "native/mncs/debug/v1.mncs"
+    return Path(__file__).resolve().parents[1] / "native/mncs/debug/debug.mncs"
 
 
 def _label(value: Any) -> str | None:
@@ -145,7 +145,7 @@ def run_process(
         "call",
         str(core),
         "--module",
-        "mncs.debug.v1",
+        "mncs.debug",
         "--function",
         "replay_process",
         "--args-json",

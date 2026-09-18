@@ -11,10 +11,10 @@ from pathlib import Path
 from typing import Any
 
 GENERATOR_VERSION = 'mncs-host-bindings/0.2'
-MODULE_IDENTITY = 'mncs.debug.v1'
-INTERFACE_IDENTITY = '21a654308539dbf62638e9a0858609ac238a4dbcb25800e14d264e2f2fc2ff28'
+MODULE_IDENTITY = 'mncs.debug'
+INTERFACE_IDENTITY = '2e25ee40c0cb00ea96848070d17fbbb3cd22b50f26ee1e4c976d679781acfecd'
 TYPED_CALL_SCHEMA_VERSION = 'mncs.typed-call/1'
-BINDING_CONTENT_IDENTITY = 'bcc34883ad296871c888cb849237c37080f127ede332c0a21e3f455b0e220d9f'
+BINDING_CONTENT_IDENTITY = '2cc749d44979e3baa0e4072630c398da2bcecb4ca5cb6fac1f328070fc31923f'
 
 class BindingError(RuntimeError):
     pass
@@ -2509,7 +2509,7 @@ class Binding:
         return response['call']
 
     def actions_failure_artifact_app(self, input_value: ApplicationContext) -> ApplicationExit:
-        response = self._call('mncs.debug.v1', 'actions_failure_artifact_app', input_value)
+        response = self._call('mncs.debug', 'actions_failure_artifact_app', input_value)
         return _decode('record:ApplicationExit', response['returned'][0])
 
     def all_true(self, input_value: Any) -> bool:
@@ -2545,7 +2545,7 @@ class Binding:
         return _decode('bool', response['returned'][0])
 
     def bounded_count(self, value: int, limit: int) -> int:
-        response = self._call('mncs.debug.v1', 'bounded_count', value, limit)
+        response = self._call('mncs.debug', 'bounded_count', value, limit)
         return _decode('int', response['returned'][0])
 
     def byte_view_builder16_empty(self) -> ByteViewBuilder16:
@@ -2669,19 +2669,19 @@ class Binding:
         return _decode('int', response['returned'][0])
 
     def debug_bytes_present(self, input_value: bytes) -> bool:
-        response = self._call('mncs.debug.v1', 'debug_bytes_present', input_value)
+        response = self._call('mncs.debug', 'debug_bytes_present', input_value)
         return _decode('bool', response['returned'][0])
 
     def debug_copy_digest(self, input_value: bytes) -> bytes:
-        response = self._call('mncs.debug.v1', 'debug_copy_digest', input_value)
+        response = self._call('mncs.debug', 'debug_copy_digest', input_value)
         return _decode('sequence:byte:', response['returned'][0])
 
     def debug_same_bytes(self, left: bytes, right: bytes) -> bool:
-        response = self._call('mncs.debug.v1', 'debug_same_bytes', left, right)
+        response = self._call('mncs.debug', 'debug_same_bytes', left, right)
         return _decode('bool', response['returned'][0])
 
     def decide(self, input_value: DecisionInput) -> Decision:
-        response = self._call('mncs.debug.v1', 'decide', input_value)
+        response = self._call('mncs.debug', 'decide', input_value)
         return _decode('record:Decision', response['returned'][0])
 
     def equals(self, left: Any, right: Any) -> bool:
@@ -2697,7 +2697,7 @@ class Binding:
         return _decode('bool', response['returned'][0])
 
     def equals_bool(self, expected: bool, actual: bool, code: int) -> Assertion:
-        response = self._call('mncs.test.assertions.v1', 'equals_bool', expected, actual, code)
+        response = self._call('mncs.test.assertions', 'equals_bool', expected, actual, code)
         return _decode('record:Assertion', response['returned'][0])
 
     def equals_byte_view(self, left: Any, right: Any) -> bool:
@@ -2713,23 +2713,23 @@ class Binding:
         return _decode('bool', response['returned'][0])
 
     def equals_i64(self, expected: int, actual: int, code: int) -> Assertion:
-        response = self._call('mncs.test.assertions.v1', 'equals_i64', expected, actual, code)
+        response = self._call('mncs.test.assertions', 'equals_i64', expected, actual, code)
         return _decode('record:Assertion', response['returned'][0])
 
     def established_claim(self, input_value: ProvenanceClaimStatus) -> bool:
-        response = self._call('mncs.debug.v1', 'established_claim', input_value)
+        response = self._call('mncs.debug', 'established_claim', input_value)
         return _decode('bool', response['returned'][0])
 
     def evidence_contains_artifact(self, evidence: EvidenceManifestContract, candidate: bytes) -> bool:
-        response = self._call('mncs.debug.v1', 'evidence_contains_artifact', evidence, candidate)
+        response = self._call('mncs.debug', 'evidence_contains_artifact', evidence, candidate)
         return _decode('bool', response['returned'][0])
 
     def evidence_facts(self, input_value: EvidenceFactsInput) -> EvidenceFacts:
-        response = self._call('mncs.debug.v1', 'evidence_facts', input_value)
+        response = self._call('mncs.debug', 'evidence_facts', input_value)
         return _decode('record:EvidenceFacts', response['returned'][0])
 
     def evidence_facts_artifact_app(self, input_value: ApplicationContext) -> ApplicationExit:
-        response = self._call('mncs.debug.v1', 'evidence_facts_artifact_app', input_value)
+        response = self._call('mncs.debug', 'evidence_facts_artifact_app', input_value)
         return _decode('record:ApplicationExit', response['returned'][0])
 
     def evidence_manifest_identity_material(self, input_value: EvidenceManifestContract) -> EvidenceManifestIdentityMaterial:
@@ -2745,15 +2745,15 @@ class Binding:
         return _decode('record:ApplicationExit', response['returned'][0])
 
     def failure_lineage_schema(self) -> bytes:
-        response = self._call('mncs.debug.v1', 'failure_lineage_schema')
+        response = self._call('mncs.debug', 'failure_lineage_schema')
         return _decode('view:byte:64', response['returned'][0])
 
     def family_failed(self, input_value: ContractFamilyVerdict) -> bool:
-        response = self._call('mncs.debug.v1', 'family_failed', input_value)
+        response = self._call('mncs.debug', 'family_failed', input_value)
         return _decode('bool', response['returned'][0])
 
     def family_passed(self, input_value: ContractFamilyVerdict) -> bool:
-        response = self._call('mncs.debug.v1', 'family_passed', input_value)
+        response = self._call('mncs.debug', 'family_passed', input_value)
         return _decode('bool', response['returned'][0])
 
     def find_index4(self, xs: tuple[Any, ...], needle: int) -> int:
@@ -2785,7 +2785,7 @@ class Binding:
         return _decode('int', response['returned'][0])
 
     def from_assertion(self, input_value: Assertion) -> TestResult:
-        response = self._call('mncs.test.assertions.v1', 'from_assertion', input_value)
+        response = self._call('mncs.test.assertions', 'from_assertion', input_value)
         return _decode('record:TestResult', response['returned'][0])
 
     def identity_extension_policy(self) -> bytes:
@@ -2797,11 +2797,11 @@ class Binding:
         return _decode('sequence:int:', response['returned'][0])
 
     def is_complete(self, input_value: TraceCompleteness) -> bool:
-        response = self._call('mncs.debug.v1', 'is_complete', input_value)
+        response = self._call('mncs.debug', 'is_complete', input_value)
         return _decode('bool', response['returned'][0])
 
     def is_present(self, input_value: EvidencePresence) -> bool:
-        response = self._call('mncs.debug.v1', 'is_present', input_value)
+        response = self._call('mncs.debug', 'is_present', input_value)
         return _decode('bool', response['returned'][0])
 
     def is_sorted(self, input_value: Any) -> bool:
@@ -2833,15 +2833,15 @@ class Binding:
         return _decode('int', response['returned'][0])
 
     def lineage_bindings_valid(self, test_result: ProviderTestResult, check_result: ProviderCheckResult, receipt: ReceiptContract, evidence: EvidenceManifestContract, proof: SelectedProofContract) -> bool:
-        response = self._call('mncs.debug.v1', 'lineage_bindings_valid', test_result, check_result, receipt, evidence, proof)
+        response = self._call('mncs.debug', 'lineage_bindings_valid', test_result, check_result, receipt, evidence, proof)
         return _decode('bool', response['returned'][0])
 
     def lineage_sufficient_for_pass(self, family_failed_value: bool, bindings_valid: bool, test_result: ProviderTestResult, check_result: ProviderCheckResult, receipt: ReceiptContract, proof: SelectedProofContract) -> bool:
-        response = self._call('mncs.debug.v1', 'lineage_sufficient_for_pass', family_failed_value, bindings_valid, test_result, check_result, receipt, proof)
+        response = self._call('mncs.debug', 'lineage_sufficient_for_pass', family_failed_value, bindings_valid, test_result, check_result, receipt, proof)
         return _decode('bool', response['returned'][0])
 
     def make_decision(self, input_value: DebugOutcome) -> Decision:
-        response = self._call('mncs.debug.v1', 'make_decision', input_value)
+        response = self._call('mncs.debug', 'make_decision', input_value)
         return _decode('record:Decision', response['returned'][0])
 
     def make_found(self, input_value: int) -> Found:
@@ -2849,11 +2849,11 @@ class Binding:
         return _decode('finite:Found', response['returned'][0])
 
     def make_sufficiency(self, status: SufficiencyStatus, next_operation: DiagnosticOperation, evidence_gap: EvidenceGap, sufficient: bool) -> SufficiencyDecision:
-        response = self._call('mncs.debug.v1', 'make_sufficiency', status, next_operation, evidence_gap, sufficient)
+        response = self._call('mncs.debug', 'make_sufficiency', status, next_operation, evidence_gap, sufficient)
         return _decode('record:SufficiencyDecision', response['returned'][0])
 
     def materialize_witness(self, input_value: WitnessMaterializationInput) -> WitnessMaterializationPlan:
-        response = self._call('mncs.debug.v1', 'materialize_witness', input_value)
+        response = self._call('mncs.debug', 'materialize_witness', input_value)
         return _decode('record:WitnessMaterializationPlan', response['returned'][0])
 
     def max(self, input_value: Any) -> int:
@@ -2881,15 +2881,15 @@ class Binding:
         return _decode('int', response['returned'][0])
 
     def minimization_is_established(self, input_value: MinimizationStatus) -> bool:
-        response = self._call('mncs.debug.v1', 'minimization_is_established', input_value)
+        response = self._call('mncs.debug', 'minimization_is_established', input_value)
         return _decode('bool', response['returned'][0])
 
     def minimization_step(self, current: EvidenceFacts, status: MinimizationStatus, include: bool) -> EvidenceFacts:
-        response = self._call('mncs.debug.v1', 'minimization_step', current, status, include)
+        response = self._call('mncs.debug', 'minimization_step', current, status, include)
         return _decode('record:EvidenceFacts', response['returned'][0])
 
     def missing(self, input_value: bool) -> bool:
-        response = self._call('mncs.debug.v1', 'missing', input_value)
+        response = self._call('mncs.debug', 'missing', input_value)
         return _decode('bool', response['returned'][0])
 
     def no_found(self) -> Found:
@@ -2897,15 +2897,15 @@ class Binding:
         return _decode('finite:Found', response['returned'][0])
 
     def no_overflow(self, input_value: bool) -> bool:
-        response = self._call('mncs.debug.v1', 'no_overflow', input_value)
+        response = self._call('mncs.debug', 'no_overflow', input_value)
         return _decode('bool', response['returned'][0])
 
     def operation_claim_observed(self, input_value: ProvenanceObservation) -> bool:
-        response = self._call('mncs.debug.v1', 'operation_claim_observed', input_value)
+        response = self._call('mncs.debug', 'operation_claim_observed', input_value)
         return _decode('bool', response['returned'][0])
 
     def _pass(self) -> TestResult:
-        response = self._call('mncs.test.assertions.v1', 'pass')
+        response = self._call('mncs.test.assertions', 'pass')
         return _decode('record:TestResult', response['returned'][0])
 
     def prefix2(self, input_value: tuple[Any, ...]) -> tuple[Any, ...]:
@@ -2913,11 +2913,11 @@ class Binding:
         return _decode('view:int:4', response['returned'][0])
 
     def project_test(self, input_value: TestResult) -> TestProjection:
-        response = self._call('mncs.test.assertions.v1', 'project_test', input_value)
+        response = self._call('mncs.test.assertions', 'project_test', input_value)
         return _decode('record:TestProjection', response['returned'][0])
 
     def provenance_step(self, current: EvidenceFacts, observation: ProvenanceObservation, include: bool) -> EvidenceFacts:
-        response = self._call('mncs.debug.v1', 'provenance_step', current, observation, include)
+        response = self._call('mncs.debug', 'provenance_step', current, observation, include)
         return _decode('record:EvidenceFacts', response['returned'][0])
 
     def provider_check_result_identity_material(self, input_value: ProviderCheckResult) -> ProviderCheckResultIdentityMaterial:
@@ -2937,11 +2937,11 @@ class Binding:
         return _decode('view:byte:64', response['returned'][0])
 
     def provider_failed(self, input_value: Verdict) -> bool:
-        response = self._call('mncs.debug.v1', 'provider_failed', input_value)
+        response = self._call('mncs.debug', 'provider_failed', input_value)
         return _decode('bool', response['returned'][0])
 
     def provider_passed(self, input_value: Verdict) -> bool:
-        response = self._call('mncs.debug.v1', 'provider_passed', input_value)
+        response = self._call('mncs.debug', 'provider_passed', input_value)
         return _decode('bool', response['returned'][0])
 
     def provider_request_schema(self) -> bytes:
@@ -2969,23 +2969,23 @@ class Binding:
         return _decode('view:byte:64', response['returned'][0])
 
     def recognized_provenance(self, input_value: ProvenanceClaimKind) -> bool:
-        response = self._call('mncs.debug.v1', 'recognized_provenance', input_value)
+        response = self._call('mncs.debug', 'recognized_provenance', input_value)
         return _decode('bool', response['returned'][0])
 
     def replay_is_established(self, input_value: ReplayStatus) -> bool:
-        response = self._call('mncs.debug.v1', 'replay_is_established', input_value)
+        response = self._call('mncs.debug', 'replay_is_established', input_value)
         return _decode('bool', response['returned'][0])
 
     def replay_process(self, input_value: ProcessRequest) -> ProcessResult:
-        response = self._call('mncs.debug.v1', 'replay_process', input_value)
+        response = self._call('mncs.debug', 'replay_process', input_value)
         return _decode('record:ProcessResult', response['returned'][0])
 
     def replay_step(self, current: EvidenceFacts, status: ReplayStatus, include: bool) -> EvidenceFacts:
-        response = self._call('mncs.debug.v1', 'replay_step', current, status, include)
+        response = self._call('mncs.debug', 'replay_step', current, status, include)
         return _decode('record:EvidenceFacts', response['returned'][0])
 
     def returned_outcome(self, input_value: DecisionInput) -> DebugOutcome:
-        response = self._call('mncs.debug.v1', 'returned_outcome', input_value)
+        response = self._call('mncs.debug', 'returned_outcome', input_value)
         return _decode('finite:DebugOutcome', response['returned'][0])
 
     def reverse4(self, input_value: tuple[Any, ...]) -> tuple[Any, ...]:
@@ -2997,7 +2997,7 @@ class Binding:
         return _decode('record:ProcessResult', response['returned'][0])
 
     def runtime_failure_outcome(self, input_value: DecisionInput) -> DebugOutcome:
-        response = self._call('mncs.debug.v1', 'runtime_failure_outcome', input_value)
+        response = self._call('mncs.debug', 'runtime_failure_outcome', input_value)
         return _decode('finite:DebugOutcome', response['returned'][0])
 
     def scan_sorted(self, prev: int, ordered: bool, next_value: int) -> Scan:
@@ -3037,7 +3037,7 @@ class Binding:
         return _decode('view:byte:64', response['returned'][0])
 
     def skip(self, input_value: int) -> TestResult:
-        response = self._call('mncs.test.assertions.v1', 'skip', input_value)
+        response = self._call('mncs.test.assertions', 'skip', input_value)
         return _decode('record:TestResult', response['returned'][0])
 
     def start_scan(self, input_value: int) -> Scan:
@@ -3049,7 +3049,7 @@ class Binding:
         return _decode('bool', response['returned'][0])
 
     def stop_for(self, input_value: DebugOutcome) -> bool:
-        response = self._call('mncs.debug.v1', 'stop_for', input_value)
+        response = self._call('mncs.debug', 'stop_for', input_value)
         return _decode('bool', response['returned'][0])
 
     def success(self, input_value: bytes) -> ApplicationExit:
@@ -3057,7 +3057,7 @@ class Binding:
         return _decode('record:ApplicationExit', response['returned'][0])
 
     def sufficiency(self, input_value: SufficiencyInput) -> SufficiencyDecision:
-        response = self._call('mncs.debug.v1', 'sufficiency', input_value)
+        response = self._call('mncs.debug', 'sufficiency', input_value)
         return _decode('record:SufficiencyDecision', response['returned'][0])
 
     def suffix2(self, input_value: tuple[Any, ...]) -> tuple[Any, ...]:
@@ -3085,7 +3085,7 @@ class Binding:
         return _decode('view:byte:64', response['returned'][0])
 
     def test_result_artifact_app(self, input_value: ApplicationContext) -> ApplicationExit:
-        response = self._call('mncs.debug.v1', 'test_result_artifact_app', input_value)
+        response = self._call('mncs.debug', 'test_result_artifact_app', input_value)
         return _decode('record:ApplicationExit', response['returned'][0])
 
     def test_result_identity_material(self, input_value: TestResultContract) -> TestResultIdentityMaterial:
@@ -3097,11 +3097,11 @@ class Binding:
         return _decode('view:byte:64', response['returned'][0])
 
     def trace_step(self, current: EvidenceFacts, observation: TraceObservation, include: bool) -> EvidenceFacts:
-        response = self._call('mncs.debug.v1', 'trace_step', current, observation, include)
+        response = self._call('mncs.debug', 'trace_step', current, observation, include)
         return _decode('record:EvidenceFacts', response['returned'][0])
 
     def unsupported(self, input_value: int) -> TestResult:
-        response = self._call('mncs.test.assertions.v1', 'unsupported', input_value)
+        response = self._call('mncs.test.assertions', 'unsupported', input_value)
         return _decode('record:TestResult', response['returned'][0])
 
     def verification_plan_identity_material(self, input_value: VerificationPlan) -> VerificationPlanIdentityMaterial:

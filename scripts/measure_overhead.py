@@ -109,7 +109,7 @@ def main() -> int:
     request = args.request.expanduser().resolve()
     runtime = resolve_mncs(args.mncs)
     launcher = ROOT / "bin" / "mncs-debug"
-    native_core = ROOT / "native/mncs/debug/v1.mncs"
+    native_core = ROOT / "native/mncs/debug/debug.mncs"
 
     direct_command = [os.fspath(runtime), "execute", os.fspath(program), os.fspath(request)]
     observe_prefix = [os.fspath(runtime), "observe", os.fspath(program), os.fspath(request)]
@@ -162,7 +162,7 @@ def main() -> int:
             json.dumps(
                 {
                     "schema_version": "0.1",
-                    "target": {"module": "mncs.debug.v1", "function": "decide"},
+                    "target": {"module": "mncs.debug", "function": "decide"},
                     "arguments": [
                         {"integer": {"value": 0, "type": {"bits": 32, "signed": True}}},
                         {"boolean": {"value": False}},

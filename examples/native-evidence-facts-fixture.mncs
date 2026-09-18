@@ -5,7 +5,7 @@ mncs 0.18;
 // still reads the resulting bounded artifact through structured_read.
 module examples.native_evidence_facts_fixture;
 
-use mncs.debug.v1;
+use mncs.debug;
 
 fn write_input(path: [byte; up_to 1024]) -> (result: u64)
     capability debug_artifact
