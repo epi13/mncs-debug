@@ -1,9 +1,9 @@
 {
   "schema_version": "mncs.native-application/1",
-  "application_identity": "mncs-debug.test-result-artifact",
+  "application_identity": "mncs-debug.actions-failure-lineage",
   "source": "../native/mncs/debug/v1.mncs",
   "module": "mncs.debug.v1",
-  "entry_function": "test_result_artifact_app",
+  "entry_function": "actions_failure_artifact_app",
   "profile": "0.18",
   "interface_identity": "21a654308539dbf62638e9a0858609ac238a4dbcb25800e14d264e2f2fc2ff28",
   "libraries": [
@@ -14,6 +14,7 @@
   ],
   "environment_keys": [],
   "required_capabilities": [
-    "debug_artifact"
+    "debug_artifact",
+    "debug_digest"
   ]
 }

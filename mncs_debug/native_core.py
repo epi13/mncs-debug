@@ -12,6 +12,7 @@ import json
 import re
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -84,6 +85,8 @@ def _libraries(core: Path) -> list[Path]:
     for candidate in (
         workspace / "mncs-language" / "library",
         workspace / "MNCS-Commons" / "src" / "mncs_commons" / "mesh" / "mncs",
+        workspace / "mncs-test",
+        workspace / "mncs-test" / "native",
     ):
         if candidate.is_dir() and candidate not in libraries:
             libraries.append(candidate)
@@ -341,3 +344,64 @@ def reduce_evidence_facts(
         "replay_established": facts.replay_established,
         "minimization_established": facts.minimization_established,
     }
+
+
+def actions_failure_lineage(
+    *,
+    mncs_path: Path,
+    provider_result: Path,
+    provider_check: Path,
+    receipt: Path,
+    evidence_manifest: Path,
+    selected_proof: Path,
+    timeout_seconds: float = 120.0,
+) -> dict[str, Any]:
+    """Feed canonical Actions artifacts directly to the native Debug app.
+
+    This is a transport adapter only: it resolves a common artifact root,
+    passes bounded relative paths, and returns the native JSON result. It does
+    not inspect verdicts, identities, or evidence fields.
+    """
+
+    artifacts = [provider_result, provider_check, receipt, evidence_manifest, selected_proof]
+    if not all(path.is_file() for path in artifacts):
+        missing = next(path for path in artifacts if not path.is_file())
+        raise NativeCoreError(f"Actions artifact is missing: {missing}")
+    common_root = Path(os.path.commonpath([os.fspath(path.parent) for path in artifacts]))
+    descriptor = Path(__file__).resolve().parents[1] / "native-applications/debug-actions-failure.json"
+    if not descriptor.is_file():
+        raise NativeCoreError(f"native Actions failure descriptor is missing: {descriptor}")
+    relative = [path.relative_to(common_root).as_posix() for path in artifacts]
+    libraries = _libraries(default_core_path())
+    with tempfile.TemporaryDirectory(prefix=".mncs-debug-lineage-", dir=common_root) as temporary:
+        output = Path(temporary) / "lineage.json"
+        output_relative = output.relative_to(common_root).as_posix()
+        command = [str(mncs_path), "run-app", str(descriptor)]
+        for library in libraries:
+            command.extend(("--library", str(library.resolve())))
+        command.extend(
+            ("--grant-structured", "debug_artifact", "--grant-structured", "debug_digest", "--")
+        )
+        command.extend(relative)
+        command.append(output_relative)
+        try:
+            completed = subprocess.run(
+                command,
+                cwd=os.fspath(common_root),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+                timeout=timeout_seconds,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise NativeCoreError(f"native Debug Actions ingress failed to start: {exc}") from exc
+        if completed.returncode != 0:
+            raise NativeCoreError(
+                "native Debug Actions ingress returned no lineage: "
+                + (completed.stderr.strip() or completed.stdout.strip() or f"exit {completed.returncode}")
+            )
+        try:
+            return json.loads(output.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise NativeCoreError(f"native Debug Actions ingress returned invalid lineage: {exc}") from exc

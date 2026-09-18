@@ -8,6 +8,10 @@ module mncs.debug.v1;
 use mncs.std.process.v1;
 use mncs.std.application.v1;
 use mncs.commons.family.artifact.v1;
+use mncs.commons.family.contracts.v1 as contracts;
+use mncs.core.sequences.v1 as sequences;
+use mncs.test.assertions.v1;
+use mncs.test.provider_protocol.v1 as provider_protocol;
 
 enum RuntimeStatus {
     Returned,
@@ -210,6 +214,246 @@ fn test_result_artifact_app(context: ApplicationContext) -> (result: Application
     let published: u64 = structured_write(context.argv[1], facts_schema, facts);
     if published == 0 {
         return failure([112, 117, 98, 108, 105, 115, 104, 32, 102, 97, 105, 108, 101, 100], 3);
+    }
+    return success([]);
+}
+
+// Canonical Actions failure ingress. The five inputs are the provider-owned
+// TestResult/CheckResult plus the Commons-owned receipt, evidence manifest,
+// and selected proof. Debug interprets their identities and verdicts here;
+// Python does not flatten them into a failure boolean or rebuild a witness.
+record FailureLineage {
+    outcome: DebugOutcome,
+    provider_failed: bool,
+    check_failed: bool,
+    family_failed: bool,
+    identity_bindings_valid: bool,
+    failure_anchor_present: bool,
+    operation_identity_present: bool,
+    observation_complete: bool,
+    provenance_observed: bool,
+    replay_required: bool,
+    minimization_required: bool,
+    sufficient: bool,
+    next_operation: DiagnosticOperation,
+    evidence_gap: EvidenceGap,
+    provider_result_identity: [byte; 32],
+    provider_check_identity: [byte; up_to 256],
+    receipt_identity: [byte; 32],
+    evidence_identity: [byte; 32],
+    proof_identity: [byte; 32],
+    artifact_count: u64,
+}
+
+fn failure_lineage_schema() -> (result: [byte; up_to 64]) {
+    return [109, 110, 99, 115, 46, 100, 101, 98, 117, 103, 46, 102, 97, 105, 108, 117, 114, 101, 45, 108, 105, 110, 101, 97, 103, 101, 47, 49];
+}
+
+fn debug_bytes_present(value: [byte; 32]) -> (result: bool) {
+    return sequences.any_nonzero<32>(value);
+}
+
+fn debug_same_bytes(left: [byte; 32], right: [byte; 32]) -> (result: bool) {
+    return sequences.equals_bytes<32>(left, right);
+}
+
+fn debug_copy_digest(view: [byte; up_to 64]) -> (result: [byte; 32]) {
+    let seed: [byte; 32] = [0; 32];
+    return copy_span(seed, 0, view, 0, 32);
+}
+
+fn provider_failed(value: Verdict) -> (result: bool) {
+    return match value {
+        Verdict.FAIL => true,
+        Verdict.PASS => false,
+        Verdict.SKIP => false,
+        Verdict.UNSUPPORTED => false,
+    };
+}
+
+fn provider_passed(value: Verdict) -> (result: bool) {
+    return match value {
+        Verdict.PASS => true,
+        Verdict.FAIL => false,
+        Verdict.SKIP => false,
+        Verdict.UNSUPPORTED => false,
+    };
+}
+
+fn family_failed(value: contracts.ContractFamilyVerdict) -> (result: bool) {
+    return match value {
+        contracts.ContractFamilyVerdict.FAIL => true,
+        contracts.ContractFamilyVerdict.PASS => false,
+        contracts.ContractFamilyVerdict.UNKNOWN => false,
+    };
+}
+
+fn family_passed(value: contracts.ContractFamilyVerdict) -> (result: bool) {
+    return match value {
+        contracts.ContractFamilyVerdict.PASS => true,
+        contracts.ContractFamilyVerdict.FAIL => false,
+        contracts.ContractFamilyVerdict.UNKNOWN => false,
+    };
+}
+
+fn evidence_contains_artifact(
+    evidence: contracts.EvidenceManifestContract,
+    candidate: [byte; 32]
+) -> (result: bool) {
+    iterate i over evidence.artifact_identities carrying found: bool = false {
+        next found = found || sequences.equals_bytes<32>(evidence.artifact_identities[i], candidate);
+    }
+    return found;
+}
+
+fn lineage_bindings_valid(
+    test_result: provider_protocol.ProviderTestResult,
+    check_result: provider_protocol.ProviderCheckResult,
+    receipt: contracts.ReceiptContract,
+    evidence: contracts.EvidenceManifestContract,
+    proof: contracts.SelectedProofContract
+) -> (result: bool)
+    capability debug_digest
+    effect structured_digest authorized_by debug_digest
+{
+    let expected_result_identity: [byte; 32] = debug_copy_digest(structured_digest(
+        provider_protocol.provider_test_result_identity_material(test_result)
+    ));
+    let expected_check_identity: [byte; 32] = debug_copy_digest(structured_digest(
+        provider_protocol.provider_check_result_identity_material(check_result)
+    ));
+    return debug_bytes_present(test_result.result_identity)
+        && debug_bytes_present(check_result.result_identity)
+        && debug_bytes_present(receipt.receipt_identity)
+        && debug_bytes_present(evidence.evidence_identity)
+        && debug_bytes_present(proof.proof_identity)
+        && debug_bytes_present(test_result.execution_identity)
+        && debug_bytes_present(test_result.evidence_identity)
+        && debug_bytes_present(check_result.execution_identity)
+        && debug_bytes_present(check_result.evidence_identity)
+        && debug_same_bytes(test_result.result_identity, check_result.test_result_identity)
+        && debug_same_bytes(test_result.execution_identity, check_result.execution_identity)
+        && debug_same_bytes(test_result.evidence_identity, check_result.evidence_identity)
+        && debug_same_bytes(test_result.result_identity, expected_result_identity)
+        && debug_same_bytes(check_result.result_identity, expected_check_identity)
+        && debug_same_bytes(receipt.test_result_identity, test_result.result_identity)
+        && debug_same_bytes(receipt.check_result_identity, check_result.result_identity)
+        && debug_same_bytes(receipt.execution_identity, test_result.execution_identity)
+        && debug_same_bytes(receipt.evidence_identity, test_result.evidence_identity)
+        && debug_same_bytes(evidence.test_result_identity, test_result.result_identity)
+        && debug_same_bytes(evidence.check_result_identity, check_result.result_identity)
+        && debug_same_bytes(evidence.execution_identity, test_result.execution_identity)
+        && evidence_contains_artifact(evidence, test_result.result_identity)
+        && proof.selected_check_identities.len > 0;
+}
+
+fn lineage_sufficient_for_pass(
+    family_failed_value: bool,
+    bindings_valid: bool,
+    test_result: provider_protocol.ProviderTestResult,
+    check_result: provider_protocol.ProviderCheckResult,
+    receipt: contracts.ReceiptContract,
+    proof: contracts.SelectedProofContract
+) -> (result: bool) {
+    return !family_failed_value
+        && bindings_valid
+        && provider_passed(test_result.native_result.verdict)
+        && provider_passed(check_result.verdict)
+        && family_passed(receipt.verdict)
+        && family_passed(proof.verdict)
+        && proof.sufficient;
+}
+
+fn actions_failure_artifact_app(context: ApplicationContext) -> (result: ApplicationExit)
+    capability debug_artifact
+    capability debug_digest
+    effect structured_read authorized_by debug_artifact
+    effect structured_read_identity authorized_by debug_artifact
+    effect structured_write authorized_by debug_artifact
+    effect structured_digest authorized_by debug_digest
+{
+    if !context_is_bounded(context) || context.argv_count < 6 {
+        return failure([97, 114, 103, 118, 32, 114, 101, 113, 117, 105, 114, 101, 115, 32, 54, 32, 102, 97, 105, 108, 117, 114, 101, 32, 97, 114, 116, 105, 102, 97, 99, 116, 32, 112, 97, 116, 104, 115], 2);
+    }
+    let extension_policy: [byte; up_to 128] = contracts.identity_extension_policy();
+    let provider_result: provider_protocol.ProviderTestResult = structured_read_identity(
+        context.argv[0],
+        provider_protocol.provider_result_schema(),
+        extension_policy
+    );
+    let provider_check: provider_protocol.ProviderCheckResult = structured_read_identity(
+        context.argv[1],
+        provider_protocol.provider_check_schema(),
+        extension_policy
+    );
+    let receipt: contracts.ReceiptContract = structured_read_identity(
+        context.argv[2],
+        contracts.receipt_schema(),
+        extension_policy
+    );
+    let evidence: contracts.EvidenceManifestContract = structured_read_identity(
+        context.argv[3],
+        contracts.evidence_manifest_schema(),
+        extension_policy
+    );
+    let proof: contracts.SelectedProofContract = structured_read_identity(
+        context.argv[4],
+        contracts.selected_proof_schema(),
+        extension_policy
+    );
+    let provider_is_failed: bool = provider_failed(provider_result.native_result.verdict);
+    let check_is_failed: bool = provider_failed(provider_check.verdict);
+    let receipt_is_failed: bool = family_failed(receipt.verdict);
+    let proof_is_failed: bool = family_failed(proof.verdict);
+    let failed: bool = provider_is_failed || check_is_failed || receipt_is_failed || proof_is_failed;
+    let bindings_valid: bool = lineage_bindings_valid(provider_result, provider_check, receipt, evidence, proof);
+    let operation_identity: bool = debug_bytes_present(provider_result.execution_identity)
+        && debug_same_bytes(provider_result.execution_identity, provider_check.execution_identity)
+        && debug_same_bytes(provider_result.execution_identity, receipt.execution_identity)
+        && debug_same_bytes(provider_result.execution_identity, evidence.execution_identity);
+    let pass_sufficient: bool = lineage_sufficient_for_pass(failed, bindings_valid, provider_result, provider_check, receipt, proof);
+    let decision: SufficiencyDecision = select(
+        pass_sufficient,
+        make_sufficiency(SufficiencyStatus.Sufficient, DiagnosticOperation.NoOperation, EvidenceGap.NoGap, true),
+        sufficiency(SufficiencyInput {
+            has_failure_identity: failed && bindings_valid,
+            has_operation_identity: operation_identity,
+            observation_complete: false,
+            provenance_observed: false,
+            replay_required: false,
+            minimization_required: false,
+        })
+    );
+    let outcome: DebugOutcome = select(
+        failed && bindings_valid,
+        DebugOutcome.TestFailure,
+        select(bindings_valid, DebugOutcome.Success, DebugOutcome.InfrastructureFailure)
+    );
+    let lineage: FailureLineage = FailureLineage {
+        outcome: outcome,
+        provider_failed: provider_is_failed,
+        check_failed: check_is_failed,
+        family_failed: failed,
+        identity_bindings_valid: bindings_valid,
+        failure_anchor_present: failed && bindings_valid,
+        operation_identity_present: operation_identity,
+        observation_complete: false,
+        provenance_observed: false,
+        replay_required: false,
+        minimization_required: false,
+        sufficient: decision.sufficient,
+        next_operation: decision.next_operation,
+        evidence_gap: decision.evidence_gap,
+        provider_result_identity: provider_result.result_identity,
+        provider_check_identity: provider_check.check_identity,
+        receipt_identity: receipt.receipt_identity,
+        evidence_identity: evidence.evidence_identity,
+        proof_identity: proof.proof_identity,
+        artifact_count: 5,
+    };
+    let published: u64 = structured_write(context.argv[5], failure_lineage_schema(), lineage);
+    if published == 0 {
+        return failure([100, 101, 98, 117, 103, 32, 108, 105, 110, 101, 97, 103, 101, 32, 112, 117, 98, 108, 105, 115, 104, 32, 102, 97, 105, 108, 101, 100], 3);
     }
     return success([]);
 }
