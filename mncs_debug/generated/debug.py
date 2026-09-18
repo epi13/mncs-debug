@@ -12,9 +12,9 @@ from typing import Any
 
 GENERATOR_VERSION = 'mncs-host-bindings/0.2'
 MODULE_IDENTITY = 'mncs.debug.v1'
-INTERFACE_IDENTITY = 'b1a206c960382725dae138e379e7e64e3bf70a145f79999365d3c00834565478'
+INTERFACE_IDENTITY = '21a654308539dbf62638e9a0858609ac238a4dbcb25800e14d264e2f2fc2ff28'
 TYPED_CALL_SCHEMA_VERSION = 'mncs.typed-call/1'
-BINDING_CONTENT_IDENTITY = '419b8637e34ea20ccfbb8198d9bf2323c8d8a983ff20351ee631f45f14de2ef4'
+BINDING_CONTENT_IDENTITY = 'bcc34883ad296871c888cb849237c37080f127ede332c0a21e3f455b0e220d9f'
 
 class BindingError(RuntimeError):
     pass
@@ -99,6 +99,25 @@ def _decode(descriptor: str, value: Any) -> Any:
                 return payload['value']
     return value
 
+class ArtifactVerdict(str, Enum):
+    PASS = 'PASS'
+    FAIL = 'FAIL'
+    UNKNOWN = 'UNKNOWN'
+
+
+class ContractFamilyVerdict(str, Enum):
+    PASS = 'PASS'
+    FAIL = 'FAIL'
+    UNKNOWN = 'UNKNOWN'
+
+
+class ContractProviderVerdict(str, Enum):
+    PASS = 'PASS'
+    FAIL = 'FAIL'
+    SKIP = 'SKIP'
+    UNSUPPORTED = 'UNSUPPORTED'
+
+
 class DebugOutcome(str, Enum):
     Success = 'Success'
     CompileFailure = 'CompileFailure'
@@ -135,6 +154,22 @@ class EvidencePresence(str, Enum):
     Present = 'Present'
 
 
+class FailureKind(str, Enum):
+    NoFailure = 'NoFailure'
+    Assertion = 'Assertion'
+    Setup = 'Setup'
+    Compile = 'Compile'
+    Runtime = 'Runtime'
+    Timeout = 'Timeout'
+    Unsupported = 'Unsupported'
+    Infrastructure = 'Infrastructure'
+
+
+class Found(str, Enum):
+    Yes = 'Yes'
+    No = 'No'
+
+
 class MinimizationStatus(str, Enum):
     Unknown = 'Unknown'
     Candidate = 'Candidate'
@@ -165,6 +200,12 @@ class ReplayStatus(str, Enum):
     Mismatch = 'Mismatch'
 
 
+class RoutingScope(str, Enum):
+    local = 'local'
+    selected_repositories = 'selected_repositories'
+    family = 'family'
+
+
 class RuntimeStatus(str, Enum):
     Returned = 'Returned'
     RuntimeFailure = 'RuntimeFailure'
@@ -182,6 +223,19 @@ class SufficiencyStatus(str, Enum):
     Unsupported = 'Unsupported'
 
 
+class TestClassification(str, Enum):
+    PASSED = 'PASSED'
+    TEST_FAILURE = 'TEST_FAILURE'
+    UNSUPPORTED = 'UNSUPPORTED'
+
+
+class TestStatus(str, Enum):
+    PASSED = 'PASSED'
+    FAILED = 'FAILED'
+    SKIPPED = 'SKIPPED'
+    UNSUPPORTED = 'UNSUPPORTED'
+
+
 class TraceCompleteness(str, Enum):
     Unknown = 'Unknown'
     Partial = 'Partial'
@@ -189,10 +243,404 @@ class TraceCompleteness(str, Enum):
     Truncated = 'Truncated'
 
 
+class Verdict(str, Enum):
+    PASS = 'PASS'
+    FAIL = 'FAIL'
+    SKIP = 'SKIP'
+    UNSUPPORTED = 'UNSUPPORTED'
+
+
+class VerificationLevel(str, Enum):
+    changed_item = 'changed_item'
+    direct_dependents = 'direct_dependents'
+    affected_subsystem = 'affected_subsystem'
+    repository_canonical = 'repository_canonical'
+    family = 'family'
+
+
 class WitnessStatus(str, Enum):
     Ready = 'Ready'
     Incomplete = 'Incomplete'
     Rejected = 'Rejected'
+
+
+@dataclass(frozen=True)
+class ApplicationContext:
+    application_identity: bytes
+    argv: tuple[Any, ...]
+    argv_count: int
+    current_dir: bytes
+    environment: tuple[Any, ...]
+    environment_count: int
+    stdin: bytes
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'application_identity': _encode(self.application_identity),
+            'argv': _encode(self.argv),
+            'argv_count': _encode(self.argv_count),
+            'current_dir': _encode(self.current_dir),
+            'environment': _encode(self.environment),
+            'environment_count': _encode(self.environment_count),
+            'stdin': _encode(self.stdin),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ApplicationContext:
+        fields = _fields(value)
+        application_identity = _decode('sequence:byte:32', fields.get('application_identity'))
+        argv = _decode('sequence:sequence:byte::', fields.get('argv'))
+        argv_count = _decode('int', fields.get('argv_count'))
+        current_dir = _decode('sequence:byte:', fields.get('current_dir'))
+        environment = _decode('sequence:record:EnvironmentEntry:', fields.get('environment'))
+        environment_count = _decode('int', fields.get('environment_count'))
+        stdin = _decode('sequence:byte:', fields.get('stdin'))
+        return cls(application_identity=application_identity, argv=argv, argv_count=argv_count, current_dir=current_dir, environment=environment, environment_count=environment_count, stdin=stdin)
+
+
+@dataclass(frozen=True)
+class ApplicationExit:
+    exit_code: int
+    stderr: bytes
+    stdout: bytes
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'exit_code': _encode(self.exit_code),
+            'stderr': _encode(self.stderr),
+            'stdout': _encode(self.stdout),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ApplicationExit:
+        fields = _fields(value)
+        exit_code = _decode('int', fields.get('exit_code'))
+        stderr = _decode('sequence:byte:', fields.get('stderr'))
+        stdout = _decode('sequence:byte:', fields.get('stdout'))
+        return cls(exit_code=exit_code, stderr=stderr, stdout=stdout)
+
+
+@dataclass(frozen=True)
+class ArtifactCrossRepository:
+    graph_identity: bytes
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'graph_identity': _encode(self.graph_identity),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ArtifactCrossRepository:
+        fields = _fields(value)
+        graph_identity = _decode('sequence:byte:32', fields.get('graph_identity'))
+        return cls(graph_identity=graph_identity)
+
+
+@dataclass(frozen=True)
+class ArtifactImpact:
+    cross_repository: ArtifactCrossRepository
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'cross_repository': _encode(self.cross_repository),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ArtifactImpact:
+        fields = _fields(value)
+        cross_repository = _decode('record:ArtifactCrossRepository', fields.get('cross_repository'))
+        return cls(cross_repository=cross_repository)
+
+
+@dataclass(frozen=True)
+class ArtifactSelection:
+    selected_repositories: tuple[Any, ...]
+    selected_test_identities: tuple[Any, ...]
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'selected_repositories': _encode(self.selected_repositories),
+            'selected_test_identities': _encode(self.selected_test_identities),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ArtifactSelection:
+        fields = _fields(value)
+        selected_repositories = _decode('sequence:sequence:byte::', fields.get('selected_repositories'))
+        selected_test_identities = _decode('sequence:sequence:byte::', fields.get('selected_test_identities'))
+        return cls(selected_repositories=selected_repositories, selected_test_identities=selected_test_identities)
+
+
+@dataclass(frozen=True)
+class ArtifactSelector:
+    test_identities: tuple[Any, ...]
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'test_identities': _encode(self.test_identities),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ArtifactSelector:
+        fields = _fields(value)
+        test_identities = _decode('sequence:sequence:byte::', fields.get('test_identities'))
+        return cls(test_identities=test_identities)
+
+
+@dataclass(frozen=True)
+class ArtifactSource:
+    path: bytes
+    sha256: bytes
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'path': _encode(self.path),
+            'sha256': _encode(self.sha256),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ArtifactSource:
+        fields = _fields(value)
+        path = _decode('sequence:byte:', fields.get('path'))
+        sha256 = _decode('sequence:byte:32', fields.get('sha256'))
+        return cls(path=path, sha256=sha256)
+
+
+@dataclass(frozen=True)
+class ArtifactVerification:
+    check_identity: bytes
+    selector: ArtifactSelector
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'check_identity': _encode(self.check_identity),
+            'selector': _encode(self.selector),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ArtifactVerification:
+        fields = _fields(value)
+        check_identity = _decode('sequence:byte:', fields.get('check_identity'))
+        selector = _decode('record:ArtifactSelector', fields.get('selector'))
+        return cls(check_identity=check_identity, selector=selector)
+
+
+@dataclass(frozen=True)
+class Assertion:
+    actual: int
+    code: int
+    expected: int
+    passed: bool
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'actual': _encode(self.actual),
+            'code': _encode(self.code),
+            'expected': _encode(self.expected),
+            'passed': _encode(self.passed),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> Assertion:
+        fields = _fields(value)
+        actual = _decode('int', fields.get('actual'))
+        code = _decode('int', fields.get('code'))
+        expected = _decode('int', fields.get('expected'))
+        passed = _decode('bool', fields.get('passed'))
+        return cls(actual=actual, code=code, expected=expected, passed=passed)
+
+
+@dataclass(frozen=True)
+class ByteViewBuilder16:
+    length: int
+    values: tuple[Any, ...]
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'length': _encode(self.length),
+            'values': _encode(self.values),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ByteViewBuilder16:
+        fields = _fields(value)
+        length = _decode('int', fields.get('length'))
+        values = _decode('sequence:sequence:byte::16', fields.get('values'))
+        return cls(length=length, values=values)
+
+
+@dataclass(frozen=True)
+class ByteViewBuilder256:
+    length: int
+    values: tuple[Any, ...]
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'length': _encode(self.length),
+            'values': _encode(self.values),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ByteViewBuilder256:
+        fields = _fields(value)
+        length = _decode('int', fields.get('length'))
+        values = _decode('sequence:sequence:byte::256', fields.get('values'))
+        return cls(length=length, values=values)
+
+
+@dataclass(frozen=True)
+class ByteViewBuilder64:
+    length: int
+    values: tuple[Any, ...]
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'length': _encode(self.length),
+            'values': _encode(self.values),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ByteViewBuilder64:
+        fields = _fields(value)
+        length = _decode('int', fields.get('length'))
+        values = _decode('sequence:sequence:byte::64', fields.get('values'))
+        return cls(length=length, values=values)
+
+
+@dataclass(frozen=True)
+class CheckResultArtifact:
+    id: bytes
+    provider: bytes
+    verdict: ArtifactVerdict
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'id': _encode(self.id),
+            'provider': _encode(self.provider),
+            'verdict': _encode(self.verdict),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> CheckResultArtifact:
+        fields = _fields(value)
+        id = _decode('sequence:byte:', fields.get('id'))
+        provider = _decode('sequence:byte:', fields.get('provider'))
+        verdict = _decode('finite:ArtifactVerdict', fields.get('verdict'))
+        return cls(id=id, provider=provider, verdict=verdict)
+
+
+@dataclass(frozen=True)
+class CheckResultContract:
+    check_identity: bytes
+    evidence_identity: bytes
+    execution_identity: bytes
+    interface_identity: bytes
+    inventory_identity: bytes
+    provider_identity: bytes
+    provider_revision_identity: bytes
+    result_identity: bytes
+    test_result_identity: bytes
+    verdict: ContractFamilyVerdict
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'check_identity': _encode(self.check_identity),
+            'evidence_identity': _encode(self.evidence_identity),
+            'execution_identity': _encode(self.execution_identity),
+            'interface_identity': _encode(self.interface_identity),
+            'inventory_identity': _encode(self.inventory_identity),
+            'provider_identity': _encode(self.provider_identity),
+            'provider_revision_identity': _encode(self.provider_revision_identity),
+            'result_identity': _encode(self.result_identity),
+            'test_result_identity': _encode(self.test_result_identity),
+            'verdict': _encode(self.verdict),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> CheckResultContract:
+        fields = _fields(value)
+        check_identity = _decode('sequence:byte:32', fields.get('check_identity'))
+        evidence_identity = _decode('sequence:byte:32', fields.get('evidence_identity'))
+        execution_identity = _decode('sequence:byte:32', fields.get('execution_identity'))
+        interface_identity = _decode('sequence:byte:32', fields.get('interface_identity'))
+        inventory_identity = _decode('sequence:byte:32', fields.get('inventory_identity'))
+        provider_identity = _decode('sequence:byte:32', fields.get('provider_identity'))
+        provider_revision_identity = _decode('sequence:byte:32', fields.get('provider_revision_identity'))
+        result_identity = _decode('sequence:byte:32', fields.get('result_identity'))
+        test_result_identity = _decode('sequence:byte:32', fields.get('test_result_identity'))
+        verdict = _decode('finite:ContractFamilyVerdict', fields.get('verdict'))
+        return cls(check_identity=check_identity, evidence_identity=evidence_identity, execution_identity=execution_identity, interface_identity=interface_identity, inventory_identity=inventory_identity, provider_identity=provider_identity, provider_revision_identity=provider_revision_identity, result_identity=result_identity, test_result_identity=test_result_identity, verdict=verdict)
+
+
+@dataclass(frozen=True)
+class CheckResultIdentityMaterial:
+    check_identity: bytes
+    evidence_identity: bytes
+    execution_identity: bytes
+    interface_identity: bytes
+    inventory_identity: bytes
+    provider_identity: bytes
+    provider_revision_identity: bytes
+    test_result_identity: bytes
+    verdict: ContractFamilyVerdict
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'check_identity': _encode(self.check_identity),
+            'evidence_identity': _encode(self.evidence_identity),
+            'execution_identity': _encode(self.execution_identity),
+            'interface_identity': _encode(self.interface_identity),
+            'inventory_identity': _encode(self.inventory_identity),
+            'provider_identity': _encode(self.provider_identity),
+            'provider_revision_identity': _encode(self.provider_revision_identity),
+            'test_result_identity': _encode(self.test_result_identity),
+            'verdict': _encode(self.verdict),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> CheckResultIdentityMaterial:
+        fields = _fields(value)
+        check_identity = _decode('sequence:byte:32', fields.get('check_identity'))
+        evidence_identity = _decode('sequence:byte:32', fields.get('evidence_identity'))
+        execution_identity = _decode('sequence:byte:32', fields.get('execution_identity'))
+        interface_identity = _decode('sequence:byte:32', fields.get('interface_identity'))
+        inventory_identity = _decode('sequence:byte:32', fields.get('inventory_identity'))
+        provider_identity = _decode('sequence:byte:32', fields.get('provider_identity'))
+        provider_revision_identity = _decode('sequence:byte:32', fields.get('provider_revision_identity'))
+        test_result_identity = _decode('sequence:byte:32', fields.get('test_result_identity'))
+        verdict = _decode('finite:ContractFamilyVerdict', fields.get('verdict'))
+        return cls(check_identity=check_identity, evidence_identity=evidence_identity, execution_identity=execution_identity, interface_identity=interface_identity, inventory_identity=inventory_identity, provider_identity=provider_identity, provider_revision_identity=provider_revision_identity, test_result_identity=test_result_identity, verdict=verdict)
+
+
+@dataclass(frozen=True)
+class CrossRepositoryContract:
+    complete: bool
+    coverage: FamilyGraphCoverageContract
+    edges: tuple[Any, ...]
+    graph_identity: bytes
+    limitations: tuple[Any, ...]
+    selected_repositories: tuple[Any, ...]
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'complete': _encode(self.complete),
+            'coverage': _encode(self.coverage),
+            'edges': _encode(self.edges),
+            'graph_identity': _encode(self.graph_identity),
+            'limitations': _encode(self.limitations),
+            'selected_repositories': _encode(self.selected_repositories),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> CrossRepositoryContract:
+        fields = _fields(value)
+        complete = _decode('bool', fields.get('complete'))
+        coverage = _decode('record:FamilyGraphCoverageContract', fields.get('coverage'))
+        edges = _decode('sequence:record:SemanticEdgeContract:', fields.get('edges'))
+        graph_identity = _decode('sequence:byte:32', fields.get('graph_identity'))
+        limitations = _decode('sequence:sequence:byte::', fields.get('limitations'))
+        selected_repositories = _decode('sequence:sequence:byte::', fields.get('selected_repositories'))
+        return cls(complete=complete, coverage=coverage, edges=edges, graph_identity=graph_identity, limitations=limitations, selected_repositories=selected_repositories)
 
 
 @dataclass(frozen=True)
@@ -336,6 +784,178 @@ class EvidenceFactsInput:
 
 
 @dataclass(frozen=True)
+class EvidenceManifestContract:
+    artifact_identities: tuple[Any, ...]
+    check_result_identity: bytes
+    evidence_identity: bytes
+    execution_identity: bytes
+    failure_material: bytes
+    test_result_identity: bytes
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'artifact_identities': _encode(self.artifact_identities),
+            'check_result_identity': _encode(self.check_result_identity),
+            'evidence_identity': _encode(self.evidence_identity),
+            'execution_identity': _encode(self.execution_identity),
+            'failure_material': _encode(self.failure_material),
+            'test_result_identity': _encode(self.test_result_identity),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> EvidenceManifestContract:
+        fields = _fields(value)
+        artifact_identities = _decode('sequence:sequence:byte:32:', fields.get('artifact_identities'))
+        check_result_identity = _decode('sequence:byte:32', fields.get('check_result_identity'))
+        evidence_identity = _decode('sequence:byte:32', fields.get('evidence_identity'))
+        execution_identity = _decode('sequence:byte:32', fields.get('execution_identity'))
+        failure_material = _decode('sequence:byte:', fields.get('failure_material'))
+        test_result_identity = _decode('sequence:byte:32', fields.get('test_result_identity'))
+        return cls(artifact_identities=artifact_identities, check_result_identity=check_result_identity, evidence_identity=evidence_identity, execution_identity=execution_identity, failure_material=failure_material, test_result_identity=test_result_identity)
+
+
+@dataclass(frozen=True)
+class EvidenceManifestIdentityMaterial:
+    artifact_identities: tuple[Any, ...]
+    check_result_identity: bytes
+    execution_identity: bytes
+    failure_material: bytes
+    test_result_identity: bytes
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'artifact_identities': _encode(self.artifact_identities),
+            'check_result_identity': _encode(self.check_result_identity),
+            'execution_identity': _encode(self.execution_identity),
+            'failure_material': _encode(self.failure_material),
+            'test_result_identity': _encode(self.test_result_identity),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> EvidenceManifestIdentityMaterial:
+        fields = _fields(value)
+        artifact_identities = _decode('sequence:sequence:byte:32:', fields.get('artifact_identities'))
+        check_result_identity = _decode('sequence:byte:32', fields.get('check_result_identity'))
+        execution_identity = _decode('sequence:byte:32', fields.get('execution_identity'))
+        failure_material = _decode('sequence:byte:', fields.get('failure_material'))
+        test_result_identity = _decode('sequence:byte:32', fields.get('test_result_identity'))
+        return cls(artifact_identities=artifact_identities, check_result_identity=check_result_identity, execution_identity=execution_identity, failure_material=failure_material, test_result_identity=test_result_identity)
+
+
+@dataclass(frozen=True)
+class FailureLineage:
+    artifact_count: int
+    check_failed: bool
+    evidence_gap: EvidenceGap
+    evidence_identity: bytes
+    failure_anchor_present: bool
+    family_failed: bool
+    identity_bindings_valid: bool
+    minimization_required: bool
+    next_operation: DiagnosticOperation
+    observation_complete: bool
+    operation_identity_present: bool
+    outcome: DebugOutcome
+    proof_identity: bytes
+    provenance_observed: bool
+    provider_check_identity: bytes
+    provider_failed: bool
+    provider_result_identity: bytes
+    receipt_identity: bytes
+    replay_required: bool
+    sufficient: bool
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'artifact_count': _encode(self.artifact_count),
+            'check_failed': _encode(self.check_failed),
+            'evidence_gap': _encode(self.evidence_gap),
+            'evidence_identity': _encode(self.evidence_identity),
+            'failure_anchor_present': _encode(self.failure_anchor_present),
+            'family_failed': _encode(self.family_failed),
+            'identity_bindings_valid': _encode(self.identity_bindings_valid),
+            'minimization_required': _encode(self.minimization_required),
+            'next_operation': _encode(self.next_operation),
+            'observation_complete': _encode(self.observation_complete),
+            'operation_identity_present': _encode(self.operation_identity_present),
+            'outcome': _encode(self.outcome),
+            'proof_identity': _encode(self.proof_identity),
+            'provenance_observed': _encode(self.provenance_observed),
+            'provider_check_identity': _encode(self.provider_check_identity),
+            'provider_failed': _encode(self.provider_failed),
+            'provider_result_identity': _encode(self.provider_result_identity),
+            'receipt_identity': _encode(self.receipt_identity),
+            'replay_required': _encode(self.replay_required),
+            'sufficient': _encode(self.sufficient),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> FailureLineage:
+        fields = _fields(value)
+        artifact_count = _decode('int', fields.get('artifact_count'))
+        check_failed = _decode('bool', fields.get('check_failed'))
+        evidence_gap = _decode('finite:EvidenceGap', fields.get('evidence_gap'))
+        evidence_identity = _decode('sequence:byte:32', fields.get('evidence_identity'))
+        failure_anchor_present = _decode('bool', fields.get('failure_anchor_present'))
+        family_failed = _decode('bool', fields.get('family_failed'))
+        identity_bindings_valid = _decode('bool', fields.get('identity_bindings_valid'))
+        minimization_required = _decode('bool', fields.get('minimization_required'))
+        next_operation = _decode('finite:DiagnosticOperation', fields.get('next_operation'))
+        observation_complete = _decode('bool', fields.get('observation_complete'))
+        operation_identity_present = _decode('bool', fields.get('operation_identity_present'))
+        outcome = _decode('finite:DebugOutcome', fields.get('outcome'))
+        proof_identity = _decode('sequence:byte:32', fields.get('proof_identity'))
+        provenance_observed = _decode('bool', fields.get('provenance_observed'))
+        provider_check_identity = _decode('sequence:byte:', fields.get('provider_check_identity'))
+        provider_failed = _decode('bool', fields.get('provider_failed'))
+        provider_result_identity = _decode('sequence:byte:32', fields.get('provider_result_identity'))
+        receipt_identity = _decode('sequence:byte:32', fields.get('receipt_identity'))
+        replay_required = _decode('bool', fields.get('replay_required'))
+        sufficient = _decode('bool', fields.get('sufficient'))
+        return cls(artifact_count=artifact_count, check_failed=check_failed, evidence_gap=evidence_gap, evidence_identity=evidence_identity, failure_anchor_present=failure_anchor_present, family_failed=family_failed, identity_bindings_valid=identity_bindings_valid, minimization_required=minimization_required, next_operation=next_operation, observation_complete=observation_complete, operation_identity_present=operation_identity_present, outcome=outcome, proof_identity=proof_identity, provenance_observed=provenance_observed, provider_check_identity=provider_check_identity, provider_failed=provider_failed, provider_result_identity=provider_result_identity, receipt_identity=receipt_identity, replay_required=replay_required, sufficient=sufficient)
+
+
+@dataclass(frozen=True)
+class FamilyGraphCoverageContract:
+    classified_project_count: int
+    coverage_status: bytes
+    explicit_nonparticipant_count: int
+    registered_family_project_count: int
+    registry_identity: bytes
+    semantic_graph_participant_count: int
+    topology_status: bytes
+    unclassified_project_count: int
+    unclassified_repositories: tuple[Any, ...]
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'classified_project_count': _encode(self.classified_project_count),
+            'coverage_status': _encode(self.coverage_status),
+            'explicit_nonparticipant_count': _encode(self.explicit_nonparticipant_count),
+            'registered_family_project_count': _encode(self.registered_family_project_count),
+            'registry_identity': _encode(self.registry_identity),
+            'semantic_graph_participant_count': _encode(self.semantic_graph_participant_count),
+            'topology_status': _encode(self.topology_status),
+            'unclassified_project_count': _encode(self.unclassified_project_count),
+            'unclassified_repositories': _encode(self.unclassified_repositories),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> FamilyGraphCoverageContract:
+        fields = _fields(value)
+        classified_project_count = _decode('int', fields.get('classified_project_count'))
+        coverage_status = _decode('sequence:byte:', fields.get('coverage_status'))
+        explicit_nonparticipant_count = _decode('int', fields.get('explicit_nonparticipant_count'))
+        registered_family_project_count = _decode('int', fields.get('registered_family_project_count'))
+        registry_identity = _decode('sequence:byte:32', fields.get('registry_identity'))
+        semantic_graph_participant_count = _decode('int', fields.get('semantic_graph_participant_count'))
+        topology_status = _decode('sequence:byte:', fields.get('topology_status'))
+        unclassified_project_count = _decode('int', fields.get('unclassified_project_count'))
+        unclassified_repositories = _decode('sequence:sequence:byte::', fields.get('unclassified_repositories'))
+        return cls(classified_project_count=classified_project_count, coverage_status=coverage_status, explicit_nonparticipant_count=explicit_nonparticipant_count, registered_family_project_count=registered_family_project_count, registry_identity=registry_identity, semantic_graph_participant_count=semantic_graph_participant_count, topology_status=topology_status, unclassified_project_count=unclassified_project_count, unclassified_repositories=unclassified_repositories)
+
+
+@dataclass(frozen=True)
 class ProcessRequest:
     argv: tuple[Any, ...]
     argv_count: int
@@ -419,6 +1039,112 @@ class ProcessResult:
 
 
 @dataclass(frozen=True)
+class ProofBoundaryContract:
+    boundary: ProofBoundaryDetails
+    required_evidence: tuple[Any, ...]
+    sufficient_to_stop: bool
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'boundary': _encode(self.boundary),
+            'required_evidence': _encode(self.required_evidence),
+            'sufficient_to_stop': _encode(self.sufficient_to_stop),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ProofBoundaryContract:
+        fields = _fields(value)
+        boundary = _decode('record:ProofBoundaryDetails', fields.get('boundary'))
+        required_evidence = _decode('sequence:sequence:byte::', fields.get('required_evidence'))
+        sufficient_to_stop = _decode('bool', fields.get('sufficient_to_stop'))
+        return cls(boundary=boundary, required_evidence=required_evidence, sufficient_to_stop=sufficient_to_stop)
+
+
+@dataclass(frozen=True)
+class ProofBoundaryDetails:
+    claimed_scope: bytes
+    established: bool
+    executor: bytes
+    stop_condition: bytes
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'claimed_scope': _encode(self.claimed_scope),
+            'established': _encode(self.established),
+            'executor': _encode(self.executor),
+            'stop_condition': _encode(self.stop_condition),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ProofBoundaryDetails:
+        fields = _fields(value)
+        claimed_scope = _decode('sequence:byte:', fields.get('claimed_scope'))
+        established = _decode('bool', fields.get('established'))
+        executor = _decode('sequence:byte:', fields.get('executor'))
+        stop_condition = _decode('sequence:byte:', fields.get('stop_condition'))
+        return cls(claimed_scope=claimed_scope, established=established, executor=executor, stop_condition=stop_condition)
+
+
+@dataclass(frozen=True)
+class ProvenanceContract:
+    compiler_impact_schema: bytes
+    dependencies: ProvenanceDependencies
+    policy: bytes
+    provider: bytes
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'compiler_impact_schema': _encode(self.compiler_impact_schema),
+            'dependencies': _encode(self.dependencies),
+            'policy': _encode(self.policy),
+            'provider': _encode(self.provider),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ProvenanceContract:
+        fields = _fields(value)
+        compiler_impact_schema = _decode('sequence:byte:', fields.get('compiler_impact_schema'))
+        dependencies = _decode('record:ProvenanceDependencies', fields.get('dependencies'))
+        policy = _decode('sequence:byte:', fields.get('policy'))
+        provider = _decode('sequence:byte:', fields.get('provider'))
+        return cls(compiler_impact_schema=compiler_impact_schema, dependencies=dependencies, policy=policy, provider=provider)
+
+
+@dataclass(frozen=True)
+class ProvenanceDependencies:
+    contract_revision: bytes
+    family_graph_identity: bytes
+    inventory_subject_fingerprint: bytes
+    inventory_subject_identity: bytes
+    selected_test_identities: tuple[Any, ...]
+    semantic_graph_identity: bytes
+    source_sha256: bytes
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'contract_revision': _encode(self.contract_revision),
+            'family_graph_identity': _encode(self.family_graph_identity),
+            'inventory_subject_fingerprint': _encode(self.inventory_subject_fingerprint),
+            'inventory_subject_identity': _encode(self.inventory_subject_identity),
+            'selected_test_identities': _encode(self.selected_test_identities),
+            'semantic_graph_identity': _encode(self.semantic_graph_identity),
+            'source_sha256': _encode(self.source_sha256),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ProvenanceDependencies:
+        fields = _fields(value)
+        contract_revision = _decode('sequence:byte:', fields.get('contract_revision'))
+        family_graph_identity = _decode('sequence:byte:32', fields.get('family_graph_identity'))
+        inventory_subject_fingerprint = _decode('sequence:byte:32', fields.get('inventory_subject_fingerprint'))
+        inventory_subject_identity = _decode('sequence:byte:', fields.get('inventory_subject_identity'))
+        selected_test_identities = _decode('sequence:sequence:byte::', fields.get('selected_test_identities'))
+        semantic_graph_identity = _decode('sequence:byte:32', fields.get('semantic_graph_identity'))
+        source_sha256 = _decode('sequence:byte:32', fields.get('source_sha256'))
+        return cls(contract_revision=contract_revision, family_graph_identity=family_graph_identity, inventory_subject_fingerprint=inventory_subject_fingerprint, inventory_subject_identity=inventory_subject_identity, selected_test_identities=selected_test_identities, semantic_graph_identity=semantic_graph_identity, source_sha256=source_sha256)
+
+
+@dataclass(frozen=True)
 class ProvenanceObservation:
     kind: ProvenanceClaimKind
     status: ProvenanceClaimStatus
@@ -435,6 +1161,792 @@ class ProvenanceObservation:
         kind = _decode('finite:ProvenanceClaimKind', fields.get('kind'))
         status = _decode('finite:ProvenanceClaimStatus', fields.get('status'))
         return cls(kind=kind, status=status)
+
+
+@dataclass(frozen=True)
+class ProviderCheckResult:
+    check_identity: bytes
+    evidence_identity: bytes
+    execution_identity: bytes
+    interface_identity: bytes
+    inventory_identity: bytes
+    provider_identity: bytes
+    provider_revision_identity: bytes
+    result_identity: bytes
+    test_result_identity: bytes
+    verdict: Verdict
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'check_identity': _encode(self.check_identity),
+            'evidence_identity': _encode(self.evidence_identity),
+            'execution_identity': _encode(self.execution_identity),
+            'interface_identity': _encode(self.interface_identity),
+            'inventory_identity': _encode(self.inventory_identity),
+            'provider_identity': _encode(self.provider_identity),
+            'provider_revision_identity': _encode(self.provider_revision_identity),
+            'result_identity': _encode(self.result_identity),
+            'test_result_identity': _encode(self.test_result_identity),
+            'verdict': _encode(self.verdict),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ProviderCheckResult:
+        fields = _fields(value)
+        check_identity = _decode('sequence:byte:', fields.get('check_identity'))
+        evidence_identity = _decode('sequence:byte:32', fields.get('evidence_identity'))
+        execution_identity = _decode('sequence:byte:32', fields.get('execution_identity'))
+        interface_identity = _decode('sequence:byte:32', fields.get('interface_identity'))
+        inventory_identity = _decode('sequence:byte:32', fields.get('inventory_identity'))
+        provider_identity = _decode('sequence:byte:32', fields.get('provider_identity'))
+        provider_revision_identity = _decode('sequence:byte:32', fields.get('provider_revision_identity'))
+        result_identity = _decode('sequence:byte:32', fields.get('result_identity'))
+        test_result_identity = _decode('sequence:byte:32', fields.get('test_result_identity'))
+        verdict = _decode('finite:Verdict', fields.get('verdict'))
+        return cls(check_identity=check_identity, evidence_identity=evidence_identity, execution_identity=execution_identity, interface_identity=interface_identity, inventory_identity=inventory_identity, provider_identity=provider_identity, provider_revision_identity=provider_revision_identity, result_identity=result_identity, test_result_identity=test_result_identity, verdict=verdict)
+
+
+@dataclass(frozen=True)
+class ProviderCheckResultIdentityMaterial:
+    check_identity: bytes
+    evidence_identity: bytes
+    execution_identity: bytes
+    interface_identity: bytes
+    inventory_identity: bytes
+    provider_identity: bytes
+    provider_revision_identity: bytes
+    test_result_identity: bytes
+    verdict: Verdict
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'check_identity': _encode(self.check_identity),
+            'evidence_identity': _encode(self.evidence_identity),
+            'execution_identity': _encode(self.execution_identity),
+            'interface_identity': _encode(self.interface_identity),
+            'inventory_identity': _encode(self.inventory_identity),
+            'provider_identity': _encode(self.provider_identity),
+            'provider_revision_identity': _encode(self.provider_revision_identity),
+            'test_result_identity': _encode(self.test_result_identity),
+            'verdict': _encode(self.verdict),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ProviderCheckResultIdentityMaterial:
+        fields = _fields(value)
+        check_identity = _decode('sequence:byte:', fields.get('check_identity'))
+        evidence_identity = _decode('sequence:byte:32', fields.get('evidence_identity'))
+        execution_identity = _decode('sequence:byte:32', fields.get('execution_identity'))
+        interface_identity = _decode('sequence:byte:32', fields.get('interface_identity'))
+        inventory_identity = _decode('sequence:byte:32', fields.get('inventory_identity'))
+        provider_identity = _decode('sequence:byte:32', fields.get('provider_identity'))
+        provider_revision_identity = _decode('sequence:byte:32', fields.get('provider_revision_identity'))
+        test_result_identity = _decode('sequence:byte:32', fields.get('test_result_identity'))
+        verdict = _decode('finite:Verdict', fields.get('verdict'))
+        return cls(check_identity=check_identity, evidence_identity=evidence_identity, execution_identity=execution_identity, interface_identity=interface_identity, inventory_identity=inventory_identity, provider_identity=provider_identity, provider_revision_identity=provider_revision_identity, test_result_identity=test_result_identity, verdict=verdict)
+
+
+@dataclass(frozen=True)
+class ProviderDeclarationArtifact:
+    repository_id: bytes
+    revision: bytes
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'repository_id': _encode(self.repository_id),
+            'revision': _encode(self.revision),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ProviderDeclarationArtifact:
+        fields = _fields(value)
+        repository_id = _decode('sequence:byte:', fields.get('repository_id'))
+        revision = _decode('sequence:byte:', fields.get('revision'))
+        return cls(repository_id=repository_id, revision=revision)
+
+
+@dataclass(frozen=True)
+class ProviderDeclarationContract:
+    capabilities: tuple[Any, ...]
+    interface_identity: bytes
+    inventory_identity: bytes
+    provider_identity: bytes
+    repository_id: bytes
+    revision: bytes
+    revision_identity: bytes
+    source_identity: bytes
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'capabilities': _encode(self.capabilities),
+            'interface_identity': _encode(self.interface_identity),
+            'inventory_identity': _encode(self.inventory_identity),
+            'provider_identity': _encode(self.provider_identity),
+            'repository_id': _encode(self.repository_id),
+            'revision': _encode(self.revision),
+            'revision_identity': _encode(self.revision_identity),
+            'source_identity': _encode(self.source_identity),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ProviderDeclarationContract:
+        fields = _fields(value)
+        capabilities = _decode('sequence:sequence:byte::', fields.get('capabilities'))
+        interface_identity = _decode('sequence:byte:32', fields.get('interface_identity'))
+        inventory_identity = _decode('sequence:byte:32', fields.get('inventory_identity'))
+        provider_identity = _decode('sequence:byte:32', fields.get('provider_identity'))
+        repository_id = _decode('sequence:byte:', fields.get('repository_id'))
+        revision = _decode('sequence:byte:', fields.get('revision'))
+        revision_identity = _decode('sequence:byte:32', fields.get('revision_identity'))
+        source_identity = _decode('sequence:byte:32', fields.get('source_identity'))
+        return cls(capabilities=capabilities, interface_identity=interface_identity, inventory_identity=inventory_identity, provider_identity=provider_identity, repository_id=repository_id, revision=revision, revision_identity=revision_identity, source_identity=source_identity)
+
+
+@dataclass(frozen=True)
+class ProviderDeclarationIdentityMaterial:
+    capabilities: tuple[Any, ...]
+    interface_identity: bytes
+    inventory_identity: bytes
+    provider_identity: bytes
+    repository_id: bytes
+    revision: bytes
+    revision_identity: bytes
+    source_identity: bytes
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'capabilities': _encode(self.capabilities),
+            'interface_identity': _encode(self.interface_identity),
+            'inventory_identity': _encode(self.inventory_identity),
+            'provider_identity': _encode(self.provider_identity),
+            'repository_id': _encode(self.repository_id),
+            'revision': _encode(self.revision),
+            'revision_identity': _encode(self.revision_identity),
+            'source_identity': _encode(self.source_identity),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ProviderDeclarationIdentityMaterial:
+        fields = _fields(value)
+        capabilities = _decode('sequence:sequence:byte::', fields.get('capabilities'))
+        interface_identity = _decode('sequence:byte:32', fields.get('interface_identity'))
+        inventory_identity = _decode('sequence:byte:32', fields.get('inventory_identity'))
+        provider_identity = _decode('sequence:byte:32', fields.get('provider_identity'))
+        repository_id = _decode('sequence:byte:', fields.get('repository_id'))
+        revision = _decode('sequence:byte:', fields.get('revision'))
+        revision_identity = _decode('sequence:byte:32', fields.get('revision_identity'))
+        source_identity = _decode('sequence:byte:32', fields.get('source_identity'))
+        return cls(capabilities=capabilities, interface_identity=interface_identity, inventory_identity=inventory_identity, provider_identity=provider_identity, repository_id=repository_id, revision=revision, revision_identity=revision_identity, source_identity=source_identity)
+
+
+@dataclass(frozen=True)
+class ProviderRequest:
+    interface_identity: bytes
+    inventory_identity: bytes
+    provider_revision_identity: bytes
+    selected_test_identities: tuple[Any, ...]
+    selection_count: int
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'interface_identity': _encode(self.interface_identity),
+            'inventory_identity': _encode(self.inventory_identity),
+            'provider_revision_identity': _encode(self.provider_revision_identity),
+            'selected_test_identities': _encode(self.selected_test_identities),
+            'selection_count': _encode(self.selection_count),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ProviderRequest:
+        fields = _fields(value)
+        interface_identity = _decode('sequence:byte:32', fields.get('interface_identity'))
+        inventory_identity = _decode('sequence:byte:32', fields.get('inventory_identity'))
+        provider_revision_identity = _decode('sequence:byte:32', fields.get('provider_revision_identity'))
+        selected_test_identities = _decode('sequence:sequence:byte::', fields.get('selected_test_identities'))
+        selection_count = _decode('int', fields.get('selection_count'))
+        return cls(interface_identity=interface_identity, inventory_identity=inventory_identity, provider_revision_identity=provider_revision_identity, selected_test_identities=selected_test_identities, selection_count=selection_count)
+
+
+@dataclass(frozen=True)
+class ProviderRun:
+    check_result: ProviderCheckResult
+    test_result: ProviderTestResult
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'check_result': _encode(self.check_result),
+            'test_result': _encode(self.test_result),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ProviderRun:
+        fields = _fields(value)
+        check_result = _decode('record:ProviderCheckResult', fields.get('check_result'))
+        test_result = _decode('record:ProviderTestResult', fields.get('test_result'))
+        return cls(check_result=check_result, test_result=test_result)
+
+
+@dataclass(frozen=True)
+class ProviderTestResult:
+    evidence_identity: bytes
+    execution_identity: bytes
+    interface_identity: bytes
+    inventory_identity: bytes
+    native_result: TestResult
+    provider_identity: bytes
+    provider_revision_identity: bytes
+    result_identity: bytes
+    selected_test_identities: tuple[Any, ...]
+    selection_count: int
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'evidence_identity': _encode(self.evidence_identity),
+            'execution_identity': _encode(self.execution_identity),
+            'interface_identity': _encode(self.interface_identity),
+            'inventory_identity': _encode(self.inventory_identity),
+            'native_result': _encode(self.native_result),
+            'provider_identity': _encode(self.provider_identity),
+            'provider_revision_identity': _encode(self.provider_revision_identity),
+            'result_identity': _encode(self.result_identity),
+            'selected_test_identities': _encode(self.selected_test_identities),
+            'selection_count': _encode(self.selection_count),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ProviderTestResult:
+        fields = _fields(value)
+        evidence_identity = _decode('sequence:byte:32', fields.get('evidence_identity'))
+        execution_identity = _decode('sequence:byte:32', fields.get('execution_identity'))
+        interface_identity = _decode('sequence:byte:32', fields.get('interface_identity'))
+        inventory_identity = _decode('sequence:byte:32', fields.get('inventory_identity'))
+        native_result = _decode('record:TestResult', fields.get('native_result'))
+        provider_identity = _decode('sequence:byte:32', fields.get('provider_identity'))
+        provider_revision_identity = _decode('sequence:byte:32', fields.get('provider_revision_identity'))
+        result_identity = _decode('sequence:byte:32', fields.get('result_identity'))
+        selected_test_identities = _decode('sequence:sequence:byte::', fields.get('selected_test_identities'))
+        selection_count = _decode('int', fields.get('selection_count'))
+        return cls(evidence_identity=evidence_identity, execution_identity=execution_identity, interface_identity=interface_identity, inventory_identity=inventory_identity, native_result=native_result, provider_identity=provider_identity, provider_revision_identity=provider_revision_identity, result_identity=result_identity, selected_test_identities=selected_test_identities, selection_count=selection_count)
+
+
+@dataclass(frozen=True)
+class ProviderTestResultIdentityMaterial:
+    evidence_identity: bytes
+    execution_identity: bytes
+    interface_identity: bytes
+    inventory_identity: bytes
+    native_result: TestResult
+    provider_identity: bytes
+    provider_revision_identity: bytes
+    selected_test_identities: tuple[Any, ...]
+    selection_count: int
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'evidence_identity': _encode(self.evidence_identity),
+            'execution_identity': _encode(self.execution_identity),
+            'interface_identity': _encode(self.interface_identity),
+            'inventory_identity': _encode(self.inventory_identity),
+            'native_result': _encode(self.native_result),
+            'provider_identity': _encode(self.provider_identity),
+            'provider_revision_identity': _encode(self.provider_revision_identity),
+            'selected_test_identities': _encode(self.selected_test_identities),
+            'selection_count': _encode(self.selection_count),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ProviderTestResultIdentityMaterial:
+        fields = _fields(value)
+        evidence_identity = _decode('sequence:byte:32', fields.get('evidence_identity'))
+        execution_identity = _decode('sequence:byte:32', fields.get('execution_identity'))
+        interface_identity = _decode('sequence:byte:32', fields.get('interface_identity'))
+        inventory_identity = _decode('sequence:byte:32', fields.get('inventory_identity'))
+        native_result = _decode('record:TestResult', fields.get('native_result'))
+        provider_identity = _decode('sequence:byte:32', fields.get('provider_identity'))
+        provider_revision_identity = _decode('sequence:byte:32', fields.get('provider_revision_identity'))
+        selected_test_identities = _decode('sequence:sequence:byte::', fields.get('selected_test_identities'))
+        selection_count = _decode('int', fields.get('selection_count'))
+        return cls(evidence_identity=evidence_identity, execution_identity=execution_identity, interface_identity=interface_identity, inventory_identity=inventory_identity, native_result=native_result, provider_identity=provider_identity, provider_revision_identity=provider_revision_identity, selected_test_identities=selected_test_identities, selection_count=selection_count)
+
+
+@dataclass(frozen=True)
+class ReceiptContract:
+    check_result_identity: bytes
+    consumer_identity: bytes
+    contract_identity: bytes
+    edge_identity: bytes
+    evidence_identity: bytes
+    execution_identity: bytes
+    graph_identity: bytes
+    interface_identity: bytes
+    inventory_identity: bytes
+    plan_identity: bytes
+    profile_identity: bytes
+    provider_identity: bytes
+    provider_revision_identity: bytes
+    receipt_identity: bytes
+    source_identity: bytes
+    test_result_identity: bytes
+    verdict: ContractFamilyVerdict
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'check_result_identity': _encode(self.check_result_identity),
+            'consumer_identity': _encode(self.consumer_identity),
+            'contract_identity': _encode(self.contract_identity),
+            'edge_identity': _encode(self.edge_identity),
+            'evidence_identity': _encode(self.evidence_identity),
+            'execution_identity': _encode(self.execution_identity),
+            'graph_identity': _encode(self.graph_identity),
+            'interface_identity': _encode(self.interface_identity),
+            'inventory_identity': _encode(self.inventory_identity),
+            'plan_identity': _encode(self.plan_identity),
+            'profile_identity': _encode(self.profile_identity),
+            'provider_identity': _encode(self.provider_identity),
+            'provider_revision_identity': _encode(self.provider_revision_identity),
+            'receipt_identity': _encode(self.receipt_identity),
+            'source_identity': _encode(self.source_identity),
+            'test_result_identity': _encode(self.test_result_identity),
+            'verdict': _encode(self.verdict),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ReceiptContract:
+        fields = _fields(value)
+        check_result_identity = _decode('sequence:byte:32', fields.get('check_result_identity'))
+        consumer_identity = _decode('sequence:byte:32', fields.get('consumer_identity'))
+        contract_identity = _decode('sequence:byte:32', fields.get('contract_identity'))
+        edge_identity = _decode('sequence:byte:32', fields.get('edge_identity'))
+        evidence_identity = _decode('sequence:byte:32', fields.get('evidence_identity'))
+        execution_identity = _decode('sequence:byte:32', fields.get('execution_identity'))
+        graph_identity = _decode('sequence:byte:32', fields.get('graph_identity'))
+        interface_identity = _decode('sequence:byte:32', fields.get('interface_identity'))
+        inventory_identity = _decode('sequence:byte:32', fields.get('inventory_identity'))
+        plan_identity = _decode('sequence:byte:32', fields.get('plan_identity'))
+        profile_identity = _decode('sequence:byte:32', fields.get('profile_identity'))
+        provider_identity = _decode('sequence:byte:32', fields.get('provider_identity'))
+        provider_revision_identity = _decode('sequence:byte:32', fields.get('provider_revision_identity'))
+        receipt_identity = _decode('sequence:byte:32', fields.get('receipt_identity'))
+        source_identity = _decode('sequence:byte:32', fields.get('source_identity'))
+        test_result_identity = _decode('sequence:byte:32', fields.get('test_result_identity'))
+        verdict = _decode('finite:ContractFamilyVerdict', fields.get('verdict'))
+        return cls(check_result_identity=check_result_identity, consumer_identity=consumer_identity, contract_identity=contract_identity, edge_identity=edge_identity, evidence_identity=evidence_identity, execution_identity=execution_identity, graph_identity=graph_identity, interface_identity=interface_identity, inventory_identity=inventory_identity, plan_identity=plan_identity, profile_identity=profile_identity, provider_identity=provider_identity, provider_revision_identity=provider_revision_identity, receipt_identity=receipt_identity, source_identity=source_identity, test_result_identity=test_result_identity, verdict=verdict)
+
+
+@dataclass(frozen=True)
+class ReceiptIdentityMaterial:
+    check_result_identity: bytes
+    consumer_identity: bytes
+    contract_identity: bytes
+    edge_identity: bytes
+    evidence_identity: bytes
+    execution_identity: bytes
+    graph_identity: bytes
+    interface_identity: bytes
+    inventory_identity: bytes
+    plan_identity: bytes
+    profile_identity: bytes
+    provider_identity: bytes
+    provider_revision_identity: bytes
+    source_identity: bytes
+    test_result_identity: bytes
+    verdict: ContractFamilyVerdict
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'check_result_identity': _encode(self.check_result_identity),
+            'consumer_identity': _encode(self.consumer_identity),
+            'contract_identity': _encode(self.contract_identity),
+            'edge_identity': _encode(self.edge_identity),
+            'evidence_identity': _encode(self.evidence_identity),
+            'execution_identity': _encode(self.execution_identity),
+            'graph_identity': _encode(self.graph_identity),
+            'interface_identity': _encode(self.interface_identity),
+            'inventory_identity': _encode(self.inventory_identity),
+            'plan_identity': _encode(self.plan_identity),
+            'profile_identity': _encode(self.profile_identity),
+            'provider_identity': _encode(self.provider_identity),
+            'provider_revision_identity': _encode(self.provider_revision_identity),
+            'source_identity': _encode(self.source_identity),
+            'test_result_identity': _encode(self.test_result_identity),
+            'verdict': _encode(self.verdict),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ReceiptIdentityMaterial:
+        fields = _fields(value)
+        check_result_identity = _decode('sequence:byte:32', fields.get('check_result_identity'))
+        consumer_identity = _decode('sequence:byte:32', fields.get('consumer_identity'))
+        contract_identity = _decode('sequence:byte:32', fields.get('contract_identity'))
+        edge_identity = _decode('sequence:byte:32', fields.get('edge_identity'))
+        evidence_identity = _decode('sequence:byte:32', fields.get('evidence_identity'))
+        execution_identity = _decode('sequence:byte:32', fields.get('execution_identity'))
+        graph_identity = _decode('sequence:byte:32', fields.get('graph_identity'))
+        interface_identity = _decode('sequence:byte:32', fields.get('interface_identity'))
+        inventory_identity = _decode('sequence:byte:32', fields.get('inventory_identity'))
+        plan_identity = _decode('sequence:byte:32', fields.get('plan_identity'))
+        profile_identity = _decode('sequence:byte:32', fields.get('profile_identity'))
+        provider_identity = _decode('sequence:byte:32', fields.get('provider_identity'))
+        provider_revision_identity = _decode('sequence:byte:32', fields.get('provider_revision_identity'))
+        source_identity = _decode('sequence:byte:32', fields.get('source_identity'))
+        test_result_identity = _decode('sequence:byte:32', fields.get('test_result_identity'))
+        verdict = _decode('finite:ContractFamilyVerdict', fields.get('verdict'))
+        return cls(check_result_identity=check_result_identity, consumer_identity=consumer_identity, contract_identity=contract_identity, edge_identity=edge_identity, evidence_identity=evidence_identity, execution_identity=execution_identity, graph_identity=graph_identity, interface_identity=interface_identity, inventory_identity=inventory_identity, plan_identity=plan_identity, profile_identity=profile_identity, provider_identity=provider_identity, provider_revision_identity=provider_revision_identity, source_identity=source_identity, test_result_identity=test_result_identity, verdict=verdict)
+
+
+@dataclass(frozen=True)
+class Scan:
+    ordered: bool
+    prev: int
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'ordered': _encode(self.ordered),
+            'prev': _encode(self.prev),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> Scan:
+        fields = _fields(value)
+        ordered = _decode('bool', fields.get('ordered'))
+        prev = _decode('int', fields.get('prev'))
+        return cls(ordered=ordered, prev=prev)
+
+
+@dataclass(frozen=True)
+class SelectedProofContract:
+    plan_identity: bytes
+    proof_identity: bytes
+    required_evidence: tuple[Any, ...]
+    selected_check_identities: tuple[Any, ...]
+    selected_repositories: tuple[Any, ...]
+    sufficient: bool
+    verdict: ContractFamilyVerdict
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'plan_identity': _encode(self.plan_identity),
+            'proof_identity': _encode(self.proof_identity),
+            'required_evidence': _encode(self.required_evidence),
+            'selected_check_identities': _encode(self.selected_check_identities),
+            'selected_repositories': _encode(self.selected_repositories),
+            'sufficient': _encode(self.sufficient),
+            'verdict': _encode(self.verdict),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> SelectedProofContract:
+        fields = _fields(value)
+        plan_identity = _decode('sequence:byte:32', fields.get('plan_identity'))
+        proof_identity = _decode('sequence:byte:32', fields.get('proof_identity'))
+        required_evidence = _decode('sequence:sequence:byte::', fields.get('required_evidence'))
+        selected_check_identities = _decode('sequence:sequence:byte:32:', fields.get('selected_check_identities'))
+        selected_repositories = _decode('sequence:sequence:byte::', fields.get('selected_repositories'))
+        sufficient = _decode('bool', fields.get('sufficient'))
+        verdict = _decode('finite:ContractFamilyVerdict', fields.get('verdict'))
+        return cls(plan_identity=plan_identity, proof_identity=proof_identity, required_evidence=required_evidence, selected_check_identities=selected_check_identities, selected_repositories=selected_repositories, sufficient=sufficient, verdict=verdict)
+
+
+@dataclass(frozen=True)
+class SelectedProofIdentityMaterial:
+    plan_identity: bytes
+    required_evidence: tuple[Any, ...]
+    selected_check_identities: tuple[Any, ...]
+    selected_repositories: tuple[Any, ...]
+    sufficient: bool
+    verdict: ContractFamilyVerdict
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'plan_identity': _encode(self.plan_identity),
+            'required_evidence': _encode(self.required_evidence),
+            'selected_check_identities': _encode(self.selected_check_identities),
+            'selected_repositories': _encode(self.selected_repositories),
+            'sufficient': _encode(self.sufficient),
+            'verdict': _encode(self.verdict),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> SelectedProofIdentityMaterial:
+        fields = _fields(value)
+        plan_identity = _decode('sequence:byte:32', fields.get('plan_identity'))
+        required_evidence = _decode('sequence:sequence:byte::', fields.get('required_evidence'))
+        selected_check_identities = _decode('sequence:sequence:byte:32:', fields.get('selected_check_identities'))
+        selected_repositories = _decode('sequence:sequence:byte::', fields.get('selected_repositories'))
+        sufficient = _decode('bool', fields.get('sufficient'))
+        verdict = _decode('finite:ContractFamilyVerdict', fields.get('verdict'))
+        return cls(plan_identity=plan_identity, required_evidence=required_evidence, selected_check_identities=selected_check_identities, selected_repositories=selected_repositories, sufficient=sufficient, verdict=verdict)
+
+
+@dataclass(frozen=True)
+class SelectionContract:
+    available_repository_count: int
+    available_test_count: int
+    coverage_classified_project_count: int
+    escalation_reasons: tuple[Any, ...]
+    level: VerificationLevel
+    registered_family_project_count: int
+    routing_scope: RoutingScope
+    selected_repositories: tuple[Any, ...]
+    selected_test_identities: tuple[Any, ...]
+    semantic_graph_repository_count: int
+    unclassified_project_count: int
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'available_repository_count': _encode(self.available_repository_count),
+            'available_test_count': _encode(self.available_test_count),
+            'coverage_classified_project_count': _encode(self.coverage_classified_project_count),
+            'escalation_reasons': _encode(self.escalation_reasons),
+            'level': _encode(self.level),
+            'registered_family_project_count': _encode(self.registered_family_project_count),
+            'routing_scope': _encode(self.routing_scope),
+            'selected_repositories': _encode(self.selected_repositories),
+            'selected_test_identities': _encode(self.selected_test_identities),
+            'semantic_graph_repository_count': _encode(self.semantic_graph_repository_count),
+            'unclassified_project_count': _encode(self.unclassified_project_count),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> SelectionContract:
+        fields = _fields(value)
+        available_repository_count = _decode('int', fields.get('available_repository_count'))
+        available_test_count = _decode('int', fields.get('available_test_count'))
+        coverage_classified_project_count = _decode('int', fields.get('coverage_classified_project_count'))
+        escalation_reasons = _decode('sequence:sequence:byte::', fields.get('escalation_reasons'))
+        level = _decode('finite:VerificationLevel', fields.get('level'))
+        registered_family_project_count = _decode('int', fields.get('registered_family_project_count'))
+        routing_scope = _decode('finite:RoutingScope', fields.get('routing_scope'))
+        selected_repositories = _decode('sequence:sequence:byte::', fields.get('selected_repositories'))
+        selected_test_identities = _decode('sequence:sequence:byte::', fields.get('selected_test_identities'))
+        semantic_graph_repository_count = _decode('int', fields.get('semantic_graph_repository_count'))
+        unclassified_project_count = _decode('int', fields.get('unclassified_project_count'))
+        return cls(available_repository_count=available_repository_count, available_test_count=available_test_count, coverage_classified_project_count=coverage_classified_project_count, escalation_reasons=escalation_reasons, level=level, registered_family_project_count=registered_family_project_count, routing_scope=routing_scope, selected_repositories=selected_repositories, selected_test_identities=selected_test_identities, semantic_graph_repository_count=semantic_graph_repository_count, unclassified_project_count=unclassified_project_count)
+
+
+@dataclass(frozen=True)
+class SemanticEdgeArtifact:
+    consumer_manifest_identity: bytes
+    consumer_repository: bytes
+    contract_identity: bytes
+    contract_revision: bytes
+    fingerprint: bytes
+    producer_repository: bytes
+    verification: ArtifactVerification
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'consumer_manifest_identity': _encode(self.consumer_manifest_identity),
+            'consumer_repository': _encode(self.consumer_repository),
+            'contract_identity': _encode(self.contract_identity),
+            'contract_revision': _encode(self.contract_revision),
+            'fingerprint': _encode(self.fingerprint),
+            'producer_repository': _encode(self.producer_repository),
+            'verification': _encode(self.verification),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> SemanticEdgeArtifact:
+        fields = _fields(value)
+        consumer_manifest_identity = _decode('sequence:byte:32', fields.get('consumer_manifest_identity'))
+        consumer_repository = _decode('sequence:byte:', fields.get('consumer_repository'))
+        contract_identity = _decode('sequence:byte:', fields.get('contract_identity'))
+        contract_revision = _decode('sequence:byte:', fields.get('contract_revision'))
+        fingerprint = _decode('sequence:byte:32', fields.get('fingerprint'))
+        producer_repository = _decode('sequence:byte:', fields.get('producer_repository'))
+        verification = _decode('record:ArtifactVerification', fields.get('verification'))
+        return cls(consumer_manifest_identity=consumer_manifest_identity, consumer_repository=consumer_repository, contract_identity=contract_identity, contract_revision=contract_revision, fingerprint=fingerprint, producer_repository=producer_repository, verification=verification)
+
+
+@dataclass(frozen=True)
+class SemanticEdgeContract:
+    check_identity: bytes
+    consumer_manifest_identity: bytes
+    consumer_repository: bytes
+    consuming_identity: bytes
+    contract_identity: bytes
+    contract_revision: bytes
+    fingerprint: bytes
+    producer_repository: bytes
+    provenance: bytes
+    selected_test_identities: tuple[Any, ...]
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'check_identity': _encode(self.check_identity),
+            'consumer_manifest_identity': _encode(self.consumer_manifest_identity),
+            'consumer_repository': _encode(self.consumer_repository),
+            'consuming_identity': _encode(self.consuming_identity),
+            'contract_identity': _encode(self.contract_identity),
+            'contract_revision': _encode(self.contract_revision),
+            'fingerprint': _encode(self.fingerprint),
+            'producer_repository': _encode(self.producer_repository),
+            'provenance': _encode(self.provenance),
+            'selected_test_identities': _encode(self.selected_test_identities),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> SemanticEdgeContract:
+        fields = _fields(value)
+        check_identity = _decode('sequence:byte:', fields.get('check_identity'))
+        consumer_manifest_identity = _decode('sequence:byte:32', fields.get('consumer_manifest_identity'))
+        consumer_repository = _decode('sequence:byte:', fields.get('consumer_repository'))
+        consuming_identity = _decode('sequence:byte:', fields.get('consuming_identity'))
+        contract_identity = _decode('sequence:byte:', fields.get('contract_identity'))
+        contract_revision = _decode('sequence:byte:', fields.get('contract_revision'))
+        fingerprint = _decode('sequence:byte:32', fields.get('fingerprint'))
+        producer_repository = _decode('sequence:byte:', fields.get('producer_repository'))
+        provenance = _decode('sequence:byte:', fields.get('provenance'))
+        selected_test_identities = _decode('sequence:sequence:byte::', fields.get('selected_test_identities'))
+        return cls(check_identity=check_identity, consumer_manifest_identity=consumer_manifest_identity, consumer_repository=consumer_repository, consuming_identity=consuming_identity, contract_identity=contract_identity, contract_revision=contract_revision, fingerprint=fingerprint, producer_repository=producer_repository, provenance=provenance, selected_test_identities=selected_test_identities)
+
+
+@dataclass(frozen=True)
+class SemanticEdgeIdentityMaterial:
+    check_identity: bytes
+    consumer_manifest_identity: bytes
+    consumer_repository: bytes
+    consuming_identity: bytes
+    contract_identity: bytes
+    contract_revision: bytes
+    fingerprint: bytes
+    producer_repository: bytes
+    provenance: bytes
+    selected_test_identities: tuple[Any, ...]
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'check_identity': _encode(self.check_identity),
+            'consumer_manifest_identity': _encode(self.consumer_manifest_identity),
+            'consumer_repository': _encode(self.consumer_repository),
+            'consuming_identity': _encode(self.consuming_identity),
+            'contract_identity': _encode(self.contract_identity),
+            'contract_revision': _encode(self.contract_revision),
+            'fingerprint': _encode(self.fingerprint),
+            'producer_repository': _encode(self.producer_repository),
+            'provenance': _encode(self.provenance),
+            'selected_test_identities': _encode(self.selected_test_identities),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> SemanticEdgeIdentityMaterial:
+        fields = _fields(value)
+        check_identity = _decode('sequence:byte:', fields.get('check_identity'))
+        consumer_manifest_identity = _decode('sequence:byte:32', fields.get('consumer_manifest_identity'))
+        consumer_repository = _decode('sequence:byte:', fields.get('consumer_repository'))
+        consuming_identity = _decode('sequence:byte:', fields.get('consuming_identity'))
+        contract_identity = _decode('sequence:byte:', fields.get('contract_identity'))
+        contract_revision = _decode('sequence:byte:', fields.get('contract_revision'))
+        fingerprint = _decode('sequence:byte:32', fields.get('fingerprint'))
+        producer_repository = _decode('sequence:byte:', fields.get('producer_repository'))
+        provenance = _decode('sequence:byte:', fields.get('provenance'))
+        selected_test_identities = _decode('sequence:sequence:byte::', fields.get('selected_test_identities'))
+        return cls(check_identity=check_identity, consumer_manifest_identity=consumer_manifest_identity, consumer_repository=consumer_repository, consuming_identity=consuming_identity, contract_identity=contract_identity, contract_revision=contract_revision, fingerprint=fingerprint, producer_repository=producer_repository, provenance=provenance, selected_test_identities=selected_test_identities)
+
+
+@dataclass(frozen=True)
+class SemanticImpactContract:
+    affected_count: int
+    complete: bool
+    cross_repository: CrossRepositoryContract
+    direct_dependents: tuple[Any, ...]
+    graph_identity: bytes
+    limitations: tuple[Any, ...]
+    risk_flags: tuple[Any, ...]
+    roots: tuple[Any, ...]
+    test_identities: tuple[Any, ...]
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'affected_count': _encode(self.affected_count),
+            'complete': _encode(self.complete),
+            'cross_repository': _encode(self.cross_repository),
+            'direct_dependents': _encode(self.direct_dependents),
+            'graph_identity': _encode(self.graph_identity),
+            'limitations': _encode(self.limitations),
+            'risk_flags': _encode(self.risk_flags),
+            'roots': _encode(self.roots),
+            'test_identities': _encode(self.test_identities),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> SemanticImpactContract:
+        fields = _fields(value)
+        affected_count = _decode('int', fields.get('affected_count'))
+        complete = _decode('bool', fields.get('complete'))
+        cross_repository = _decode('record:CrossRepositoryContract', fields.get('cross_repository'))
+        direct_dependents = _decode('sequence:sequence:byte::', fields.get('direct_dependents'))
+        graph_identity = _decode('sequence:byte:32', fields.get('graph_identity'))
+        limitations = _decode('sequence:sequence:byte::', fields.get('limitations'))
+        risk_flags = _decode('sequence:sequence:byte::', fields.get('risk_flags'))
+        roots = _decode('sequence:sequence:byte::', fields.get('roots'))
+        test_identities = _decode('sequence:sequence:byte::', fields.get('test_identities'))
+        return cls(affected_count=affected_count, complete=complete, cross_repository=cross_repository, direct_dependents=direct_dependents, graph_identity=graph_identity, limitations=limitations, risk_flags=risk_flags, roots=roots, test_identities=test_identities)
+
+
+@dataclass(frozen=True)
+class SemanticImpactIdentityMaterial:
+    affected_count: int
+    complete: bool
+    cross_repository: CrossRepositoryContract
+    direct_dependents: tuple[Any, ...]
+    graph_identity: bytes
+    limitations: tuple[Any, ...]
+    risk_flags: tuple[Any, ...]
+    roots: tuple[Any, ...]
+    test_identities: tuple[Any, ...]
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'affected_count': _encode(self.affected_count),
+            'complete': _encode(self.complete),
+            'cross_repository': _encode(self.cross_repository),
+            'direct_dependents': _encode(self.direct_dependents),
+            'graph_identity': _encode(self.graph_identity),
+            'limitations': _encode(self.limitations),
+            'risk_flags': _encode(self.risk_flags),
+            'roots': _encode(self.roots),
+            'test_identities': _encode(self.test_identities),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> SemanticImpactIdentityMaterial:
+        fields = _fields(value)
+        affected_count = _decode('int', fields.get('affected_count'))
+        complete = _decode('bool', fields.get('complete'))
+        cross_repository = _decode('record:CrossRepositoryContract', fields.get('cross_repository'))
+        direct_dependents = _decode('sequence:sequence:byte::', fields.get('direct_dependents'))
+        graph_identity = _decode('sequence:byte:32', fields.get('graph_identity'))
+        limitations = _decode('sequence:sequence:byte::', fields.get('limitations'))
+        risk_flags = _decode('sequence:sequence:byte::', fields.get('risk_flags'))
+        roots = _decode('sequence:sequence:byte::', fields.get('roots'))
+        test_identities = _decode('sequence:sequence:byte::', fields.get('test_identities'))
+        return cls(affected_count=affected_count, complete=complete, cross_repository=cross_repository, direct_dependents=direct_dependents, graph_identity=graph_identity, limitations=limitations, risk_flags=risk_flags, roots=roots, test_identities=test_identities)
+
+
+@dataclass(frozen=True)
+class SourceContract:
+    path: bytes
+    sha256: bytes
+    subject_fingerprint: bytes
+    subject_identity: bytes
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'path': _encode(self.path),
+            'sha256': _encode(self.sha256),
+            'subject_fingerprint': _encode(self.subject_fingerprint),
+            'subject_identity': _encode(self.subject_identity),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> SourceContract:
+        fields = _fields(value)
+        path = _decode('sequence:byte:', fields.get('path'))
+        sha256 = _decode('sequence:byte:32', fields.get('sha256'))
+        subject_fingerprint = _decode('sequence:byte:32', fields.get('subject_fingerprint'))
+        subject_identity = _decode('sequence:byte:', fields.get('subject_identity'))
+        return cls(path=path, sha256=sha256, subject_fingerprint=subject_fingerprint, subject_identity=subject_identity)
 
 
 @dataclass(frozen=True)
@@ -494,6 +2006,280 @@ class SufficiencyInput:
 
 
 @dataclass(frozen=True)
+class TestExecutionArtifact:
+    run_identity: bytes
+    test_case_identities: tuple[Any, ...]
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'run_identity': _encode(self.run_identity),
+            'test_case_identities': _encode(self.test_case_identities),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> TestExecutionArtifact:
+        fields = _fields(value)
+        run_identity = _decode('sequence:byte:', fields.get('run_identity'))
+        test_case_identities = _decode('sequence:sequence:byte::', fields.get('test_case_identities'))
+        return cls(run_identity=run_identity, test_case_identities=test_case_identities)
+
+
+@dataclass(frozen=True)
+class TestExecutionContract:
+    execution_identity: bytes
+    inventory_identity: bytes
+    selected_test_identities: tuple[Any, ...]
+    selection_count: int
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'execution_identity': _encode(self.execution_identity),
+            'inventory_identity': _encode(self.inventory_identity),
+            'selected_test_identities': _encode(self.selected_test_identities),
+            'selection_count': _encode(self.selection_count),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> TestExecutionContract:
+        fields = _fields(value)
+        execution_identity = _decode('sequence:byte:32', fields.get('execution_identity'))
+        inventory_identity = _decode('sequence:byte:32', fields.get('inventory_identity'))
+        selected_test_identities = _decode('sequence:sequence:byte::', fields.get('selected_test_identities'))
+        selection_count = _decode('int', fields.get('selection_count'))
+        return cls(execution_identity=execution_identity, inventory_identity=inventory_identity, selected_test_identities=selected_test_identities, selection_count=selection_count)
+
+
+@dataclass(frozen=True)
+class TestInventoryContract:
+    subject_fingerprint: bytes
+    subject_identity: bytes
+    test_case_identities: tuple[Any, ...]
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'subject_fingerprint': _encode(self.subject_fingerprint),
+            'subject_identity': _encode(self.subject_identity),
+            'test_case_identities': _encode(self.test_case_identities),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> TestInventoryContract:
+        fields = _fields(value)
+        subject_fingerprint = _decode('sequence:byte:32', fields.get('subject_fingerprint'))
+        subject_identity = _decode('sequence:byte:', fields.get('subject_identity'))
+        test_case_identities = _decode('sequence:sequence:byte::', fields.get('test_case_identities'))
+        return cls(subject_fingerprint=subject_fingerprint, subject_identity=subject_identity, test_case_identities=test_case_identities)
+
+
+@dataclass(frozen=True)
+class TestInventoryIdentityMaterial:
+    subject_fingerprint: bytes
+    subject_identity: bytes
+    test_case_identities: tuple[Any, ...]
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'subject_fingerprint': _encode(self.subject_fingerprint),
+            'subject_identity': _encode(self.subject_identity),
+            'test_case_identities': _encode(self.test_case_identities),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> TestInventoryIdentityMaterial:
+        fields = _fields(value)
+        subject_fingerprint = _decode('sequence:byte:32', fields.get('subject_fingerprint'))
+        subject_identity = _decode('sequence:byte:', fields.get('subject_identity'))
+        test_case_identities = _decode('sequence:sequence:byte::', fields.get('test_case_identities'))
+        return cls(subject_fingerprint=subject_fingerprint, subject_identity=subject_identity, test_case_identities=test_case_identities)
+
+
+@dataclass(frozen=True)
+class TestProjection:
+    classification: TestClassification
+    failure_kind: FailureKind
+    status: TestStatus
+    verdict: Verdict
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'classification': _encode(self.classification),
+            'failure_kind': _encode(self.failure_kind),
+            'status': _encode(self.status),
+            'verdict': _encode(self.verdict),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> TestProjection:
+        fields = _fields(value)
+        classification = _decode('finite:TestClassification', fields.get('classification'))
+        failure_kind = _decode('finite:FailureKind', fields.get('failure_kind'))
+        status = _decode('finite:TestStatus', fields.get('status'))
+        verdict = _decode('finite:Verdict', fields.get('verdict'))
+        return cls(classification=classification, failure_kind=failure_kind, status=status, verdict=verdict)
+
+
+@dataclass(frozen=True)
+class TestResult:
+    actual: int
+    assertion_code: int
+    assertions: int
+    expected: int
+    failure_code: int
+    failure_kind: FailureKind
+    failures: int
+    verdict: Verdict
+    verdict_code: int
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'actual': _encode(self.actual),
+            'assertion_code': _encode(self.assertion_code),
+            'assertions': _encode(self.assertions),
+            'expected': _encode(self.expected),
+            'failure_code': _encode(self.failure_code),
+            'failure_kind': _encode(self.failure_kind),
+            'failures': _encode(self.failures),
+            'verdict': _encode(self.verdict),
+            'verdict_code': _encode(self.verdict_code),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> TestResult:
+        fields = _fields(value)
+        actual = _decode('int', fields.get('actual'))
+        assertion_code = _decode('int', fields.get('assertion_code'))
+        assertions = _decode('int', fields.get('assertions'))
+        expected = _decode('int', fields.get('expected'))
+        failure_code = _decode('int', fields.get('failure_code'))
+        failure_kind = _decode('finite:FailureKind', fields.get('failure_kind'))
+        failures = _decode('int', fields.get('failures'))
+        verdict = _decode('finite:Verdict', fields.get('verdict'))
+        verdict_code = _decode('int', fields.get('verdict_code'))
+        return cls(actual=actual, assertion_code=assertion_code, assertions=assertions, expected=expected, failure_code=failure_code, failure_kind=failure_kind, failures=failures, verdict=verdict, verdict_code=verdict_code)
+
+
+@dataclass(frozen=True)
+class TestResultArtifact:
+    execution: TestExecutionArtifact
+    selection: TestSelectionArtifact
+    verdict: ArtifactVerdict
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'execution': _encode(self.execution),
+            'selection': _encode(self.selection),
+            'verdict': _encode(self.verdict),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> TestResultArtifact:
+        fields = _fields(value)
+        execution = _decode('record:TestExecutionArtifact', fields.get('execution'))
+        selection = _decode('record:TestSelectionArtifact', fields.get('selection'))
+        verdict = _decode('finite:ArtifactVerdict', fields.get('verdict'))
+        return cls(execution=execution, selection=selection, verdict=verdict)
+
+
+@dataclass(frozen=True)
+class TestResultContract:
+    evidence_identity: bytes
+    execution: TestExecutionContract
+    failure_code: int
+    interface_identity: bytes
+    inventory_identity: bytes
+    provider_identity: bytes
+    provider_revision_identity: bytes
+    result_identity: bytes
+    selected_test_identities: tuple[Any, ...]
+    verdict: ContractProviderVerdict
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'evidence_identity': _encode(self.evidence_identity),
+            'execution': _encode(self.execution),
+            'failure_code': _encode(self.failure_code),
+            'interface_identity': _encode(self.interface_identity),
+            'inventory_identity': _encode(self.inventory_identity),
+            'provider_identity': _encode(self.provider_identity),
+            'provider_revision_identity': _encode(self.provider_revision_identity),
+            'result_identity': _encode(self.result_identity),
+            'selected_test_identities': _encode(self.selected_test_identities),
+            'verdict': _encode(self.verdict),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> TestResultContract:
+        fields = _fields(value)
+        evidence_identity = _decode('sequence:byte:32', fields.get('evidence_identity'))
+        execution = _decode('record:TestExecutionContract', fields.get('execution'))
+        failure_code = _decode('int', fields.get('failure_code'))
+        interface_identity = _decode('sequence:byte:32', fields.get('interface_identity'))
+        inventory_identity = _decode('sequence:byte:32', fields.get('inventory_identity'))
+        provider_identity = _decode('sequence:byte:32', fields.get('provider_identity'))
+        provider_revision_identity = _decode('sequence:byte:32', fields.get('provider_revision_identity'))
+        result_identity = _decode('sequence:byte:32', fields.get('result_identity'))
+        selected_test_identities = _decode('sequence:sequence:byte::', fields.get('selected_test_identities'))
+        verdict = _decode('finite:ContractProviderVerdict', fields.get('verdict'))
+        return cls(evidence_identity=evidence_identity, execution=execution, failure_code=failure_code, interface_identity=interface_identity, inventory_identity=inventory_identity, provider_identity=provider_identity, provider_revision_identity=provider_revision_identity, result_identity=result_identity, selected_test_identities=selected_test_identities, verdict=verdict)
+
+
+@dataclass(frozen=True)
+class TestResultIdentityMaterial:
+    evidence_identity: bytes
+    execution: TestExecutionContract
+    failure_code: int
+    interface_identity: bytes
+    inventory_identity: bytes
+    provider_identity: bytes
+    provider_revision_identity: bytes
+    selected_test_identities: tuple[Any, ...]
+    verdict: ContractProviderVerdict
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'evidence_identity': _encode(self.evidence_identity),
+            'execution': _encode(self.execution),
+            'failure_code': _encode(self.failure_code),
+            'interface_identity': _encode(self.interface_identity),
+            'inventory_identity': _encode(self.inventory_identity),
+            'provider_identity': _encode(self.provider_identity),
+            'provider_revision_identity': _encode(self.provider_revision_identity),
+            'selected_test_identities': _encode(self.selected_test_identities),
+            'verdict': _encode(self.verdict),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> TestResultIdentityMaterial:
+        fields = _fields(value)
+        evidence_identity = _decode('sequence:byte:32', fields.get('evidence_identity'))
+        execution = _decode('record:TestExecutionContract', fields.get('execution'))
+        failure_code = _decode('int', fields.get('failure_code'))
+        interface_identity = _decode('sequence:byte:32', fields.get('interface_identity'))
+        inventory_identity = _decode('sequence:byte:32', fields.get('inventory_identity'))
+        provider_identity = _decode('sequence:byte:32', fields.get('provider_identity'))
+        provider_revision_identity = _decode('sequence:byte:32', fields.get('provider_revision_identity'))
+        selected_test_identities = _decode('sequence:sequence:byte::', fields.get('selected_test_identities'))
+        verdict = _decode('finite:ContractProviderVerdict', fields.get('verdict'))
+        return cls(evidence_identity=evidence_identity, execution=execution, failure_code=failure_code, interface_identity=interface_identity, inventory_identity=inventory_identity, provider_identity=provider_identity, provider_revision_identity=provider_revision_identity, selected_test_identities=selected_test_identities, verdict=verdict)
+
+
+@dataclass(frozen=True)
+class TestSelectionArtifact:
+    selected_test_identities: tuple[Any, ...]
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'selected_test_identities': _encode(self.selected_test_identities),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> TestSelectionArtifact:
+        fields = _fields(value)
+        selected_test_identities = _decode('sequence:sequence:byte::', fields.get('selected_test_identities'))
+        return cls(selected_test_identities=selected_test_identities)
+
+
+@dataclass(frozen=True)
 class TraceObservation:
     completeness: TraceCompleteness
     failure_anchor: EvidencePresence
@@ -513,6 +2299,96 @@ class TraceObservation:
         failure_anchor = _decode('finite:EvidencePresence', fields.get('failure_anchor'))
         operation_identity = _decode('finite:EvidencePresence', fields.get('operation_identity'))
         return cls(completeness=completeness, failure_anchor=failure_anchor, operation_identity=operation_identity)
+
+
+@dataclass(frozen=True)
+class VerificationPlan:
+    impact: SemanticImpactContract
+    plan_id: bytes
+    proof: ProofBoundaryContract
+    provenance: ProvenanceContract
+    schema_version: bytes
+    selection: SelectionContract
+    source: SourceContract
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'impact': _encode(self.impact),
+            'plan_id': _encode(self.plan_id),
+            'proof': _encode(self.proof),
+            'provenance': _encode(self.provenance),
+            'schema_version': _encode(self.schema_version),
+            'selection': _encode(self.selection),
+            'source': _encode(self.source),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> VerificationPlan:
+        fields = _fields(value)
+        impact = _decode('record:SemanticImpactContract', fields.get('impact'))
+        plan_id = _decode('sequence:byte:32', fields.get('plan_id'))
+        proof = _decode('record:ProofBoundaryContract', fields.get('proof'))
+        provenance = _decode('record:ProvenanceContract', fields.get('provenance'))
+        schema_version = _decode('sequence:byte:', fields.get('schema_version'))
+        selection = _decode('record:SelectionContract', fields.get('selection'))
+        source = _decode('record:SourceContract', fields.get('source'))
+        return cls(impact=impact, plan_id=plan_id, proof=proof, provenance=provenance, schema_version=schema_version, selection=selection, source=source)
+
+
+@dataclass(frozen=True)
+class VerificationPlanArtifact:
+    impact: ArtifactImpact
+    plan_id: bytes
+    selection: ArtifactSelection
+    source: ArtifactSource
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'impact': _encode(self.impact),
+            'plan_id': _encode(self.plan_id),
+            'selection': _encode(self.selection),
+            'source': _encode(self.source),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> VerificationPlanArtifact:
+        fields = _fields(value)
+        impact = _decode('record:ArtifactImpact', fields.get('impact'))
+        plan_id = _decode('sequence:byte:32', fields.get('plan_id'))
+        selection = _decode('record:ArtifactSelection', fields.get('selection'))
+        source = _decode('record:ArtifactSource', fields.get('source'))
+        return cls(impact=impact, plan_id=plan_id, selection=selection, source=source)
+
+
+@dataclass(frozen=True)
+class VerificationPlanIdentityMaterial:
+    impact: SemanticImpactContract
+    proof: ProofBoundaryContract
+    provenance: ProvenanceContract
+    schema_version: bytes
+    selection: SelectionContract
+    source: SourceContract
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'impact': _encode(self.impact),
+            'proof': _encode(self.proof),
+            'provenance': _encode(self.provenance),
+            'schema_version': _encode(self.schema_version),
+            'selection': _encode(self.selection),
+            'source': _encode(self.source),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> VerificationPlanIdentityMaterial:
+        fields = _fields(value)
+        impact = _decode('record:SemanticImpactContract', fields.get('impact'))
+        proof = _decode('record:ProofBoundaryContract', fields.get('proof'))
+        provenance = _decode('record:ProvenanceContract', fields.get('provenance'))
+        schema_version = _decode('sequence:byte:', fields.get('schema_version'))
+        selection = _decode('record:SelectionContract', fields.get('selection'))
+        source = _decode('record:SourceContract', fields.get('source'))
+        return cls(impact=impact, proof=proof, provenance=provenance, schema_version=schema_version, selection=selection, source=source)
 
 
 @dataclass(frozen=True)
@@ -632,21 +2508,293 @@ class Binding:
         self.last_execution = response
         return response['call']
 
+    def actions_failure_artifact_app(self, input_value: ApplicationContext) -> ApplicationExit:
+        response = self._call('mncs.debug.v1', 'actions_failure_artifact_app', input_value)
+        return _decode('record:ApplicationExit', response['returned'][0])
+
+    def all_true(self, input_value: Any) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'all_true', input_value)
+        return _decode('bool', response['returned'][0])
+
+    def all_true4(self, input_value: tuple[Any, ...]) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'all_true4', input_value)
+        return _decode('bool', response['returned'][0])
+
+    def all_true__spec_f10cf230(self, input_value: tuple[Any, ...]) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'all_true__spec_f10cf230', input_value)
+        return _decode('bool', response['returned'][0])
+
+    def any_nonzero(self, input_value: Any) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'any_nonzero', input_value)
+        return _decode('bool', response['returned'][0])
+
+    def any_nonzero__spec_d8642cbd(self, input_value: bytes) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'any_nonzero__spec_d8642cbd', input_value)
+        return _decode('bool', response['returned'][0])
+
+    def any_true(self, input_value: Any) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'any_true', input_value)
+        return _decode('bool', response['returned'][0])
+
+    def any_true4(self, input_value: tuple[Any, ...]) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'any_true4', input_value)
+        return _decode('bool', response['returned'][0])
+
+    def any_true__spec_f10cf230(self, input_value: tuple[Any, ...]) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'any_true__spec_f10cf230', input_value)
+        return _decode('bool', response['returned'][0])
+
     def bounded_count(self, value: int, limit: int) -> int:
         response = self._call('mncs.debug.v1', 'bounded_count', value, limit)
         return _decode('int', response['returned'][0])
+
+    def byte_view_builder16_empty(self) -> ByteViewBuilder16:
+        response = self._call('mncs.core.sequences.v1', 'byte_view_builder16_empty')
+        return _decode('record:ByteViewBuilder16', response['returned'][0])
+
+    def byte_view_builder16_finish(self, input_value: ByteViewBuilder16) -> tuple[Any, ...]:
+        response = self._call('mncs.core.sequences.v1', 'byte_view_builder16_finish', input_value)
+        return _decode('view:sequence:byte::16', response['returned'][0])
+
+    def byte_view_builder16_push(self, builder: ByteViewBuilder16, value: bytes, include: bool) -> ByteViewBuilder16:
+        response = self._call('mncs.core.sequences.v1', 'byte_view_builder16_push', builder, value, include)
+        return _decode('record:ByteViewBuilder16', response['returned'][0])
+
+    def byte_view_builder64_empty(self) -> ByteViewBuilder64:
+        response = self._call('mncs.core.sequences.v1', 'byte_view_builder64_empty')
+        return _decode('record:ByteViewBuilder64', response['returned'][0])
+
+    def byte_view_builder64_finish(self, input_value: ByteViewBuilder64) -> tuple[Any, ...]:
+        response = self._call('mncs.core.sequences.v1', 'byte_view_builder64_finish', input_value)
+        return _decode('view:sequence:byte::64', response['returned'][0])
+
+    def byte_view_builder64_push(self, builder: ByteViewBuilder64, value: bytes, include: bool) -> ByteViewBuilder64:
+        response = self._call('mncs.core.sequences.v1', 'byte_view_builder64_push', builder, value, include)
+        return _decode('record:ByteViewBuilder64', response['returned'][0])
+
+    def byte_view_builder_empty(self) -> ByteViewBuilder256:
+        response = self._call('mncs.core.sequences.v1', 'byte_view_builder_empty')
+        return _decode('record:ByteViewBuilder256', response['returned'][0])
+
+    def byte_view_builder_finish(self, input_value: ByteViewBuilder256) -> tuple[Any, ...]:
+        response = self._call('mncs.core.sequences.v1', 'byte_view_builder_finish', input_value)
+        return _decode('view:sequence:byte::256', response['returned'][0])
+
+    def byte_view_builder_push(self, builder: ByteViewBuilder256, value: bytes, include: bool) -> ByteViewBuilder256:
+        response = self._call('mncs.core.sequences.v1', 'byte_view_builder_push', builder, value, include)
+        return _decode('record:ByteViewBuilder256', response['returned'][0])
+
+    def check_result_identity_material(self, input_value: CheckResultContract) -> CheckResultIdentityMaterial:
+        response = self._call('mncs.commons.family.contracts.v1', 'check_result_identity_material', input_value)
+        return _decode('record:CheckResultIdentityMaterial', response['returned'][0])
+
+    def check_result_schema(self) -> bytes:
+        response = self._call('mncs.commons.family.contracts.v1', 'check_result_schema')
+        return _decode('view:byte:64', response['returned'][0])
+
+    def collect_selected16(self, values: tuple[Any, ...], selected: tuple[Any, ...]) -> tuple[Any, ...]:
+        response = self._call('mncs.core.sequences.v1', 'collect_selected16', values, selected)
+        return _decode('view:sequence:byte::16', response['returned'][0])
+
+    def collect_selected4(self, values: tuple[Any, ...], selected: tuple[Any, ...]) -> tuple[Any, ...]:
+        response = self._call('mncs.core.sequences.v1', 'collect_selected4', values, selected)
+        return _decode('view:sequence:byte::256', response['returned'][0])
+
+    def collect_selected64(self, values: tuple[Any, ...], selected: tuple[Any, ...]) -> tuple[Any, ...]:
+        response = self._call('mncs.core.sequences.v1', 'collect_selected64', values, selected)
+        return _decode('view:sequence:byte::64', response['returned'][0])
+
+    def contains(self, xs: Any, needle: int) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'contains', xs, needle)
+        return _decode('bool', response['returned'][0])
+
+    def contains4(self, xs: tuple[Any, ...], needle: int) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'contains4', xs, needle)
+        return _decode('bool', response['returned'][0])
+
+    def contains__spec_f10cf230(self, xs: tuple[Any, ...], needle: int) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'contains__spec_f10cf230', xs, needle)
+        return _decode('bool', response['returned'][0])
+
+    def contains_byte(self, xs: Any, needle: Any) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'contains_byte', xs, needle)
+        return _decode('bool', response['returned'][0])
+
+    def contains_byte4(self, xs: bytes, needle: Any) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'contains_byte4', xs, needle)
+        return _decode('bool', response['returned'][0])
+
+    def contains_byte__spec_f10cf230(self, xs: bytes, needle: Any) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'contains_byte__spec_f10cf230', xs, needle)
+        return _decode('bool', response['returned'][0])
+
+    def context_is_bounded(self, input_value: ApplicationContext) -> bool:
+        response = self._call('mncs.std.application.v1', 'context_is_bounded', input_value)
+        return _decode('bool', response['returned'][0])
+
+    def count(self, xs: Any, needle: int) -> int:
+        response = self._call('mncs.core.sequences.v1', 'count', xs, needle)
+        return _decode('int', response['returned'][0])
+
+    def count4(self, xs: tuple[Any, ...], needle: int) -> int:
+        response = self._call('mncs.core.sequences.v1', 'count4', xs, needle)
+        return _decode('int', response['returned'][0])
+
+    def count__spec_f10cf230(self, xs: tuple[Any, ...], needle: int) -> int:
+        response = self._call('mncs.core.sequences.v1', 'count__spec_f10cf230', xs, needle)
+        return _decode('int', response['returned'][0])
+
+    def count_nonzero(self, input_value: Any) -> int:
+        response = self._call('mncs.core.sequences.v1', 'count_nonzero', input_value)
+        return _decode('int', response['returned'][0])
+
+    def count_nonzero4(self, input_value: tuple[Any, ...]) -> int:
+        response = self._call('mncs.core.sequences.v1', 'count_nonzero4', input_value)
+        return _decode('int', response['returned'][0])
+
+    def count_nonzero__spec_f10cf230(self, input_value: tuple[Any, ...]) -> int:
+        response = self._call('mncs.core.sequences.v1', 'count_nonzero__spec_f10cf230', input_value)
+        return _decode('int', response['returned'][0])
+
+    def count_true(self, input_value: Any) -> int:
+        response = self._call('mncs.core.sequences.v1', 'count_true', input_value)
+        return _decode('int', response['returned'][0])
+
+    def count_true4(self, input_value: tuple[Any, ...]) -> int:
+        response = self._call('mncs.core.sequences.v1', 'count_true4', input_value)
+        return _decode('int', response['returned'][0])
+
+    def count_true__spec_f10cf230(self, input_value: tuple[Any, ...]) -> int:
+        response = self._call('mncs.core.sequences.v1', 'count_true__spec_f10cf230', input_value)
+        return _decode('int', response['returned'][0])
+
+    def debug_bytes_present(self, input_value: bytes) -> bool:
+        response = self._call('mncs.debug.v1', 'debug_bytes_present', input_value)
+        return _decode('bool', response['returned'][0])
+
+    def debug_copy_digest(self, input_value: bytes) -> bytes:
+        response = self._call('mncs.debug.v1', 'debug_copy_digest', input_value)
+        return _decode('sequence:byte:', response['returned'][0])
+
+    def debug_same_bytes(self, left: bytes, right: bytes) -> bool:
+        response = self._call('mncs.debug.v1', 'debug_same_bytes', left, right)
+        return _decode('bool', response['returned'][0])
 
     def decide(self, input_value: DecisionInput) -> Decision:
         response = self._call('mncs.debug.v1', 'decide', input_value)
         return _decode('record:Decision', response['returned'][0])
 
+    def equals(self, left: Any, right: Any) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'equals', left, right)
+        return _decode('bool', response['returned'][0])
+
+    def equals4(self, left: tuple[Any, ...], right: tuple[Any, ...]) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'equals4', left, right)
+        return _decode('bool', response['returned'][0])
+
+    def equals__spec_f10cf230(self, left: tuple[Any, ...], right: tuple[Any, ...]) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'equals__spec_f10cf230', left, right)
+        return _decode('bool', response['returned'][0])
+
+    def equals_bool(self, expected: bool, actual: bool, code: int) -> Assertion:
+        response = self._call('mncs.test.assertions.v1', 'equals_bool', expected, actual, code)
+        return _decode('record:Assertion', response['returned'][0])
+
+    def equals_byte_view(self, left: Any, right: Any) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'equals_byte_view', left, right)
+        return _decode('bool', response['returned'][0])
+
+    def equals_bytes(self, left: Any, right: Any) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'equals_bytes', left, right)
+        return _decode('bool', response['returned'][0])
+
+    def equals_bytes__spec_d8642cbd(self, left: bytes, right: bytes) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'equals_bytes__spec_d8642cbd', left, right)
+        return _decode('bool', response['returned'][0])
+
+    def equals_i64(self, expected: int, actual: int, code: int) -> Assertion:
+        response = self._call('mncs.test.assertions.v1', 'equals_i64', expected, actual, code)
+        return _decode('record:Assertion', response['returned'][0])
+
     def established_claim(self, input_value: ProvenanceClaimStatus) -> bool:
         response = self._call('mncs.debug.v1', 'established_claim', input_value)
+        return _decode('bool', response['returned'][0])
+
+    def evidence_contains_artifact(self, evidence: EvidenceManifestContract, candidate: bytes) -> bool:
+        response = self._call('mncs.debug.v1', 'evidence_contains_artifact', evidence, candidate)
         return _decode('bool', response['returned'][0])
 
     def evidence_facts(self, input_value: EvidenceFactsInput) -> EvidenceFacts:
         response = self._call('mncs.debug.v1', 'evidence_facts', input_value)
         return _decode('record:EvidenceFacts', response['returned'][0])
+
+    def evidence_facts_artifact_app(self, input_value: ApplicationContext) -> ApplicationExit:
+        response = self._call('mncs.debug.v1', 'evidence_facts_artifact_app', input_value)
+        return _decode('record:ApplicationExit', response['returned'][0])
+
+    def evidence_manifest_identity_material(self, input_value: EvidenceManifestContract) -> EvidenceManifestIdentityMaterial:
+        response = self._call('mncs.commons.family.contracts.v1', 'evidence_manifest_identity_material', input_value)
+        return _decode('record:EvidenceManifestIdentityMaterial', response['returned'][0])
+
+    def evidence_manifest_schema(self) -> bytes:
+        response = self._call('mncs.commons.family.contracts.v1', 'evidence_manifest_schema')
+        return _decode('view:byte:64', response['returned'][0])
+
+    def failure(self, stderr: bytes, exit_code: int) -> ApplicationExit:
+        response = self._call('mncs.std.application.v1', 'failure', stderr, exit_code)
+        return _decode('record:ApplicationExit', response['returned'][0])
+
+    def failure_lineage_schema(self) -> bytes:
+        response = self._call('mncs.debug.v1', 'failure_lineage_schema')
+        return _decode('view:byte:64', response['returned'][0])
+
+    def family_failed(self, input_value: ContractFamilyVerdict) -> bool:
+        response = self._call('mncs.debug.v1', 'family_failed', input_value)
+        return _decode('bool', response['returned'][0])
+
+    def family_passed(self, input_value: ContractFamilyVerdict) -> bool:
+        response = self._call('mncs.debug.v1', 'family_passed', input_value)
+        return _decode('bool', response['returned'][0])
+
+    def find_index4(self, xs: tuple[Any, ...], needle: int) -> int:
+        response = self._call('mncs.core.sequences.v1', 'find_index4', xs, needle)
+        return _decode('int', response['returned'][0])
+
+    def first_of(self, input_value: tuple[Any, ...]) -> Found:
+        response = self._call('mncs.core.sequences.v1', 'first_of', input_value)
+        return _decode('finite:Found', response['returned'][0])
+
+    def first_of_generic(self, input_value: Any) -> Found:
+        response = self._call('mncs.core.sequences.v1', 'first_of_generic', input_value)
+        return _decode('finite:Found', response['returned'][0])
+
+    def first_of_generic__spec_f10cf230(self, input_value: tuple[Any, ...]) -> Found:
+        response = self._call('mncs.core.sequences.v1', 'first_of_generic__spec_f10cf230', input_value)
+        return _decode('finite:Found', response['returned'][0])
+
+    def first_or(self, view: tuple[Any, ...], fallback: int) -> int:
+        response = self._call('mncs.core.sequences.v1', 'first_or', view, fallback)
+        return _decode('int', response['returned'][0])
+
+    def first_u64(self, input_value: tuple[Any, ...]) -> int:
+        response = self._call('mncs.core.sequences.v1', 'first_u64', input_value)
+        return _decode('int', response['returned'][0])
+
+    def first_u64_view(self, view: tuple[Any, ...], fallback: int) -> int:
+        response = self._call('mncs.core.sequences.v1', 'first_u64_view', view, fallback)
+        return _decode('int', response['returned'][0])
+
+    def from_assertion(self, input_value: Assertion) -> TestResult:
+        response = self._call('mncs.test.assertions.v1', 'from_assertion', input_value)
+        return _decode('record:TestResult', response['returned'][0])
+
+    def identity_extension_policy(self) -> bytes:
+        response = self._call('mncs.commons.family.contracts.v1', 'identity_extension_policy')
+        return _decode('view:byte:128', response['returned'][0])
+
+    def identity_u64(self, input_value: tuple[Any, ...]) -> tuple[Any, ...]:
+        response = self._call('mncs.core.sequences.v1', 'identity_u64', input_value)
+        return _decode('sequence:int:', response['returned'][0])
 
     def is_complete(self, input_value: TraceCompleteness) -> bool:
         response = self._call('mncs.debug.v1', 'is_complete', input_value)
@@ -656,9 +2804,49 @@ class Binding:
         response = self._call('mncs.debug.v1', 'is_present', input_value)
         return _decode('bool', response['returned'][0])
 
+    def is_sorted(self, input_value: Any) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'is_sorted', input_value)
+        return _decode('bool', response['returned'][0])
+
+    def is_sorted4(self, input_value: tuple[Any, ...]) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'is_sorted4', input_value)
+        return _decode('bool', response['returned'][0])
+
+    def is_sorted__spec_f10cf230(self, input_value: tuple[Any, ...]) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'is_sorted__spec_f10cf230', input_value)
+        return _decode('bool', response['returned'][0])
+
+    def last_of(self, input_value: tuple[Any, ...]) -> Found:
+        response = self._call('mncs.core.sequences.v1', 'last_of', input_value)
+        return _decode('finite:Found', response['returned'][0])
+
+    def last_of_generic(self, input_value: Any) -> Found:
+        response = self._call('mncs.core.sequences.v1', 'last_of_generic', input_value)
+        return _decode('finite:Found', response['returned'][0])
+
+    def last_of_generic__spec_f10cf230(self, input_value: tuple[Any, ...]) -> Found:
+        response = self._call('mncs.core.sequences.v1', 'last_of_generic__spec_f10cf230', input_value)
+        return _decode('finite:Found', response['returned'][0])
+
+    def last_or(self, view: tuple[Any, ...], fallback: int) -> int:
+        response = self._call('mncs.core.sequences.v1', 'last_or', view, fallback)
+        return _decode('int', response['returned'][0])
+
+    def lineage_bindings_valid(self, test_result: ProviderTestResult, check_result: ProviderCheckResult, receipt: ReceiptContract, evidence: EvidenceManifestContract, proof: SelectedProofContract) -> bool:
+        response = self._call('mncs.debug.v1', 'lineage_bindings_valid', test_result, check_result, receipt, evidence, proof)
+        return _decode('bool', response['returned'][0])
+
+    def lineage_sufficient_for_pass(self, family_failed_value: bool, bindings_valid: bool, test_result: ProviderTestResult, check_result: ProviderCheckResult, receipt: ReceiptContract, proof: SelectedProofContract) -> bool:
+        response = self._call('mncs.debug.v1', 'lineage_sufficient_for_pass', family_failed_value, bindings_valid, test_result, check_result, receipt, proof)
+        return _decode('bool', response['returned'][0])
+
     def make_decision(self, input_value: DebugOutcome) -> Decision:
         response = self._call('mncs.debug.v1', 'make_decision', input_value)
         return _decode('record:Decision', response['returned'][0])
+
+    def make_found(self, input_value: int) -> Found:
+        response = self._call('mncs.core.sequences.v1', 'make_found', input_value)
+        return _decode('finite:Found', response['returned'][0])
 
     def make_sufficiency(self, status: SufficiencyStatus, next_operation: DiagnosticOperation, evidence_gap: EvidenceGap, sufficient: bool) -> SufficiencyDecision:
         response = self._call('mncs.debug.v1', 'make_sufficiency', status, next_operation, evidence_gap, sufficient)
@@ -667,6 +2855,30 @@ class Binding:
     def materialize_witness(self, input_value: WitnessMaterializationInput) -> WitnessMaterializationPlan:
         response = self._call('mncs.debug.v1', 'materialize_witness', input_value)
         return _decode('record:WitnessMaterializationPlan', response['returned'][0])
+
+    def max(self, input_value: Any) -> int:
+        response = self._call('mncs.core.sequences.v1', 'max', input_value)
+        return _decode('int', response['returned'][0])
+
+    def max4(self, input_value: tuple[Any, ...]) -> int:
+        response = self._call('mncs.core.sequences.v1', 'max4', input_value)
+        return _decode('int', response['returned'][0])
+
+    def max__spec_f10cf230(self, input_value: tuple[Any, ...]) -> int:
+        response = self._call('mncs.core.sequences.v1', 'max__spec_f10cf230', input_value)
+        return _decode('int', response['returned'][0])
+
+    def min(self, input_value: Any) -> int:
+        response = self._call('mncs.core.sequences.v1', 'min', input_value)
+        return _decode('int', response['returned'][0])
+
+    def min4(self, input_value: tuple[Any, ...]) -> int:
+        response = self._call('mncs.core.sequences.v1', 'min4', input_value)
+        return _decode('int', response['returned'][0])
+
+    def min__spec_f10cf230(self, input_value: tuple[Any, ...]) -> int:
+        response = self._call('mncs.core.sequences.v1', 'min__spec_f10cf230', input_value)
+        return _decode('int', response['returned'][0])
 
     def minimization_is_established(self, input_value: MinimizationStatus) -> bool:
         response = self._call('mncs.debug.v1', 'minimization_is_established', input_value)
@@ -680,6 +2892,10 @@ class Binding:
         response = self._call('mncs.debug.v1', 'missing', input_value)
         return _decode('bool', response['returned'][0])
 
+    def no_found(self) -> Found:
+        response = self._call('mncs.core.sequences.v1', 'no_found')
+        return _decode('finite:Found', response['returned'][0])
+
     def no_overflow(self, input_value: bool) -> bool:
         response = self._call('mncs.debug.v1', 'no_overflow', input_value)
         return _decode('bool', response['returned'][0])
@@ -688,9 +2904,69 @@ class Binding:
         response = self._call('mncs.debug.v1', 'operation_claim_observed', input_value)
         return _decode('bool', response['returned'][0])
 
+    def _pass(self) -> TestResult:
+        response = self._call('mncs.test.assertions.v1', 'pass')
+        return _decode('record:TestResult', response['returned'][0])
+
+    def prefix2(self, input_value: tuple[Any, ...]) -> tuple[Any, ...]:
+        response = self._call('mncs.core.sequences.v1', 'prefix2', input_value)
+        return _decode('view:int:4', response['returned'][0])
+
+    def project_test(self, input_value: TestResult) -> TestProjection:
+        response = self._call('mncs.test.assertions.v1', 'project_test', input_value)
+        return _decode('record:TestProjection', response['returned'][0])
+
     def provenance_step(self, current: EvidenceFacts, observation: ProvenanceObservation, include: bool) -> EvidenceFacts:
         response = self._call('mncs.debug.v1', 'provenance_step', current, observation, include)
         return _decode('record:EvidenceFacts', response['returned'][0])
+
+    def provider_check_result_identity_material(self, input_value: ProviderCheckResult) -> ProviderCheckResultIdentityMaterial:
+        response = self._call('mncs.test.provider_protocol.v1', 'provider_check_result_identity_material', input_value)
+        return _decode('record:ProviderCheckResultIdentityMaterial', response['returned'][0])
+
+    def provider_check_schema(self) -> bytes:
+        response = self._call('mncs.test.provider_protocol.v1', 'provider_check_schema')
+        return _decode('view:byte:64', response['returned'][0])
+
+    def provider_declaration_identity_material(self, input_value: ProviderDeclarationContract) -> ProviderDeclarationIdentityMaterial:
+        response = self._call('mncs.commons.family.contracts.v1', 'provider_declaration_identity_material', input_value)
+        return _decode('record:ProviderDeclarationIdentityMaterial', response['returned'][0])
+
+    def provider_declaration_schema(self) -> bytes:
+        response = self._call('mncs.commons.family.contracts.v1', 'provider_declaration_schema')
+        return _decode('view:byte:64', response['returned'][0])
+
+    def provider_failed(self, input_value: Verdict) -> bool:
+        response = self._call('mncs.debug.v1', 'provider_failed', input_value)
+        return _decode('bool', response['returned'][0])
+
+    def provider_passed(self, input_value: Verdict) -> bool:
+        response = self._call('mncs.debug.v1', 'provider_passed', input_value)
+        return _decode('bool', response['returned'][0])
+
+    def provider_request_schema(self) -> bytes:
+        response = self._call('mncs.test.provider_protocol.v1', 'provider_request_schema')
+        return _decode('view:byte:64', response['returned'][0])
+
+    def provider_result_schema(self) -> bytes:
+        response = self._call('mncs.test.provider_protocol.v1', 'provider_result_schema')
+        return _decode('view:byte:64', response['returned'][0])
+
+    def provider_test_result_identity_material(self, input_value: ProviderTestResult) -> ProviderTestResultIdentityMaterial:
+        response = self._call('mncs.test.provider_protocol.v1', 'provider_test_result_identity_material', input_value)
+        return _decode('record:ProviderTestResultIdentityMaterial', response['returned'][0])
+
+    def put4(self, base: tuple[Any, ...], index: int, value: int) -> tuple[Any, ...]:
+        response = self._call('mncs.core.sequences.v1', 'put4', base, index, value)
+        return _decode('sequence:int:', response['returned'][0])
+
+    def receipt_identity_material(self, input_value: ReceiptContract) -> ReceiptIdentityMaterial:
+        response = self._call('mncs.commons.family.contracts.v1', 'receipt_identity_material', input_value)
+        return _decode('record:ReceiptIdentityMaterial', response['returned'][0])
+
+    def receipt_schema(self) -> bytes:
+        response = self._call('mncs.commons.family.contracts.v1', 'receipt_schema')
+        return _decode('view:byte:64', response['returned'][0])
 
     def recognized_provenance(self, input_value: ProvenanceClaimKind) -> bool:
         response = self._call('mncs.debug.v1', 'recognized_provenance', input_value)
@@ -712,6 +2988,10 @@ class Binding:
         response = self._call('mncs.debug.v1', 'returned_outcome', input_value)
         return _decode('finite:DebugOutcome', response['returned'][0])
 
+    def reverse4(self, input_value: tuple[Any, ...]) -> tuple[Any, ...]:
+        response = self._call('mncs.core.sequences.v1', 'reverse4', input_value)
+        return _decode('sequence:int:', response['returned'][0])
+
     def run(self, input_value: ProcessRequest) -> ProcessResult:
         response = self._call('mncs.std.process.v1', 'run', input_value)
         return _decode('record:ProcessResult', response['returned'][0])
@@ -720,17 +3000,117 @@ class Binding:
         response = self._call('mncs.debug.v1', 'runtime_failure_outcome', input_value)
         return _decode('finite:DebugOutcome', response['returned'][0])
 
+    def scan_sorted(self, prev: int, ordered: bool, next_value: int) -> Scan:
+        response = self._call('mncs.core.sequences.v1', 'scan_sorted', prev, ordered, next_value)
+        return _decode('record:Scan', response['returned'][0])
+
+    def select_level(self, input_value: int) -> VerificationLevel:
+        response = self._call('mncs.commons.family.contracts.v1', 'select_level', input_value)
+        return _decode('finite:VerificationLevel', response['returned'][0])
+
+    def selected_proof_identity_material(self, input_value: SelectedProofContract) -> SelectedProofIdentityMaterial:
+        response = self._call('mncs.commons.family.contracts.v1', 'selected_proof_identity_material', input_value)
+        return _decode('record:SelectedProofIdentityMaterial', response['returned'][0])
+
+    def selected_proof_schema(self) -> bytes:
+        response = self._call('mncs.commons.family.contracts.v1', 'selected_proof_schema')
+        return _decode('view:byte:64', response['returned'][0])
+
+    def selection_contract(self, level_code: int, selected_test_identities: tuple[Any, ...], available_test_count: int, escalation_reasons: tuple[Any, ...], routing_scope: RoutingScope, selected_repositories: tuple[Any, ...], available_repository_count: int, semantic_graph_repository_count: int, registered_family_project_count: int, coverage_classified_project_count: int, unclassified_project_count: int) -> SelectionContract:
+        response = self._call('mncs.commons.family.contracts.v1', 'selection_contract', level_code, selected_test_identities, available_test_count, escalation_reasons, routing_scope, selected_repositories, available_repository_count, semantic_graph_repository_count, registered_family_project_count, coverage_classified_project_count, unclassified_project_count)
+        return _decode('record:SelectionContract', response['returned'][0])
+
+    def semantic_edge_identity_material(self, input_value: SemanticEdgeContract) -> SemanticEdgeIdentityMaterial:
+        response = self._call('mncs.commons.family.contracts.v1', 'semantic_edge_identity_material', input_value)
+        return _decode('record:SemanticEdgeIdentityMaterial', response['returned'][0])
+
+    def semantic_edge_schema(self) -> bytes:
+        response = self._call('mncs.commons.family.contracts.v1', 'semantic_edge_schema')
+        return _decode('view:byte:64', response['returned'][0])
+
+    def semantic_impact_identity_material(self, input_value: SemanticImpactContract) -> SemanticImpactIdentityMaterial:
+        response = self._call('mncs.commons.family.contracts.v1', 'semantic_impact_identity_material', input_value)
+        return _decode('record:SemanticImpactIdentityMaterial', response['returned'][0])
+
+    def semantic_impact_schema(self) -> bytes:
+        response = self._call('mncs.commons.family.contracts.v1', 'semantic_impact_schema')
+        return _decode('view:byte:64', response['returned'][0])
+
+    def skip(self, input_value: int) -> TestResult:
+        response = self._call('mncs.test.assertions.v1', 'skip', input_value)
+        return _decode('record:TestResult', response['returned'][0])
+
+    def start_scan(self, input_value: int) -> Scan:
+        response = self._call('mncs.core.sequences.v1', 'start_scan', input_value)
+        return _decode('record:Scan', response['returned'][0])
+
+    def starts_with2(self, xs: tuple[Any, ...], a: int, b: int) -> bool:
+        response = self._call('mncs.core.sequences.v1', 'starts_with2', xs, a, b)
+        return _decode('bool', response['returned'][0])
+
     def stop_for(self, input_value: DebugOutcome) -> bool:
         response = self._call('mncs.debug.v1', 'stop_for', input_value)
         return _decode('bool', response['returned'][0])
+
+    def success(self, input_value: bytes) -> ApplicationExit:
+        response = self._call('mncs.std.application.v1', 'success', input_value)
+        return _decode('record:ApplicationExit', response['returned'][0])
 
     def sufficiency(self, input_value: SufficiencyInput) -> SufficiencyDecision:
         response = self._call('mncs.debug.v1', 'sufficiency', input_value)
         return _decode('record:SufficiencyDecision', response['returned'][0])
 
+    def suffix2(self, input_value: tuple[Any, ...]) -> tuple[Any, ...]:
+        response = self._call('mncs.core.sequences.v1', 'suffix2', input_value)
+        return _decode('view:int:4', response['returned'][0])
+
+    def sum(self, input_value: Any) -> int:
+        response = self._call('mncs.core.sequences.v1', 'sum', input_value)
+        return _decode('int', response['returned'][0])
+
+    def sum4(self, a: int, b: int, c: int, d: int) -> int:
+        response = self._call('mncs.core.sequences.v1', 'sum4', a, b, c, d)
+        return _decode('int', response['returned'][0])
+
+    def sum__spec_f10cf230(self, input_value: tuple[Any, ...]) -> int:
+        response = self._call('mncs.core.sequences.v1', 'sum__spec_f10cf230', input_value)
+        return _decode('int', response['returned'][0])
+
+    def test_inventory_identity_material(self, input_value: TestInventoryContract) -> TestInventoryIdentityMaterial:
+        response = self._call('mncs.commons.family.contracts.v1', 'test_inventory_identity_material', input_value)
+        return _decode('record:TestInventoryIdentityMaterial', response['returned'][0])
+
+    def test_inventory_schema(self) -> bytes:
+        response = self._call('mncs.commons.family.contracts.v1', 'test_inventory_schema')
+        return _decode('view:byte:64', response['returned'][0])
+
+    def test_result_artifact_app(self, input_value: ApplicationContext) -> ApplicationExit:
+        response = self._call('mncs.debug.v1', 'test_result_artifact_app', input_value)
+        return _decode('record:ApplicationExit', response['returned'][0])
+
+    def test_result_identity_material(self, input_value: TestResultContract) -> TestResultIdentityMaterial:
+        response = self._call('mncs.commons.family.contracts.v1', 'test_result_identity_material', input_value)
+        return _decode('record:TestResultIdentityMaterial', response['returned'][0])
+
+    def test_result_schema(self) -> bytes:
+        response = self._call('mncs.commons.family.contracts.v1', 'test_result_schema')
+        return _decode('view:byte:64', response['returned'][0])
+
     def trace_step(self, current: EvidenceFacts, observation: TraceObservation, include: bool) -> EvidenceFacts:
         response = self._call('mncs.debug.v1', 'trace_step', current, observation, include)
         return _decode('record:EvidenceFacts', response['returned'][0])
+
+    def unsupported(self, input_value: int) -> TestResult:
+        response = self._call('mncs.test.assertions.v1', 'unsupported', input_value)
+        return _decode('record:TestResult', response['returned'][0])
+
+    def verification_plan_identity_material(self, input_value: VerificationPlan) -> VerificationPlanIdentityMaterial:
+        response = self._call('mncs.commons.family.contracts.v1', 'verification_plan_identity_material', input_value)
+        return _decode('record:VerificationPlanIdentityMaterial', response['returned'][0])
+
+    def verification_plan_schema(self) -> bytes:
+        response = self._call('mncs.commons.family.contracts.v1', 'verification_plan_schema')
+        return _decode('view:byte:64', response['returned'][0])
 
 
 BINDING_METADATA = {

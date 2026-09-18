@@ -23,6 +23,7 @@ from .analysis import (
     trace_slice,
 )
 from .capabilities import capability_document
+from .native_core import actions_failure_lineage
 from .protocol import (
     API_SCHEMA,
     CAPABILITIES_SCHEMA,
@@ -202,6 +203,20 @@ def _build_parser() -> argparse.ArgumentParser:
     import_test.add_argument("--output")
     import_test.add_argument("--format", choices=("json", "text"), default="json")
 
+    import_actions = sub.add_parser(
+        "import-actions",
+        help="ingest canonical Actions artifacts through native Debug",
+    )
+    import_actions.add_argument("provider_result")
+    import_actions.add_argument("provider_check")
+    import_actions.add_argument("execution_receipt")
+    import_actions.add_argument("evidence_manifest")
+    import_actions.add_argument("selected_proof")
+    import_actions.add_argument("--mncs")
+    import_actions.add_argument("--timeout", type=float, default=120.0)
+    import_actions.add_argument("--output")
+    import_actions.add_argument("--format", choices=("json", "text"), default="json")
+
     export = sub.add_parser("export", help="export a witness projection for another consumer")
     export.add_argument("witness")
     export.add_argument("--kind", choices=("witness", "trace", "inspection", "provenance"), default="witness")
@@ -234,6 +249,8 @@ def _text_summary(document: dict[str, Any]) -> str:
         return f"replay: {document.get('status')} ({document.get('guarantee')})"
     if schema == "mncs.debug-sufficiency/1":
         return f"diagnosis: {document.get('status')} (next={document.get('next_operation') or 'stop'})"
+    if schema == "mncs.debug.failure-lineage/1":
+        return f"failure lineage: {document.get('outcome')} (next={document.get('next_operation') or 'stop'})"
     return schema
 
 
@@ -524,6 +541,20 @@ def _cmd_import_test(args: argparse.Namespace) -> int:
     return EXIT_SUCCESS if witness.get("outcome", {}).get("failure_class") in {"success", "test_failure"} else EXIT_FAILURE
 
 
+def _cmd_import_actions(args: argparse.Namespace) -> int:
+    document = actions_failure_lineage(
+        mncs_path=_runtime(args),
+        provider_result=_path(args.provider_result),
+        provider_check=_path(args.provider_check),
+        receipt=_path(args.execution_receipt),
+        evidence_manifest=_path(args.evidence_manifest),
+        selected_proof=_path(args.selected_proof),
+        timeout_seconds=args.timeout,
+    )
+    _write(document, args.output, text=_text_summary(document) if args.format == "text" else None)
+    return EXIT_SUCCESS
+
+
 def _cmd_export(args: argparse.Namespace) -> int:
     witness = load_witness(_path(args.witness))
     if args.kind == "witness":
@@ -660,6 +691,7 @@ def main(argv: list[str] | None = None) -> int:
             "minimize": _cmd_minimize,
             "validate": _cmd_validate,
             "import-test": _cmd_import_test,
+            "import-actions": _cmd_import_actions,
             "export": _cmd_export,
             "api": _cmd_api,
             "provider": _cmd_api,

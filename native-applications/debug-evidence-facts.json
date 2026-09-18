@@ -5,9 +5,11 @@
   "module": "mncs.debug.v1",
   "entry_function": "evidence_facts_artifact_app",
   "profile": "0.18",
-  "interface_identity": "b23db47ea81d613806ee1100638dddf631afd826f8e08f51adb54ffaecb57328",
+  "interface_identity": "21a654308539dbf62638e9a0858609ac238a4dbcb25800e14d264e2f2fc2ff28",
   "libraries": [
-    "../../mncs-language/library"
+    "../../mncs-language/library",
+    "../../mncs-test",
+    "../../mncs-test/native"
   ],
   "environment_keys": [],
   "required_capabilities": [
