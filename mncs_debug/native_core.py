@@ -292,7 +292,6 @@ def reduce_evidence_facts(
     def fixed(values: list[Any], capacity: int, default: Any) -> tuple[tuple[Any, ...], int, bool]:
         overflow = len(values) > capacity
         bounded = list(values[:capacity])
-        bounded.extend(default for _ in range(capacity - len(bounded)))
         return tuple(bounded), min(len(values), capacity), overflow
 
     traces, trace_count, trace_overflow = fixed(
@@ -375,7 +374,6 @@ def diagnostic_loop(
     def fixed(values: list[Any], capacity: int, default: Any) -> tuple[tuple[Any, ...], int, bool]:
         overflow = len(values) > capacity
         bounded = list(values[:capacity])
-        bounded.extend(default for _ in range(capacity - len(bounded)))
         return tuple(bounded), min(len(values), capacity), overflow
 
     traces, trace_count, trace_overflow = fixed(
@@ -441,6 +439,10 @@ def diagnostic_loop(
         "next_operation": operation,
         "evidence_gap": gap,
         "bounded_steps": decision.bounded_steps,
+        "failure_anchor_present": decision.failure_anchor_present,
+        "operation_identity_present": decision.operation_identity_present,
+        "observation_complete": decision.observation_complete,
+        "provenance_binding_present": decision.provenance_binding_present,
         "replay_established": decision.replay_established,
         "replay_mismatch": decision.replay_mismatch,
         "minimization_established": decision.minimization_established,

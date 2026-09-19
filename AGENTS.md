@@ -6,6 +6,11 @@ Python files under `mncs_debug/` are deliberately narrow transport,
 filesystem, process-supervision, canonical-identity, and human-projection
 adapters.
 
+Establish bounded family context and current language/Commons identities before
+searching sibling implementations. Query language capability and Commons
+pressure knowledge before adding host semantic behavior; retain `UNKNOWN` when
+the native surface is incomplete.
+
 The adapter may:
 
 - launch an explicitly selected `mncs` executable;

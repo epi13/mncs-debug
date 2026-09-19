@@ -12,9 +12,9 @@ from typing import Any
 
 GENERATOR_VERSION = 'mncs-host-bindings/0.2'
 MODULE_IDENTITY = 'mncs.debug'
-INTERFACE_IDENTITY = '09184431409b21733cbb489ca067c72c27fce87f22c6de121e111a0395d9135a'
+INTERFACE_IDENTITY = 'c60f9eed6a06b2653a857b0960da710e81275b00279aae5f146e277d73d4d6a3'
 TYPED_CALL_SCHEMA_VERSION = 'mncs.typed-call/1'
-BINDING_CONTENT_IDENTITY = '5678a2d4dc1585cec00004dc8a8b488cd9f5c543a6128aa71c8349346a380e7d'
+BINDING_CONTENT_IDENTITY = '29d08512fd4df6b62286a793200fe4151d23c3a94236a94355bcd404d3ec82e1'
 
 class BindingError(RuntimeError):
     pass
@@ -752,8 +752,12 @@ class DiagnosticArtifact:
 class DiagnosticLoopDecision:
     bounded_steps: int
     evidence_gap: EvidenceGap
+    failure_anchor_present: bool
     minimization_established: bool
     next_operation: DiagnosticOperation
+    observation_complete: bool
+    operation_identity_present: bool
+    provenance_binding_present: bool
     replay_established: bool
     replay_mismatch: bool
     status: SufficiencyStatus
@@ -764,8 +768,12 @@ class DiagnosticLoopDecision:
         return {'record': {'type': self.__class__.__name__, 'fields': {
             'bounded_steps': _encode(self.bounded_steps),
             'evidence_gap': _encode(self.evidence_gap),
+            'failure_anchor_present': _encode(self.failure_anchor_present),
             'minimization_established': _encode(self.minimization_established),
             'next_operation': _encode(self.next_operation),
+            'observation_complete': _encode(self.observation_complete),
+            'operation_identity_present': _encode(self.operation_identity_present),
+            'provenance_binding_present': _encode(self.provenance_binding_present),
             'replay_established': _encode(self.replay_established),
             'replay_mismatch': _encode(self.replay_mismatch),
             'status': _encode(self.status),
@@ -778,14 +786,18 @@ class DiagnosticLoopDecision:
         fields = _fields(value)
         bounded_steps = _decode('int', fields.get('bounded_steps'))
         evidence_gap = _decode('finite:EvidenceGap', fields.get('evidence_gap'))
+        failure_anchor_present = _decode('bool', fields.get('failure_anchor_present'))
         minimization_established = _decode('bool', fields.get('minimization_established'))
         next_operation = _decode('finite:DiagnosticOperation', fields.get('next_operation'))
+        observation_complete = _decode('bool', fields.get('observation_complete'))
+        operation_identity_present = _decode('bool', fields.get('operation_identity_present'))
+        provenance_binding_present = _decode('bool', fields.get('provenance_binding_present'))
         replay_established = _decode('bool', fields.get('replay_established'))
         replay_mismatch = _decode('bool', fields.get('replay_mismatch'))
         status = _decode('finite:SufficiencyStatus', fields.get('status'))
         stop = _decode('bool', fields.get('stop'))
         sufficient = _decode('bool', fields.get('sufficient'))
-        return cls(bounded_steps=bounded_steps, evidence_gap=evidence_gap, minimization_established=minimization_established, next_operation=next_operation, replay_established=replay_established, replay_mismatch=replay_mismatch, status=status, stop=stop, sufficient=sufficient)
+        return cls(bounded_steps=bounded_steps, evidence_gap=evidence_gap, failure_anchor_present=failure_anchor_present, minimization_established=minimization_established, next_operation=next_operation, observation_complete=observation_complete, operation_identity_present=operation_identity_present, provenance_binding_present=provenance_binding_present, replay_established=replay_established, replay_mismatch=replay_mismatch, status=status, stop=stop, sufficient=sufficient)
 
 
 @dataclass(frozen=True)
@@ -900,18 +912,18 @@ class EvidenceFactsInput:
     @classmethod
     def from_host_value(cls, value: Any) -> EvidenceFactsInput:
         fields = _fields(value)
-        minimization = _decode('sequence:finite:MinimizationStatus:16', fields.get('minimization'))
+        minimization = _decode('sequence:finite:MinimizationStatus:', fields.get('minimization'))
         minimization_count = _decode('int', fields.get('minimization_count'))
         minimization_overflow = _decode('bool', fields.get('minimization_overflow'))
-        provenance = _decode('sequence:record:ProvenanceObservation:64', fields.get('provenance'))
+        provenance = _decode('sequence:record:ProvenanceObservation:', fields.get('provenance'))
         provenance_count = _decode('int', fields.get('provenance_count'))
         provenance_overflow = _decode('bool', fields.get('provenance_overflow'))
-        replay = _decode('sequence:finite:ReplayStatus:16', fields.get('replay'))
+        replay = _decode('sequence:finite:ReplayStatus:', fields.get('replay'))
         replay_count = _decode('int', fields.get('replay_count'))
         replay_overflow = _decode('bool', fields.get('replay_overflow'))
         trace_count = _decode('int', fields.get('trace_count'))
         trace_overflow = _decode('bool', fields.get('trace_overflow'))
-        traces = _decode('sequence:record:TraceObservation:16', fields.get('traces'))
+        traces = _decode('sequence:record:TraceObservation:', fields.get('traces'))
         return cls(minimization=minimization, minimization_count=minimization_count, minimization_overflow=minimization_overflow, provenance=provenance, provenance_count=provenance_count, provenance_overflow=provenance_overflow, replay=replay, replay_count=replay_count, replay_overflow=replay_overflow, trace_count=trace_count, trace_overflow=trace_overflow, traces=traces)
 
 

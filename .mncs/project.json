@@ -1,0 +1,30 @@
+{
+  "schema_version": "mncs-family.repository-manifest/v0alpha1",
+  "repository": "mncs-debug",
+  "revision": 1,
+  "manifest_location": "in-repository",
+  "authority": {
+    "note": "mncs-debug owns debugger semantics, witnesses, trace and capability truth; process/filesystem/transport code remains an explicit adapter boundary."
+  },
+  "organization": {
+    "layout": "mncs.repository-layout/1",
+    "surfaces": [
+      {"path": "mncs_debug/", "class": "canonical", "authority": "mncs-debug", "note": "Current debugger semantic implementation and adapters."},
+      {"path": "native/mncs/debug/", "class": "migration-shadow", "note": "Native bounded diagnostic loop advancing toward canonical authority."},
+      {"path": "mncs_debug/transport.py", "class": "host-boundary", "note": "Process, artifact, and protocol adaptation."},
+      {"path": "pressures/", "class": "reference", "authority": "MNCS-Commons", "note": "Local pressure evidence; Commons owns lifecycle."}
+    ]
+  },
+  "contracts": {
+    "provides": [
+      {"contract": "debugger", "version": "1", "kind": "structured-debugger", "stability": "experimental", "fingerprint_sources": ["mncs_debug/", "native/mncs/debug/", "schemas/debug-capabilities.schema.json"]}
+    ],
+    "consumes": [
+      {"contract": "mncs-test.test-provider", "envelope": {"op": "any"}, "required": false},
+      {"contract": "mncs-language.semantic-identity", "envelope": {"op": "any"}, "required": true}
+    ],
+    "tests": [
+      {"test": "debug-tests", "covers": ["debugger"], "obligation": "self", "command": {"argv": ["python3", "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"]}}
+    ]
+  }
+}

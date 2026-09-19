@@ -114,16 +114,18 @@ record ProvenanceObservation {
 }
 
 record EvidenceFactsInput {
-    traces: [TraceObservation; 16],
+    // Views preserve the same bounded capacities without forcing every call
+    // to materialize padding records that the reducer will never inspect.
+    traces: [TraceObservation; up_to 16],
     trace_count: u64,
     trace_overflow: bool,
-    provenance: [ProvenanceObservation; 64],
+    provenance: [ProvenanceObservation; up_to 64],
     provenance_count: u64,
     provenance_overflow: bool,
-    replay: [ReplayStatus; 16],
+    replay: [ReplayStatus; up_to 16],
     replay_count: u64,
     replay_overflow: bool,
-    minimization: [MinimizationStatus; 16],
+    minimization: [MinimizationStatus; up_to 16],
     minimization_count: u64,
     minimization_overflow: bool,
 }
@@ -157,6 +159,10 @@ record DiagnosticLoopDecision {
     sufficient: bool,
     stop: bool,
     bounded_steps: u64,
+    failure_anchor_present: bool,
+    operation_identity_present: bool,
+    observation_complete: bool,
+    provenance_binding_present: bool,
     replay_established: bool,
     replay_mismatch: bool,
     minimization_established: bool,
@@ -740,12 +746,13 @@ fn sufficiency(input: SufficiencyInput) -> (result: SufficiencyDecision) {
 
 fn diagnostic_loop(input: DiagnosticLoopInput) -> (result: DiagnosticLoopDecision) {
     let facts: EvidenceFacts = evidence_facts(input.evidence);
+    let replay_required: bool = input.replay_required && !facts.replay_established;
     let decision: SufficiencyDecision = sufficiency(SufficiencyInput {
         has_failure_identity: facts.failure_anchor_present,
         has_operation_identity: facts.operation_identity_present,
         observation_complete: facts.observation_complete,
         provenance_observed: facts.provenance_binding_present,
-        replay_required: input.replay_required,
+        replay_required: replay_required,
         minimization_required: input.minimization_required || facts.replay_mismatch,
     });
     let bounded_steps: u64 = bound_steps(input.step_budget);
@@ -757,6 +764,10 @@ fn diagnostic_loop(input: DiagnosticLoopInput) -> (result: DiagnosticLoopDecisio
         sufficient: decision.sufficient,
         stop: stop,
         bounded_steps: bounded_steps,
+        failure_anchor_present: facts.failure_anchor_present,
+        operation_identity_present: facts.operation_identity_present,
+        observation_complete: facts.observation_complete,
+        provenance_binding_present: facts.provenance_binding_present,
         replay_established: facts.replay_established,
         replay_mismatch: facts.replay_mismatch,
         minimization_established: facts.minimization_established,
