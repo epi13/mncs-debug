@@ -5,7 +5,7 @@
   "module": "mncs.debug",
   "entry_function": "diagnostic_artifact_app",
   "profile": "0.18",
-  "interface_identity": "0e22e8acc601c891ca703fe9f0b96c6915e44a5e31b96c43cdd7c532fc643ca4",
+  "interface_identity": "c60f9eed6a06b2653a857b0960da710e81275b00279aae5f146e277d73d4d6a3",
   "libraries": [
     "../../mncs-language/library",
     "../../MNCS-Commons/src/mncs_commons/mesh/mncs",

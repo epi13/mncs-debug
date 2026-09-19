@@ -226,52 +226,12 @@ def diagnostic_sufficiency(
     from .native_core import (
         NativeCoreError,
         diagnostic_loop as native_diagnostic_loop,
-        reduce_evidence_facts,
     )
 
     inspection = inspection if isinstance(inspection, dict) else inspect_witness(witness)
     outcome = witness.get("outcome") if isinstance(witness.get("outcome"), dict) else {}
     failure = outcome.get("failure") if isinstance(outcome.get("failure"), dict) else {}
     failure_identity = failure.get("identity")
-    test_failure = outcome.get("test_failure") if isinstance(outcome.get("test_failure"), dict) else {}
-    test_failure_anchor = isinstance(test_failure.get("failure"), dict) and bool(test_failure.get("failure"))
-    trace = witness.get("trace") if isinstance(witness.get("trace"), dict) else {}
-    events = trace.get("events") if isinstance(trace.get("events"), list) else []
-    operation_identity = failure_identity if isinstance(failure_identity, str) else None
-    has_operation_identity = bool(
-        operation_identity
-        and (
-            any(
-                isinstance(event, dict)
-                and (
-                    (
-                        isinstance(event.get("location"), dict)
-                        and isinstance(event["location"].get("runtime"), dict)
-                        and event["location"]["runtime"].get("operation") == operation_identity
-                    )
-                    or (
-                        isinstance(event.get("payload"), dict)
-                        and event["payload"].get("failure_identity") == operation_identity
-                    )
-                )
-                for event in events
-            )
-        )
-    )
-    # A concrete inspected frame/value/effect is a structural observation of
-    # the operation neighborhood.  Empty containers do not establish one.
-    has_operation_identity = has_operation_identity or any(
-        isinstance(frame, dict)
-        and (isinstance(frame.get("function_identity"), str) or isinstance(frame.get("runtime_identity"), str))
-        for frame in inspection.get("frames", [])
-        if isinstance(inspection.get("frames"), list)
-    )
-    has_operation_identity = has_operation_identity or any(
-        isinstance(item, dict)
-        and (isinstance(item.get("operation"), str) or isinstance(item.get("output_identity"), str))
-        for item in inspection.get("values", [])
-        if isinstance(inspection.get("values"), list)
-    )
     artifacts = [artifact for artifact in evidence_artifacts if isinstance(artifact, dict)]
     integration = witness.get("integration") if isinstance(witness.get("integration"), dict) else {}
     imported_result = integration.get("result")
@@ -284,23 +244,44 @@ def diagnostic_sufficiency(
     witness_observations = _witness_observations(witness, inspection)
     structural_artifact_facts["traces"].extend(witness_observations["traces"])
     structural_artifact_facts["provenance"].extend(witness_observations["provenance"])
-    evidence_reduction_error: str | None = None
+    # The native diagnostic reducer returns both the next operation and the
+    # evidence facts it used. Keeping those outputs together avoids compiling
+    # and executing the same MNCS reducer twice for every diagnosis request.
+    replay_requested = outcome.get("status") in {"budget_exhausted", "infrastructure_failure"}
     try:
+        decision = native_diagnostic_loop(
+            mncs_path=mncs_path,
+            trace_observations=structural_artifact_facts["traces"],
+            provenance_observations=structural_artifact_facts["provenance"],
+            replay_statuses=structural_artifact_facts["replay"],
+            minimization_statuses=structural_artifact_facts["minimization"],
+            replay_required=replay_requested,
+            step_budget=max(0, min(step_budget, 4)),
+            core_path=core_path,
+        )
         artifact_facts = {
-            **reduce_evidence_facts(
-                mncs_path=mncs_path,
-                trace_observations=structural_artifact_facts["traces"],
-                provenance_observations=structural_artifact_facts["provenance"],
-                replay_statuses=structural_artifact_facts["replay"],
-                minimization_statuses=structural_artifact_facts["minimization"],
-                core_path=core_path,
-            ),
-            "artifact_ids": structural_artifact_facts["artifact_ids"],
+            field: bool(decision.get(field, False))
+            for field in (
+                "failure_anchor_present",
+                "operation_identity_present",
+                "observation_complete",
+                "provenance_binding_present",
+                "replay_established",
+                "replay_mismatch",
+                "minimization_established",
+            )
         }
+        artifact_facts["artifact_ids"] = structural_artifact_facts["artifact_ids"]
     except NativeCoreError as error:
-        # A missing semantic reducer cannot create evidence. Preserve the
-        # artifact identities for diagnosis, but fail closed on every fact.
-        evidence_reduction_error = str(error)
+        # A missing native decision cannot create evidence. Preserve artifact
+        # identities for diagnosis, but fail closed on every fact.
+        decision = {
+            "status": "unsupported",
+            "sufficient": False,
+            "next_operation": None,
+            "evidence_gap": "native_sufficiency_unavailable",
+            "error": str(error),
+        }
         artifact_facts = {
             "failure_anchor_present": False,
             "operation_identity_present": False,
@@ -318,29 +299,7 @@ def diagnostic_sufficiency(
     has_operation_identity = artifact_facts["operation_identity_present"]
     observation_complete = artifact_facts["observation_complete"]
     provenance_observed = artifact_facts["provenance_binding_present"]
-    replay_required = (
-        outcome.get("status") in {"budget_exhausted", "infrastructure_failure"}
-        and not artifact_facts["replay_established"]
-    )
-    try:
-        decision = native_diagnostic_loop(
-            mncs_path=mncs_path,
-            trace_observations=structural_artifact_facts["traces"],
-            provenance_observations=structural_artifact_facts["provenance"],
-            replay_statuses=structural_artifact_facts["replay"],
-            minimization_statuses=structural_artifact_facts["minimization"],
-            replay_required=replay_required,
-            step_budget=max(0, min(step_budget, 4)),
-            core_path=core_path,
-        )
-    except NativeCoreError as error:
-        decision = {
-            "status": "unsupported",
-            "sufficient": False,
-            "next_operation": None,
-            "evidence_gap": "native_sufficiency_unavailable",
-            "error": str(error),
-        }
+    replay_required = replay_requested and not artifact_facts["replay_established"]
     material = {
         "witness_id": witness.get("witness_id"),
         "inspection_id": inspection.get("inspection_id"),
@@ -383,7 +342,7 @@ def diagnostic_sufficiency(
         "requested_projection": supplemental_operation,
         "authority": "mncs-debug",
         "native_execution": decision.get("native_execution"),
-        "error": decision.get("error") or evidence_reduction_error,
+        "error": decision.get("error"),
     }
 
 
@@ -758,9 +717,11 @@ def diagnostic_loop(
     status = final_decision.get("status") if stopping_reason == "sufficient" else (
         "unsupported" if stopping_reason == "unsupported" else "unknown"
     )
-    try:
-        facts = _native_artifact_facts(artifacts, mncs_path=mncs_path, core_path=core_path)
-    except NativeCoreError:
+    # ``diagnostic_sufficiency`` already returns the facts from the same
+    # native decision that selected the final operation. Reusing that bound
+    # result avoids a second compiler invocation after the loop terminates.
+    facts = final_decision.get("evidence_facts")
+    if not isinstance(facts, dict):
         facts = {
             "failure_anchor_present": False,
             "operation_identity_present": False,
