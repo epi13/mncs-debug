@@ -1,4 +1,4 @@
-"""Focused canary for the native bounded Debug planning slice."""
+"""Focused integration tests for the canonical native Debug planning slice."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _run_native_call(binary: str) -> tuple[dict, dict]:
-    """Use the generic MNCS application boundary for the Debug shadow call."""
+    """Use the generic MNCS application boundary for the native Debug core."""
 
     command = [
         binary,

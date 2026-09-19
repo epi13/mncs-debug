@@ -1,8 +1,8 @@
 {
   "schema_version": "mncs.native-userland-status/1",
   "repository_id": "mncs-debug",
-  "status": "native_shadow",
-  "canonical_entrypoint": "bin/mncs-debug",
+  "status": "native_canonical",
+  "canonical_entrypoint": "native/mncs/debug/debug.mncs",
   "native_sources": {
     "debug-core": "native/mncs/debug/debug.mncs",
     "artifact-facts-app": "native/mncs/debug/debug.mncs",
@@ -13,7 +13,7 @@
   "semantic_modules": [
     "native/mncs/debug/debug.mncs"
   ],
-  "native_shadow_slices": [
+  "native_semantic_slices": [
     "bounded witness materialization",
     "replay request planning",
     "typed evidence-facts artifact ingress and reduction",
@@ -27,16 +27,16 @@
     "actions-failure-lineage": "native-applications/debug-actions-failure.json",
     "diagnostic-artifact": "native-applications/debug-diagnostic.json"
   },
-  "next_migration_slice": "native ownership of artifact decoding and process-effect result interpretation; the bounded loop and escalation decision are already native",
+  "next_migration_slice": "move remaining artifact decoding and process-result normalization behind reusable native transport contracts; keep process/JSON/artifact publication adapters explicit",
   "runtime_effect_dogfood": {
-    "process": "tests/test_native_shadow.py invokes mncs process with explicit argv, bounded capture, and a deadline"
+    "process": "tests/test_native_core_integration.py invokes mncs process with explicit argv, bounded capture, and a deadline"
   },
   "host_paths": [
     {
       "path": "mncs_debug/cli.py",
       "role": "canonical transport and artifact orchestration",
-      "canonical": true,
-      "semantic_authority": "native bounded diagnostic loop; host remains transport and process-effect adapter"
+      "canonical": false,
+      "semantic_authority": "native outcome, sufficiency, escalation, and stop policy; host remains transport and process-effect adapter"
     },
     {
       "path": "mncs_debug/native_core.py",

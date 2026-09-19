@@ -1,17 +1,17 @@
 {
   "schema_version": "mncs.native-userland-allowlist/1",
   "repository_id": "mncs-debug",
-  "canonical_status": "native_shadow",
+  "canonical_status": "native_canonical",
   "entries": [
     {
       "path": "mncs_debug/cli.py",
       "class": "external_adapter",
-      "reason": "It retains CLI/artifact transport and invokes the native shadow through the generic launcher."
+      "reason": "It retains CLI/artifact transport and invokes the native semantic core through the generic launcher; it is not a decision authority."
     },
     {
       "path": "mncs_debug/native_core.py",
       "class": "compatibility_oracle",
-      "reason": "Python semantic core remains only for parity while the bounded materialization/planning slice migrates."
+      "reason": "Python decision helpers remain only as an explicit differential/compatibility oracle; the native core is canonical."
     },
     {
       "path": "mncs_debug/generated/debug.py",

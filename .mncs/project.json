@@ -1,7 +1,7 @@
 {
   "schema_version": "mncs-family.repository-manifest/v0alpha1",
   "repository": "mncs-debug",
-  "revision": 1,
+  "revision": 3,
   "manifest_location": "in-repository",
   "authority": {
     "note": "mncs-debug owns debugger semantics, witnesses, trace and capability truth; process/filesystem/transport code remains an explicit adapter boundary."
@@ -9,9 +9,10 @@
   "organization": {
     "layout": "mncs.repository-layout/1",
     "surfaces": [
-      {"path": "mncs_debug/", "class": "canonical", "authority": "mncs-debug", "note": "Current debugger semantic implementation and adapters."},
-      {"path": "native/mncs/debug/", "class": "migration-shadow", "note": "Native bounded diagnostic loop advancing toward canonical authority."},
-      {"path": "mncs_debug/transport.py", "class": "host-boundary", "note": "Process, artifact, and protocol adaptation."},
+      {"path": "mncs_debug/", "class": "compatibility", "authority": "mncs-debug", "note": "Host protocol, process, observation, and presentation adapters around the native debugger decision core; it is not a second semantic authority.", "classification": {"authority": "compatibility", "lifecycle": "active", "boundary_kind": "process", "semantic_role": "compatibility-adapter"}},
+      {"path": "mncs_debug/analysis.py", "class": "compatibility", "authority": "mncs-debug", "note": "Compatibility adapter: decodes bounded external artifacts and transports typed observations to the native decision core; it does not decide outcome or sufficiency.", "classification": {"authority": "compatibility", "lifecycle": "active", "boundary_kind": "process", "semantic_role": "compatibility-adapter"}},
+      {"path": "native/mncs/debug/", "class": "canonical", "authority": "mncs-debug", "note": "Native debugger outcome, evidence sufficiency, escalation, and stop policy are canonical here.", "classification": {"authority": "canonical", "lifecycle": "active", "boundary_kind": "none", "semantic_role": "canonical-semantic"}},
+      {"path": "mncs_debug/transport.py", "class": "host-boundary", "note": "Process, artifact, and protocol adaptation.", "classification": {"authority": "none", "lifecycle": "active", "boundary_kind": "process", "semantic_role": "platform-adapter"}},
       {"path": "pressures/", "class": "reference", "authority": "MNCS-Commons", "note": "Local pressure evidence; Commons owns lifecycle."}
     ]
   },
