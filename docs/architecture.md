@@ -119,10 +119,10 @@ operation:
    `execution-result/0.1`, `execution-observation/1`, validation, and (for a
    valid source program) `execution-source-map/1`;
 3. invoke `native/mncs/debug/debug.mncs` through `mncs execute` to classify the
-   explicit runtime status plus assertion/effect flags. The sufficiency call
-   uses the language-owned `mncs.typed-call/1` boundary with a named
-   `SufficiencyInput` record; the adapter no longer encodes six boolean facts
-   as positional integers;
+   explicit runtime status plus assertion/effect flags. The bounded diagnostic
+   loop uses the language-owned `mncs.typed-call/1` boundary with named
+   `DiagnosticLoopInput` and `DiagnosticLoopDecision` records; the adapter
+   no longer reimplements sufficiency or next-operation policy;
 4. project the native stream into debug events and a bounded trace; and
 5. embed bounded program/request inputs and process output evidence in a
    content-derived witness.

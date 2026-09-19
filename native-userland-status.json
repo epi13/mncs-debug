@@ -17,7 +17,8 @@
     "bounded witness materialization",
     "replay request planning",
     "typed evidence-facts artifact ingress and reduction",
-    "native failure-lineage to diagnostic-artifact production"
+    "native failure-lineage to diagnostic-artifact production",
+    "bounded diagnostic-loop sufficiency, replay-mismatch escalation, and next-operation selection"
   ],
   "native_application_descriptor": "native-applications/debug-test-result.json",
   "native_application_descriptors": {
@@ -26,7 +27,7 @@
     "actions-failure-lineage": "native-applications/debug-actions-failure.json",
     "diagnostic-artifact": "native-applications/debug-diagnostic.json"
   },
-  "next_migration_slice": "native witness/trace/provenance decoding and full bounded diagnostic-loop ownership after Actions failure-lineage ingress",
+  "next_migration_slice": "native ownership of artifact decoding and process-effect result interpretation; the bounded loop and escalation decision are already native",
   "runtime_effect_dogfood": {
     "process": "tests/test_native_shadow.py invokes mncs process with explicit argv, bounded capture, and a deadline"
   },
@@ -35,7 +36,7 @@
       "path": "mncs_debug/cli.py",
       "role": "canonical transport and artifact orchestration",
       "canonical": true,
-      "semantic_authority": "native shadow only for materialization/planning slice"
+      "semantic_authority": "native bounded diagnostic loop; host remains transport and process-effect adapter"
     },
     {
       "path": "mncs_debug/native_core.py",

@@ -214,6 +214,7 @@ def diagnostic_sufficiency(
     core_path: Path | None = None,
     evidence_artifacts: Iterable[dict[str, Any]] = (),
     supplemental_operation: str | None = None,
+    step_budget: int = 4,
 ) -> dict[str, Any]:
     """Return the native, typed decision for the next useful diagnostic query.
 
@@ -224,8 +225,8 @@ def diagnostic_sufficiency(
 
     from .native_core import (
         NativeCoreError,
+        diagnostic_loop as native_diagnostic_loop,
         reduce_evidence_facts,
-        sufficiency as native_sufficiency,
     )
 
     inspection = inspection if isinstance(inspection, dict) else inspect_witness(witness)
@@ -306,6 +307,7 @@ def diagnostic_sufficiency(
             "observation_complete": False,
             "provenance_binding_present": False,
             "replay_established": False,
+            "replay_mismatch": False,
             "minimization_established": False,
             "artifact_ids": structural_artifact_facts["artifact_ids"],
         }
@@ -321,13 +323,14 @@ def diagnostic_sufficiency(
         and not artifact_facts["replay_established"]
     )
     try:
-        decision = native_sufficiency(
+        decision = native_diagnostic_loop(
             mncs_path=mncs_path,
-            has_failure_identity=has_failure_anchor,
-            has_operation_identity=has_operation_identity,
-            observation_complete=observation_complete,
-            provenance_observed=provenance_observed,
+            trace_observations=structural_artifact_facts["traces"],
+            provenance_observations=structural_artifact_facts["provenance"],
+            replay_statuses=structural_artifact_facts["replay"],
+            minimization_statuses=structural_artifact_facts["minimization"],
             replay_required=replay_required,
+            step_budget=max(0, min(step_budget, 4)),
             core_path=core_path,
         )
     except NativeCoreError as error:
@@ -354,6 +357,13 @@ def diagnostic_sufficiency(
         "sufficient": decision["sufficient"],
         "next_operation": decision.get("next_operation"),
         "evidence_gap": decision.get("evidence_gap"),
+        "stop": decision.get("stop"),
+        "bounded_steps": decision.get("bounded_steps"),
+        "replay_mismatch": decision.get("replay_mismatch", False),
+        "replay_established": decision.get("replay_established", artifact_facts["replay_established"]),
+        "minimization_established": decision.get(
+            "minimization_established", artifact_facts["minimization_established"]
+        ),
         "inputs": {
             "failure_identity": failure_identity,
             "failure_anchor_present": has_failure_anchor,
@@ -653,6 +663,7 @@ def diagnostic_loop(
             mncs_path=mncs_path,
             core_path=core_path,
             evidence_artifacts=artifacts,
+            step_budget=max_steps - index,
         )
         final_decision = decision
         step: dict[str, Any] = {"index": index, "sufficiency": decision}
@@ -662,6 +673,14 @@ def diagnostic_loop(
             break
         if decision.get("status") == "unsupported":
             stopping_reason = "unsupported"
+            steps.append(step)
+            break
+        if decision.get("stop"):
+            stopping_reason = (
+                "sufficient"
+                if decision.get("sufficient")
+                else "budget_exhausted"
+            )
             steps.append(step)
             break
         operation = decision.get("next_operation")
@@ -709,6 +728,7 @@ def diagnostic_loop(
                 "observation_complete": False,
                 "provenance_binding_present": False,
                 "replay_established": False,
+                "replay_mismatch": False,
                 "minimization_established": False,
             }
         step["evidence_increased"] = any(
@@ -747,6 +767,7 @@ def diagnostic_loop(
             "observation_complete": False,
             "provenance_binding_present": False,
             "replay_established": False,
+            "replay_mismatch": False,
             "minimization_established": False,
             "artifact_ids": _evidence_facts_from_artifacts(artifacts)["artifact_ids"],
         }

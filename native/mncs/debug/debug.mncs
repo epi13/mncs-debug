@@ -134,6 +134,31 @@ record EvidenceFacts {
     observation_complete: bool,
     provenance_binding_present: bool,
     replay_established: bool,
+    replay_mismatch: bool,
+    minimization_established: bool,
+}
+
+// The bounded diagnostic loop is a native reducer over observations.  The
+// launcher may acquire a trace, provenance, replay, or minimization artifact
+// between calls, but it does not decide which operation is next or whether
+// the evidence is sufficient.  ``step_budget`` is intentionally bounded so
+// a host cannot turn this semantic surface into an unbounded policy loop.
+record DiagnosticLoopInput {
+    evidence: EvidenceFactsInput,
+    replay_required: bool,
+    minimization_required: bool,
+    step_budget: u64,
+}
+
+record DiagnosticLoopDecision {
+    status: SufficiencyStatus,
+    next_operation: DiagnosticOperation,
+    evidence_gap: EvidenceGap,
+    sufficient: bool,
+    stop: bool,
+    bounded_steps: u64,
+    replay_established: bool,
+    replay_mismatch: bool,
     minimization_established: bool,
 }
 
@@ -541,6 +566,7 @@ fn evidence_facts(input: EvidenceFactsInput) -> (result: EvidenceFacts) {
         observation_complete: false,
         provenance_binding_present: false,
         replay_established: false,
+        replay_mismatch: false,
         minimization_established: false,
     };
     iterate t over input.traces carrying trace_facts: EvidenceFacts = initial {
@@ -643,7 +669,11 @@ fn operation_claim_observed(observation: ProvenanceObservation) -> (result: bool
 fn replay_step(current: EvidenceFacts, status: ReplayStatus, include: bool) -> (result: EvidenceFacts) {
     if include {
         let established: bool = replay_is_established(status);
-        return EvidenceFacts { ..current, replay_established: current.replay_established || established };
+        return EvidenceFacts {
+            ..current,
+            replay_established: current.replay_established || established,
+            replay_mismatch: current.replay_mismatch || replay_is_mismatch(status)
+        };
     }
     return current;
 }
@@ -663,6 +693,16 @@ fn replay_is_established(status: ReplayStatus) -> (result: bool) {
         ReplayStatus.Unknown => false,
         ReplayStatus.Available => false,
         ReplayStatus.Mismatch => false,
+    };
+}
+
+fn replay_is_mismatch(status: ReplayStatus) -> (result: bool) {
+    return match status {
+        ReplayStatus.Mismatch => true,
+        ReplayStatus.Unknown => false,
+        ReplayStatus.Available => false,
+        ReplayStatus.Replayed => false,
+        ReplayStatus.Reproduced => false,
     };
 }
 
@@ -696,6 +736,36 @@ fn sufficiency(input: SufficiencyInput) -> (result: SufficiencyDecision) {
         return make_sufficiency(SufficiencyStatus.Ambiguous, DiagnosticOperation.Minimization, EvidenceGap.Minimization, false);
     }
     return make_sufficiency(SufficiencyStatus.Sufficient, DiagnosticOperation.NoOperation, EvidenceGap.NoGap, true);
+}
+
+fn diagnostic_loop(input: DiagnosticLoopInput) -> (result: DiagnosticLoopDecision) {
+    let facts: EvidenceFacts = evidence_facts(input.evidence);
+    let decision: SufficiencyDecision = sufficiency(SufficiencyInput {
+        has_failure_identity: facts.failure_anchor_present,
+        has_operation_identity: facts.operation_identity_present,
+        observation_complete: facts.observation_complete,
+        provenance_observed: facts.provenance_binding_present,
+        replay_required: input.replay_required,
+        minimization_required: input.minimization_required || facts.replay_mismatch,
+    });
+    let bounded_steps: u64 = bound_steps(input.step_budget);
+    let stop: bool = decision.sufficient || bounded_steps == 0;
+    return DiagnosticLoopDecision {
+        status: decision.status,
+        next_operation: decision.next_operation,
+        evidence_gap: decision.evidence_gap,
+        sufficient: decision.sufficient,
+        stop: stop,
+        bounded_steps: bounded_steps,
+        replay_established: facts.replay_established,
+        replay_mismatch: facts.replay_mismatch,
+        minimization_established: facts.minimization_established,
+    };
+}
+
+fn bound_steps(value: u64) -> (result: u64) {
+    if value > 4 { return 4; }
+    return value;
 }
 
 fn missing(value: bool) -> (result: bool) {

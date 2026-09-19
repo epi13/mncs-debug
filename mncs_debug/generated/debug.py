@@ -12,9 +12,9 @@ from typing import Any
 
 GENERATOR_VERSION = 'mncs-host-bindings/0.2'
 MODULE_IDENTITY = 'mncs.debug'
-INTERFACE_IDENTITY = '0e22e8acc601c891ca703fe9f0b96c6915e44a5e31b96c43cdd7c532fc643ca4'
+INTERFACE_IDENTITY = '09184431409b21733cbb489ca067c72c27fce87f22c6de121e111a0395d9135a'
 TYPED_CALL_SCHEMA_VERSION = 'mncs.typed-call/1'
-BINDING_CONTENT_IDENTITY = 'ea64bcbc53d45c5cb257e402ce1df67b99e09d7849befeb018f1a121b378061a'
+BINDING_CONTENT_IDENTITY = '5678a2d4dc1585cec00004dc8a8b488cd9f5c543a6128aa71c8349346a380e7d'
 
 class BindingError(RuntimeError):
     pass
@@ -749,6 +749,71 @@ class DiagnosticArtifact:
 
 
 @dataclass(frozen=True)
+class DiagnosticLoopDecision:
+    bounded_steps: int
+    evidence_gap: EvidenceGap
+    minimization_established: bool
+    next_operation: DiagnosticOperation
+    replay_established: bool
+    replay_mismatch: bool
+    status: SufficiencyStatus
+    stop: bool
+    sufficient: bool
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'bounded_steps': _encode(self.bounded_steps),
+            'evidence_gap': _encode(self.evidence_gap),
+            'minimization_established': _encode(self.minimization_established),
+            'next_operation': _encode(self.next_operation),
+            'replay_established': _encode(self.replay_established),
+            'replay_mismatch': _encode(self.replay_mismatch),
+            'status': _encode(self.status),
+            'stop': _encode(self.stop),
+            'sufficient': _encode(self.sufficient),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> DiagnosticLoopDecision:
+        fields = _fields(value)
+        bounded_steps = _decode('int', fields.get('bounded_steps'))
+        evidence_gap = _decode('finite:EvidenceGap', fields.get('evidence_gap'))
+        minimization_established = _decode('bool', fields.get('minimization_established'))
+        next_operation = _decode('finite:DiagnosticOperation', fields.get('next_operation'))
+        replay_established = _decode('bool', fields.get('replay_established'))
+        replay_mismatch = _decode('bool', fields.get('replay_mismatch'))
+        status = _decode('finite:SufficiencyStatus', fields.get('status'))
+        stop = _decode('bool', fields.get('stop'))
+        sufficient = _decode('bool', fields.get('sufficient'))
+        return cls(bounded_steps=bounded_steps, evidence_gap=evidence_gap, minimization_established=minimization_established, next_operation=next_operation, replay_established=replay_established, replay_mismatch=replay_mismatch, status=status, stop=stop, sufficient=sufficient)
+
+
+@dataclass(frozen=True)
+class DiagnosticLoopInput:
+    evidence: EvidenceFactsInput
+    minimization_required: bool
+    replay_required: bool
+    step_budget: int
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'evidence': _encode(self.evidence),
+            'minimization_required': _encode(self.minimization_required),
+            'replay_required': _encode(self.replay_required),
+            'step_budget': _encode(self.step_budget),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> DiagnosticLoopInput:
+        fields = _fields(value)
+        evidence = _decode('record:EvidenceFactsInput', fields.get('evidence'))
+        minimization_required = _decode('bool', fields.get('minimization_required'))
+        replay_required = _decode('bool', fields.get('replay_required'))
+        step_budget = _decode('int', fields.get('step_budget'))
+        return cls(evidence=evidence, minimization_required=minimization_required, replay_required=replay_required, step_budget=step_budget)
+
+
+@dataclass(frozen=True)
 class EnvironmentEntry:
     key: bytes
     value: bytes
@@ -775,6 +840,7 @@ class EvidenceFacts:
     operation_identity_present: bool
     provenance_binding_present: bool
     replay_established: bool
+    replay_mismatch: bool
 
     def to_host_value(self) -> dict[str, Any]:
         return {'record': {'type': self.__class__.__name__, 'fields': {
@@ -784,6 +850,7 @@ class EvidenceFacts:
             'operation_identity_present': _encode(self.operation_identity_present),
             'provenance_binding_present': _encode(self.provenance_binding_present),
             'replay_established': _encode(self.replay_established),
+            'replay_mismatch': _encode(self.replay_mismatch),
         }}}
 
     @classmethod
@@ -795,7 +862,8 @@ class EvidenceFacts:
         operation_identity_present = _decode('bool', fields.get('operation_identity_present'))
         provenance_binding_present = _decode('bool', fields.get('provenance_binding_present'))
         replay_established = _decode('bool', fields.get('replay_established'))
-        return cls(failure_anchor_present=failure_anchor_present, minimization_established=minimization_established, observation_complete=observation_complete, operation_identity_present=operation_identity_present, provenance_binding_present=provenance_binding_present, replay_established=replay_established)
+        replay_mismatch = _decode('bool', fields.get('replay_mismatch'))
+        return cls(failure_anchor_present=failure_anchor_present, minimization_established=minimization_established, observation_complete=observation_complete, operation_identity_present=operation_identity_present, provenance_binding_present=provenance_binding_present, replay_established=replay_established, replay_mismatch=replay_mismatch)
 
 
 @dataclass(frozen=True)
@@ -2608,6 +2676,10 @@ class Binding:
         response = self._call('mncs.core.sequences.v1', 'any_true__spec_f10cf230', input_value)
         return _decode('bool', response['returned'][0])
 
+    def bound_steps(self, input_value: int) -> int:
+        response = self._call('mncs.debug', 'bound_steps', input_value)
+        return _decode('int', response['returned'][0])
+
     def bounded_count(self, value: int, limit: int) -> int:
         response = self._call('mncs.debug', 'bounded_count', value, limit)
         return _decode('int', response['returned'][0])
@@ -2755,6 +2827,10 @@ class Binding:
     def diagnostic_artifact_schema(self) -> bytes:
         response = self._call('mncs.debug', 'diagnostic_artifact_schema')
         return _decode('view:byte:64', response['returned'][0])
+
+    def diagnostic_loop(self, input_value: DiagnosticLoopInput) -> DiagnosticLoopDecision:
+        response = self._call('mncs.debug', 'diagnostic_loop', input_value)
+        return _decode('record:DiagnosticLoopDecision', response['returned'][0])
 
     def equals(self, left: Any, right: Any) -> bool:
         response = self._call('mncs.core.sequences.v1', 'equals', left, right)
@@ -3046,6 +3122,10 @@ class Binding:
 
     def replay_is_established(self, input_value: ReplayStatus) -> bool:
         response = self._call('mncs.debug', 'replay_is_established', input_value)
+        return _decode('bool', response['returned'][0])
+
+    def replay_is_mismatch(self, input_value: ReplayStatus) -> bool:
+        response = self._call('mncs.debug', 'replay_is_mismatch', input_value)
         return _decode('bool', response['returned'][0])
 
     def replay_process(self, input_value: ProcessRequest) -> ProcessResult:

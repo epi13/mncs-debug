@@ -19,6 +19,7 @@ from typing import Any
 from .generated.debug import (
     Binding,
     BindingError,
+    DiagnosticLoopInput,
     DebugOutcome,
     DecisionInput,
     DiagnosticOperation,
@@ -103,7 +104,11 @@ def _binding(
         str(mncs_path),
         core,
         libraries=tuple(_libraries(core)),
-        timeout=max(timeout_seconds, 60.0),
+        # A native application call compiles the current MNCS source before
+        # executing it.  Keep the caller's semantic/process deadline intact
+        # inside the typed request, but give the compiler boundary enough
+        # time for a clean cold invocation on the supported backends.
+        timeout=max(timeout_seconds, 120.0),
     )
 
 
@@ -164,7 +169,7 @@ def run_process(
             stderr=subprocess.PIPE,
             text=True,
             check=False,
-            timeout=timeout_seconds,
+            timeout=max(timeout_seconds, 120.0),
         )
     except (OSError, subprocess.SubprocessError) as exc:
         raise NativeCoreError(f"native Debug process effect failed to start: {exc}") from exc
@@ -342,7 +347,104 @@ def reduce_evidence_facts(
         "observation_complete": facts.observation_complete,
         "provenance_binding_present": facts.provenance_binding_present,
         "replay_established": facts.replay_established,
+        "replay_mismatch": facts.replay_mismatch,
         "minimization_established": facts.minimization_established,
+    }
+
+
+def diagnostic_loop(
+    *,
+    mncs_path: Path,
+    trace_observations: list[TraceObservation],
+    provenance_observations: list[ProvenanceObservation],
+    replay_statuses: list[ReplayStatus],
+    minimization_statuses: list[MinimizationStatus],
+    replay_required: bool = False,
+    minimization_required: bool = False,
+    step_budget: int = 4,
+    core_path: Path | None = None,
+    timeout_seconds: float = 10.0,
+) -> dict[str, Any]:
+    """Ask the native bounded diagnostic loop for the next operation.
+
+    The host owns only bounded artifact decoding and effect execution.  The
+    reducer decides sufficiency, replay/mismatch escalation, and the next
+    diagnostic operation from the typed observations supplied here.
+    """
+
+    def fixed(values: list[Any], capacity: int, default: Any) -> tuple[tuple[Any, ...], int, bool]:
+        overflow = len(values) > capacity
+        bounded = list(values[:capacity])
+        bounded.extend(default for _ in range(capacity - len(bounded)))
+        return tuple(bounded), min(len(values), capacity), overflow
+
+    traces, trace_count, trace_overflow = fixed(
+        trace_observations,
+        16,
+        TraceObservation(
+            completeness=TraceCompleteness.Unknown,
+            failure_anchor=EvidencePresence.Absent,
+            operation_identity=EvidencePresence.Absent,
+        ),
+    )
+    provenance, provenance_count, provenance_overflow = fixed(
+        provenance_observations,
+        64,
+        ProvenanceObservation(
+            kind=ProvenanceClaimKind.Other,
+            status=ProvenanceClaimStatus.Unknown,
+        ),
+    )
+    replay, replay_count, replay_overflow = fixed(
+        replay_statuses, 16, ReplayStatus.Unknown
+    )
+    minimization, minimization_count, minimization_overflow = fixed(
+        minimization_statuses, 16, MinimizationStatus.Unknown
+    )
+    binding = _binding(
+        mncs_path=mncs_path, core_path=core_path, timeout_seconds=timeout_seconds
+    )
+    try:
+        decision = binding.diagnostic_loop(
+            DiagnosticLoopInput(
+                evidence=EvidenceFactsInput(
+                    traces=traces,
+                    trace_count=trace_count,
+                    trace_overflow=trace_overflow,
+                    provenance=provenance,
+                    provenance_count=provenance_count,
+                    provenance_overflow=provenance_overflow,
+                    replay=replay,
+                    replay_count=replay_count,
+                    replay_overflow=replay_overflow,
+                    minimization=minimization,
+                    minimization_count=minimization_count,
+                    minimization_overflow=minimization_overflow,
+                ),
+                replay_required=replay_required,
+                minimization_required=minimization_required,
+                step_budget=max(0, step_budget),
+            )
+        )
+    except (BindingError, ValueError, TypeError) as exc:
+        raise NativeCoreError(f"native debug diagnostic loop failed: {exc}") from exc
+    operation = (
+        None
+        if decision.next_operation is DiagnosticOperation.NoOperation
+        else _label(decision.next_operation)
+    )
+    gap = None if decision.evidence_gap is EvidenceGap.NoGap else _label(decision.evidence_gap)
+    return {
+        "status": _label_like(decision.status.value),
+        "sufficient": decision.sufficient,
+        "stop": decision.stop,
+        "next_operation": operation,
+        "evidence_gap": gap,
+        "bounded_steps": decision.bounded_steps,
+        "replay_established": decision.replay_established,
+        "replay_mismatch": decision.replay_mismatch,
+        "minimization_established": decision.minimization_established,
+        "native_execution": binding.last_execution,
     }
 
 
