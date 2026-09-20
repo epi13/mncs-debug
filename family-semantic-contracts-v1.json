@@ -2,7 +2,14 @@
   "schema_version": "commons.mncs.semantic-contract-declarations/v1",
   "repository_id": "mncs-debug",
   "revision": "1",
-  "provides": [],
+  "provides": [
+    {
+      "contract_identity": "mncs.debugger/1",
+      "contract_revision": "1",
+      "exported_identity": "mncs-debug:debugger",
+      "evidence": "native/mncs/debug/debug.mncs"
+    }
+  ],
   "consumes": [
     {
       "contract_identity": "mncs.execution-observation/1",
