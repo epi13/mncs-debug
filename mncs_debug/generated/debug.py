@@ -12,9 +12,9 @@ from typing import Any
 
 GENERATOR_VERSION = 'mncs-host-bindings/0.2'
 MODULE_IDENTITY = 'mncs.debug'
-INTERFACE_IDENTITY = 'c60f9eed6a06b2653a857b0960da710e81275b00279aae5f146e277d73d4d6a3'
+INTERFACE_IDENTITY = 'fab70091df7ef5642642b3dda6fec93c41ee430ddb304356b48bbd88fd9bf20e'
 TYPED_CALL_SCHEMA_VERSION = 'mncs.typed-call/1'
-BINDING_CONTENT_IDENTITY = '29d08512fd4df6b62286a793200fe4151d23c3a94236a94355bcd404d3ec82e1'
+BINDING_CONTENT_IDENTITY = '9095fabb3368141b5c31c4abcc4a36660fa8d11b2408b424190fcacf73187b5b'
 
 class BindingError(RuntimeError):
     pass
@@ -1991,10 +1991,13 @@ class SemanticEdgeIdentityMaterial:
 @dataclass(frozen=True)
 class SemanticImpactContract:
     affected_count: int
+    change_kinds: tuple[Any, ...]
+    classification_schema_version: bytes
     complete: bool
     cross_repository: CrossRepositoryContract
     direct_dependents: tuple[Any, ...]
     graph_identity: bytes
+    guarantee_domains: tuple[Any, ...]
     limitations: tuple[Any, ...]
     risk_flags: tuple[Any, ...]
     roots: tuple[Any, ...]
@@ -2003,10 +2006,13 @@ class SemanticImpactContract:
     def to_host_value(self) -> dict[str, Any]:
         return {'record': {'type': self.__class__.__name__, 'fields': {
             'affected_count': _encode(self.affected_count),
+            'change_kinds': _encode(self.change_kinds),
+            'classification_schema_version': _encode(self.classification_schema_version),
             'complete': _encode(self.complete),
             'cross_repository': _encode(self.cross_repository),
             'direct_dependents': _encode(self.direct_dependents),
             'graph_identity': _encode(self.graph_identity),
+            'guarantee_domains': _encode(self.guarantee_domains),
             'limitations': _encode(self.limitations),
             'risk_flags': _encode(self.risk_flags),
             'roots': _encode(self.roots),
@@ -2017,24 +2023,30 @@ class SemanticImpactContract:
     def from_host_value(cls, value: Any) -> SemanticImpactContract:
         fields = _fields(value)
         affected_count = _decode('int', fields.get('affected_count'))
+        change_kinds = _decode('sequence:sequence:byte::', fields.get('change_kinds'))
+        classification_schema_version = _decode('sequence:byte:', fields.get('classification_schema_version'))
         complete = _decode('bool', fields.get('complete'))
         cross_repository = _decode('record:CrossRepositoryContract', fields.get('cross_repository'))
         direct_dependents = _decode('sequence:sequence:byte::', fields.get('direct_dependents'))
         graph_identity = _decode('sequence:byte:32', fields.get('graph_identity'))
+        guarantee_domains = _decode('sequence:sequence:byte::', fields.get('guarantee_domains'))
         limitations = _decode('sequence:sequence:byte::', fields.get('limitations'))
         risk_flags = _decode('sequence:sequence:byte::', fields.get('risk_flags'))
         roots = _decode('sequence:sequence:byte::', fields.get('roots'))
         test_identities = _decode('sequence:sequence:byte::', fields.get('test_identities'))
-        return cls(affected_count=affected_count, complete=complete, cross_repository=cross_repository, direct_dependents=direct_dependents, graph_identity=graph_identity, limitations=limitations, risk_flags=risk_flags, roots=roots, test_identities=test_identities)
+        return cls(affected_count=affected_count, change_kinds=change_kinds, classification_schema_version=classification_schema_version, complete=complete, cross_repository=cross_repository, direct_dependents=direct_dependents, graph_identity=graph_identity, guarantee_domains=guarantee_domains, limitations=limitations, risk_flags=risk_flags, roots=roots, test_identities=test_identities)
 
 
 @dataclass(frozen=True)
 class SemanticImpactIdentityMaterial:
     affected_count: int
+    change_kinds: tuple[Any, ...]
+    classification_schema_version: bytes
     complete: bool
     cross_repository: CrossRepositoryContract
     direct_dependents: tuple[Any, ...]
     graph_identity: bytes
+    guarantee_domains: tuple[Any, ...]
     limitations: tuple[Any, ...]
     risk_flags: tuple[Any, ...]
     roots: tuple[Any, ...]
@@ -2043,10 +2055,13 @@ class SemanticImpactIdentityMaterial:
     def to_host_value(self) -> dict[str, Any]:
         return {'record': {'type': self.__class__.__name__, 'fields': {
             'affected_count': _encode(self.affected_count),
+            'change_kinds': _encode(self.change_kinds),
+            'classification_schema_version': _encode(self.classification_schema_version),
             'complete': _encode(self.complete),
             'cross_repository': _encode(self.cross_repository),
             'direct_dependents': _encode(self.direct_dependents),
             'graph_identity': _encode(self.graph_identity),
+            'guarantee_domains': _encode(self.guarantee_domains),
             'limitations': _encode(self.limitations),
             'risk_flags': _encode(self.risk_flags),
             'roots': _encode(self.roots),
@@ -2057,15 +2072,18 @@ class SemanticImpactIdentityMaterial:
     def from_host_value(cls, value: Any) -> SemanticImpactIdentityMaterial:
         fields = _fields(value)
         affected_count = _decode('int', fields.get('affected_count'))
+        change_kinds = _decode('sequence:sequence:byte::', fields.get('change_kinds'))
+        classification_schema_version = _decode('sequence:byte:', fields.get('classification_schema_version'))
         complete = _decode('bool', fields.get('complete'))
         cross_repository = _decode('record:CrossRepositoryContract', fields.get('cross_repository'))
         direct_dependents = _decode('sequence:sequence:byte::', fields.get('direct_dependents'))
         graph_identity = _decode('sequence:byte:32', fields.get('graph_identity'))
+        guarantee_domains = _decode('sequence:sequence:byte::', fields.get('guarantee_domains'))
         limitations = _decode('sequence:sequence:byte::', fields.get('limitations'))
         risk_flags = _decode('sequence:sequence:byte::', fields.get('risk_flags'))
         roots = _decode('sequence:sequence:byte::', fields.get('roots'))
         test_identities = _decode('sequence:sequence:byte::', fields.get('test_identities'))
-        return cls(affected_count=affected_count, complete=complete, cross_repository=cross_repository, direct_dependents=direct_dependents, graph_identity=graph_identity, limitations=limitations, risk_flags=risk_flags, roots=roots, test_identities=test_identities)
+        return cls(affected_count=affected_count, change_kinds=change_kinds, classification_schema_version=classification_schema_version, complete=complete, cross_repository=cross_repository, direct_dependents=direct_dependents, graph_identity=graph_identity, guarantee_domains=guarantee_domains, limitations=limitations, risk_flags=risk_flags, roots=roots, test_identities=test_identities)
 
 
 @dataclass(frozen=True)

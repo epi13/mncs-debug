@@ -1,0 +1,27 @@
+{
+  "schema_version": "mncs-family.verification-obligation-inventory/v1",
+  "repository": "mncs-debug",
+  "revision": 1,
+  "obligations": [
+    {
+      "identity": "mncs-debug.failure-evidence.sufficiency",
+      "title": "Debug expands only the selected failing execution until evidence is sufficient",
+      "guarantee_domain": "integration",
+      "evidence_role": "canonical_regression",
+      "lifecycle": "permanent",
+      "scope": "consumer",
+      "subjects": ["mncs-debug:debugger", "mncs.test-result/1"],
+      "invalidation_dependencies": ["native/mncs/debug/", "mncs.test-result/1"],
+      "executor": {
+        "provider": "mncs-debug",
+        "kind": "diagnostic_test",
+        "entrypoint": "python3 -m unittest discover -s tests -p test_*.py"
+      },
+      "evidence_identity": {
+        "subject_fields": ["test_execution_identity", "failure_identity"],
+        "definition_fields": ["debugger_contract_identity"],
+        "execution_fields": ["diagnostic_evidence_identity"]
+      }
+    }
+  ]
+}

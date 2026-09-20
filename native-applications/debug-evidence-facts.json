@@ -5,7 +5,7 @@
   "module": "mncs.debug",
   "entry_function": "evidence_facts_artifact_app",
   "profile": "0.18",
-  "interface_identity": "c60f9eed6a06b2653a857b0960da710e81275b00279aae5f146e277d73d4d6a3",
+  "interface_identity": "fab70091df7ef5642642b3dda6fec93c41ee430ddb304356b48bbd88fd9bf20e",
   "libraries": [
     "../../mncs-language/library",
     "../../mncs-test",
