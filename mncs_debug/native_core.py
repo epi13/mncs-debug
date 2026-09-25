@@ -29,6 +29,7 @@ from .generated.debug import (
     EnvironmentEntry,
     MinimizationStatus,
     ProcessRequest,
+    ProcessResourceEnvelope,
     ProcessResult,
     ProvenanceClaimKind,
     ProvenanceClaimStatus,
@@ -141,6 +142,15 @@ def run_process(
             for key, value in sorted((environment or {}).items())
         ),
         environment_count=len(environment or {}),
+        # Zero means the caller requested no additional platform resource
+        # ceilings. Keep that explicit in the typed process contract.
+        resources=ProcessResourceEnvelope(
+            memory_high_bytes=0,
+            memory_max_bytes=0,
+            swap_max_bytes=0,
+            has_swap_max=False,
+            process_max=0,
+        ),
         stdin=stdin,
         stderr_limit=stderr_limit,
         stdout_limit=stdout_limit,

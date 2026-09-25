@@ -12,9 +12,9 @@ from typing import Any
 
 GENERATOR_VERSION = 'mncs-host-bindings/0.2'
 MODULE_IDENTITY = 'mncs.debug'
-INTERFACE_IDENTITY = 'fab70091df7ef5642642b3dda6fec93c41ee430ddb304356b48bbd88fd9bf20e'
+INTERFACE_IDENTITY = '7018beaeb590730e9b5007becbc7987ba83158c1e54e2c0b2d8c71365b9b6a62'
 TYPED_CALL_SCHEMA_VERSION = 'mncs.typed-call/1'
-BINDING_CONTENT_IDENTITY = '9095fabb3368141b5c31c4abcc4a36660fa8d11b2408b424190fcacf73187b5b'
+BINDING_CONTENT_IDENTITY = 'e3e2a372c111604b3cf01b7da21114af1d2344f293b44d029d5a165892cd9ff5'
 
 class BindingError(RuntimeError):
     pass
@@ -105,6 +105,14 @@ class ArtifactVerdict(str, Enum):
     UNKNOWN = 'UNKNOWN'
 
 
+class CallableExecutionStatus(str, Enum):
+    RETURNED = 'RETURNED'
+    INVALID_REQUEST = 'INVALID_REQUEST'
+    RUNTIME_FAILURE = 'RUNTIME_FAILURE'
+    UNSUPPORTED = 'UNSUPPORTED'
+    BUDGET_EXHAUSTED = 'BUDGET_EXHAUSTED'
+
+
 class ContractFamilyVerdict(str, Enum):
     PASS = 'PASS'
     FAIL = 'FAIL'
@@ -176,6 +184,17 @@ class MinimizationStatus(str, Enum):
     Reduced = 'Reduced'
     NoReduction = 'NoReduction'
     Blocked = 'Blocked'
+
+
+class ProcessStatus(str, Enum):
+    Running = 'Running'
+    Exited = 'Exited'
+    Cancelled = 'Cancelled'
+    TimedOut = 'TimedOut'
+    ResourceExhausted = 'ResourceExhausted'
+    OutputExhausted = 'OutputExhausted'
+    Unsupported = 'Unsupported'
+    Unknown = 'Unknown'
 
 
 class ProvenanceClaimKind(str, Enum):
@@ -1100,6 +1119,143 @@ class FamilyGraphCoverageContract:
 
 
 @dataclass(frozen=True)
+class ProcessHandle:
+    token: bytes
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'token': _encode(self.token),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ProcessHandle:
+        fields = _fields(value)
+        token = _decode('sequence:byte:32', fields.get('token'))
+        return cls(token=token)
+
+
+@dataclass(frozen=True)
+class ProcessObservation:
+    cancellation_complete: bool
+    cancellation_requested: bool
+    cleanup_complete: bool
+    containment_supported: bool
+    deadline_exceeded: bool
+    duration_ms: int
+    exit_code: int
+    has_cleanup_result: bool
+    has_exit_code: bool
+    has_memory_high_events: bool
+    has_memory_max_events: bool
+    has_memory_peak_bytes: bool
+    has_oom_events: bool
+    has_oom_kill_events: bool
+    has_process_limit_events: bool
+    has_process_peak: bool
+    has_swap_peak_bytes: bool
+    has_tree_empty: bool
+    launcher_reaped: bool
+    memory_high_events: int
+    memory_max_events: int
+    memory_peak_bytes: int
+    observation_complete: bool
+    oom_events: int
+    oom_kill_events: int
+    output_exhausted: bool
+    process_limit_events: int
+    process_peak: int
+    status: ProcessStatus
+    stderr: bytes
+    stderr_truncated: bool
+    stdout: bytes
+    stdout_truncated: bool
+    success: bool
+    swap_peak_bytes: int
+    tree_empty: bool
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'cancellation_complete': _encode(self.cancellation_complete),
+            'cancellation_requested': _encode(self.cancellation_requested),
+            'cleanup_complete': _encode(self.cleanup_complete),
+            'containment_supported': _encode(self.containment_supported),
+            'deadline_exceeded': _encode(self.deadline_exceeded),
+            'duration_ms': _encode(self.duration_ms),
+            'exit_code': _encode(self.exit_code),
+            'has_cleanup_result': _encode(self.has_cleanup_result),
+            'has_exit_code': _encode(self.has_exit_code),
+            'has_memory_high_events': _encode(self.has_memory_high_events),
+            'has_memory_max_events': _encode(self.has_memory_max_events),
+            'has_memory_peak_bytes': _encode(self.has_memory_peak_bytes),
+            'has_oom_events': _encode(self.has_oom_events),
+            'has_oom_kill_events': _encode(self.has_oom_kill_events),
+            'has_process_limit_events': _encode(self.has_process_limit_events),
+            'has_process_peak': _encode(self.has_process_peak),
+            'has_swap_peak_bytes': _encode(self.has_swap_peak_bytes),
+            'has_tree_empty': _encode(self.has_tree_empty),
+            'launcher_reaped': _encode(self.launcher_reaped),
+            'memory_high_events': _encode(self.memory_high_events),
+            'memory_max_events': _encode(self.memory_max_events),
+            'memory_peak_bytes': _encode(self.memory_peak_bytes),
+            'observation_complete': _encode(self.observation_complete),
+            'oom_events': _encode(self.oom_events),
+            'oom_kill_events': _encode(self.oom_kill_events),
+            'output_exhausted': _encode(self.output_exhausted),
+            'process_limit_events': _encode(self.process_limit_events),
+            'process_peak': _encode(self.process_peak),
+            'status': _encode(self.status),
+            'stderr': _encode(self.stderr),
+            'stderr_truncated': _encode(self.stderr_truncated),
+            'stdout': _encode(self.stdout),
+            'stdout_truncated': _encode(self.stdout_truncated),
+            'success': _encode(self.success),
+            'swap_peak_bytes': _encode(self.swap_peak_bytes),
+            'tree_empty': _encode(self.tree_empty),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ProcessObservation:
+        fields = _fields(value)
+        cancellation_complete = _decode('bool', fields.get('cancellation_complete'))
+        cancellation_requested = _decode('bool', fields.get('cancellation_requested'))
+        cleanup_complete = _decode('bool', fields.get('cleanup_complete'))
+        containment_supported = _decode('bool', fields.get('containment_supported'))
+        deadline_exceeded = _decode('bool', fields.get('deadline_exceeded'))
+        duration_ms = _decode('int', fields.get('duration_ms'))
+        exit_code = _decode('int', fields.get('exit_code'))
+        has_cleanup_result = _decode('bool', fields.get('has_cleanup_result'))
+        has_exit_code = _decode('bool', fields.get('has_exit_code'))
+        has_memory_high_events = _decode('bool', fields.get('has_memory_high_events'))
+        has_memory_max_events = _decode('bool', fields.get('has_memory_max_events'))
+        has_memory_peak_bytes = _decode('bool', fields.get('has_memory_peak_bytes'))
+        has_oom_events = _decode('bool', fields.get('has_oom_events'))
+        has_oom_kill_events = _decode('bool', fields.get('has_oom_kill_events'))
+        has_process_limit_events = _decode('bool', fields.get('has_process_limit_events'))
+        has_process_peak = _decode('bool', fields.get('has_process_peak'))
+        has_swap_peak_bytes = _decode('bool', fields.get('has_swap_peak_bytes'))
+        has_tree_empty = _decode('bool', fields.get('has_tree_empty'))
+        launcher_reaped = _decode('bool', fields.get('launcher_reaped'))
+        memory_high_events = _decode('int', fields.get('memory_high_events'))
+        memory_max_events = _decode('int', fields.get('memory_max_events'))
+        memory_peak_bytes = _decode('int', fields.get('memory_peak_bytes'))
+        observation_complete = _decode('bool', fields.get('observation_complete'))
+        oom_events = _decode('int', fields.get('oom_events'))
+        oom_kill_events = _decode('int', fields.get('oom_kill_events'))
+        output_exhausted = _decode('bool', fields.get('output_exhausted'))
+        process_limit_events = _decode('int', fields.get('process_limit_events'))
+        process_peak = _decode('int', fields.get('process_peak'))
+        status = _decode('finite:ProcessStatus', fields.get('status'))
+        stderr = _decode('sequence:byte:', fields.get('stderr'))
+        stderr_truncated = _decode('bool', fields.get('stderr_truncated'))
+        stdout = _decode('sequence:byte:', fields.get('stdout'))
+        stdout_truncated = _decode('bool', fields.get('stdout_truncated'))
+        success = _decode('bool', fields.get('success'))
+        swap_peak_bytes = _decode('int', fields.get('swap_peak_bytes'))
+        tree_empty = _decode('bool', fields.get('tree_empty'))
+        return cls(cancellation_complete=cancellation_complete, cancellation_requested=cancellation_requested, cleanup_complete=cleanup_complete, containment_supported=containment_supported, deadline_exceeded=deadline_exceeded, duration_ms=duration_ms, exit_code=exit_code, has_cleanup_result=has_cleanup_result, has_exit_code=has_exit_code, has_memory_high_events=has_memory_high_events, has_memory_max_events=has_memory_max_events, has_memory_peak_bytes=has_memory_peak_bytes, has_oom_events=has_oom_events, has_oom_kill_events=has_oom_kill_events, has_process_limit_events=has_process_limit_events, has_process_peak=has_process_peak, has_swap_peak_bytes=has_swap_peak_bytes, has_tree_empty=has_tree_empty, launcher_reaped=launcher_reaped, memory_high_events=memory_high_events, memory_max_events=memory_max_events, memory_peak_bytes=memory_peak_bytes, observation_complete=observation_complete, oom_events=oom_events, oom_kill_events=oom_kill_events, output_exhausted=output_exhausted, process_limit_events=process_limit_events, process_peak=process_peak, status=status, stderr=stderr, stderr_truncated=stderr_truncated, stdout=stdout, stdout_truncated=stdout_truncated, success=success, swap_peak_bytes=swap_peak_bytes, tree_empty=tree_empty)
+
+
+@dataclass(frozen=True)
 class ProcessRequest:
     argv: tuple[Any, ...]
     argv_count: int
@@ -1108,6 +1264,7 @@ class ProcessRequest:
     environment: tuple[Any, ...]
     environment_count: int
     program: bytes
+    resources: ProcessResourceEnvelope
     stderr_limit: int
     stdin: bytes
     stdout_limit: int
@@ -1121,6 +1278,7 @@ class ProcessRequest:
             'environment': _encode(self.environment),
             'environment_count': _encode(self.environment_count),
             'program': _encode(self.program),
+            'resources': _encode(self.resources),
             'stderr_limit': _encode(self.stderr_limit),
             'stdin': _encode(self.stdin),
             'stdout_limit': _encode(self.stdout_limit),
@@ -1136,10 +1294,39 @@ class ProcessRequest:
         environment = _decode('sequence:record:EnvironmentEntry:', fields.get('environment'))
         environment_count = _decode('int', fields.get('environment_count'))
         program = _decode('sequence:byte:', fields.get('program'))
+        resources = _decode('record:ProcessResourceEnvelope', fields.get('resources'))
         stderr_limit = _decode('int', fields.get('stderr_limit'))
         stdin = _decode('sequence:byte:', fields.get('stdin'))
         stdout_limit = _decode('int', fields.get('stdout_limit'))
-        return cls(argv=argv, argv_count=argv_count, current_dir=current_dir, deadline_ms=deadline_ms, environment=environment, environment_count=environment_count, program=program, stderr_limit=stderr_limit, stdin=stdin, stdout_limit=stdout_limit)
+        return cls(argv=argv, argv_count=argv_count, current_dir=current_dir, deadline_ms=deadline_ms, environment=environment, environment_count=environment_count, program=program, resources=resources, stderr_limit=stderr_limit, stdin=stdin, stdout_limit=stdout_limit)
+
+
+@dataclass(frozen=True)
+class ProcessResourceEnvelope:
+    has_swap_max: bool
+    memory_high_bytes: int
+    memory_max_bytes: int
+    process_max: int
+    swap_max_bytes: int
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'has_swap_max': _encode(self.has_swap_max),
+            'memory_high_bytes': _encode(self.memory_high_bytes),
+            'memory_max_bytes': _encode(self.memory_max_bytes),
+            'process_max': _encode(self.process_max),
+            'swap_max_bytes': _encode(self.swap_max_bytes),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ProcessResourceEnvelope:
+        fields = _fields(value)
+        has_swap_max = _decode('bool', fields.get('has_swap_max'))
+        memory_high_bytes = _decode('int', fields.get('memory_high_bytes'))
+        memory_max_bytes = _decode('int', fields.get('memory_max_bytes'))
+        process_max = _decode('int', fields.get('process_max'))
+        swap_max_bytes = _decode('int', fields.get('swap_max_bytes'))
+        return cls(has_swap_max=has_swap_max, memory_high_bytes=memory_high_bytes, memory_max_bytes=memory_max_bytes, process_max=process_max, swap_max_bytes=swap_max_bytes)
 
 
 @dataclass(frozen=True)
@@ -1180,6 +1367,28 @@ class ProcessResult:
         success = _decode('bool', fields.get('success'))
         timed_out = _decode('bool', fields.get('timed_out'))
         return cls(duration_ms=duration_ms, exit_code=exit_code, has_exit_code=has_exit_code, stderr=stderr, stderr_truncated=stderr_truncated, stdout=stdout, stdout_truncated=stdout_truncated, success=success, timed_out=timed_out)
+
+
+@dataclass(frozen=True)
+class ProcessStartResult:
+    handle: ProcessHandle
+    has_handle: bool
+    observation: ProcessObservation
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'handle': _encode(self.handle),
+            'has_handle': _encode(self.has_handle),
+            'observation': _encode(self.observation),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ProcessStartResult:
+        fields = _fields(value)
+        handle = _decode('record:ProcessHandle', fields.get('handle'))
+        has_handle = _decode('bool', fields.get('has_handle'))
+        observation = _decode('record:ProcessObservation', fields.get('observation'))
+        return cls(handle=handle, has_handle=has_handle, observation=observation)
 
 
 @dataclass(frozen=True)
@@ -1310,6 +1519,7 @@ class ProvenanceObservation:
 @dataclass(frozen=True)
 class ProviderCheckResult:
     check_identity: bytes
+    compiler_callable_bindings_identity: bytes
     evidence_identity: bytes
     execution_identity: bytes
     interface_identity: bytes
@@ -1323,6 +1533,7 @@ class ProviderCheckResult:
     def to_host_value(self) -> dict[str, Any]:
         return {'record': {'type': self.__class__.__name__, 'fields': {
             'check_identity': _encode(self.check_identity),
+            'compiler_callable_bindings_identity': _encode(self.compiler_callable_bindings_identity),
             'evidence_identity': _encode(self.evidence_identity),
             'execution_identity': _encode(self.execution_identity),
             'interface_identity': _encode(self.interface_identity),
@@ -1338,6 +1549,7 @@ class ProviderCheckResult:
     def from_host_value(cls, value: Any) -> ProviderCheckResult:
         fields = _fields(value)
         check_identity = _decode('sequence:byte:', fields.get('check_identity'))
+        compiler_callable_bindings_identity = _decode('sequence:byte:32', fields.get('compiler_callable_bindings_identity'))
         evidence_identity = _decode('sequence:byte:32', fields.get('evidence_identity'))
         execution_identity = _decode('sequence:byte:32', fields.get('execution_identity'))
         interface_identity = _decode('sequence:byte:32', fields.get('interface_identity'))
@@ -1347,12 +1559,13 @@ class ProviderCheckResult:
         result_identity = _decode('sequence:byte:32', fields.get('result_identity'))
         test_result_identity = _decode('sequence:byte:32', fields.get('test_result_identity'))
         verdict = _decode('finite:Verdict', fields.get('verdict'))
-        return cls(check_identity=check_identity, evidence_identity=evidence_identity, execution_identity=execution_identity, interface_identity=interface_identity, inventory_identity=inventory_identity, provider_identity=provider_identity, provider_revision_identity=provider_revision_identity, result_identity=result_identity, test_result_identity=test_result_identity, verdict=verdict)
+        return cls(check_identity=check_identity, compiler_callable_bindings_identity=compiler_callable_bindings_identity, evidence_identity=evidence_identity, execution_identity=execution_identity, interface_identity=interface_identity, inventory_identity=inventory_identity, provider_identity=provider_identity, provider_revision_identity=provider_revision_identity, result_identity=result_identity, test_result_identity=test_result_identity, verdict=verdict)
 
 
 @dataclass(frozen=True)
 class ProviderCheckResultIdentityMaterial:
     check_identity: bytes
+    compiler_callable_bindings_identity: bytes
     evidence_identity: bytes
     execution_identity: bytes
     interface_identity: bytes
@@ -1365,6 +1578,7 @@ class ProviderCheckResultIdentityMaterial:
     def to_host_value(self) -> dict[str, Any]:
         return {'record': {'type': self.__class__.__name__, 'fields': {
             'check_identity': _encode(self.check_identity),
+            'compiler_callable_bindings_identity': _encode(self.compiler_callable_bindings_identity),
             'evidence_identity': _encode(self.evidence_identity),
             'execution_identity': _encode(self.execution_identity),
             'interface_identity': _encode(self.interface_identity),
@@ -1379,6 +1593,7 @@ class ProviderCheckResultIdentityMaterial:
     def from_host_value(cls, value: Any) -> ProviderCheckResultIdentityMaterial:
         fields = _fields(value)
         check_identity = _decode('sequence:byte:', fields.get('check_identity'))
+        compiler_callable_bindings_identity = _decode('sequence:byte:32', fields.get('compiler_callable_bindings_identity'))
         evidence_identity = _decode('sequence:byte:32', fields.get('evidence_identity'))
         execution_identity = _decode('sequence:byte:32', fields.get('execution_identity'))
         interface_identity = _decode('sequence:byte:32', fields.get('interface_identity'))
@@ -1387,7 +1602,7 @@ class ProviderCheckResultIdentityMaterial:
         provider_revision_identity = _decode('sequence:byte:32', fields.get('provider_revision_identity'))
         test_result_identity = _decode('sequence:byte:32', fields.get('test_result_identity'))
         verdict = _decode('finite:Verdict', fields.get('verdict'))
-        return cls(check_identity=check_identity, evidence_identity=evidence_identity, execution_identity=execution_identity, interface_identity=interface_identity, inventory_identity=inventory_identity, provider_identity=provider_identity, provider_revision_identity=provider_revision_identity, test_result_identity=test_result_identity, verdict=verdict)
+        return cls(check_identity=check_identity, compiler_callable_bindings_identity=compiler_callable_bindings_identity, evidence_identity=evidence_identity, execution_identity=execution_identity, interface_identity=interface_identity, inventory_identity=inventory_identity, provider_identity=provider_identity, provider_revision_identity=provider_revision_identity, test_result_identity=test_result_identity, verdict=verdict)
 
 
 @dataclass(frozen=True)
@@ -1485,17 +1700,19 @@ class ProviderDeclarationIdentityMaterial:
 
 @dataclass(frozen=True)
 class ProviderRequest:
+    compiler_callable_bindings: tuple[Any, ...]
     interface_identity: bytes
-    inventory_identity: bytes
     provider_revision_identity: bytes
+    selected_test_executions: tuple[Any, ...]
     selected_test_identities: tuple[Any, ...]
     selection_count: int
 
     def to_host_value(self) -> dict[str, Any]:
         return {'record': {'type': self.__class__.__name__, 'fields': {
+            'compiler_callable_bindings': _encode(self.compiler_callable_bindings),
             'interface_identity': _encode(self.interface_identity),
-            'inventory_identity': _encode(self.inventory_identity),
             'provider_revision_identity': _encode(self.provider_revision_identity),
+            'selected_test_executions': _encode(self.selected_test_executions),
             'selected_test_identities': _encode(self.selected_test_identities),
             'selection_count': _encode(self.selection_count),
         }}}
@@ -1503,12 +1720,13 @@ class ProviderRequest:
     @classmethod
     def from_host_value(cls, value: Any) -> ProviderRequest:
         fields = _fields(value)
+        compiler_callable_bindings = _decode('sequence:record:TestCallableEntry:', fields.get('compiler_callable_bindings'))
         interface_identity = _decode('sequence:byte:32', fields.get('interface_identity'))
-        inventory_identity = _decode('sequence:byte:32', fields.get('inventory_identity'))
         provider_revision_identity = _decode('sequence:byte:32', fields.get('provider_revision_identity'))
+        selected_test_executions = _decode('sequence:record:ProviderTestExecution:', fields.get('selected_test_executions'))
         selected_test_identities = _decode('sequence:sequence:byte::', fields.get('selected_test_identities'))
         selection_count = _decode('int', fields.get('selection_count'))
-        return cls(interface_identity=interface_identity, inventory_identity=inventory_identity, provider_revision_identity=provider_revision_identity, selected_test_identities=selected_test_identities, selection_count=selection_count)
+        return cls(compiler_callable_bindings=compiler_callable_bindings, interface_identity=interface_identity, provider_revision_identity=provider_revision_identity, selected_test_executions=selected_test_executions, selected_test_identities=selected_test_identities, selection_count=selection_count)
 
 
 @dataclass(frozen=True)
@@ -1531,7 +1749,42 @@ class ProviderRun:
 
 
 @dataclass(frozen=True)
+class ProviderTestExecution:
+    artifact_identity: bytes
+    callable_identity: bytes
+    declaration_identity: bytes
+    execution_status: CallableExecutionStatus
+    native_result: TestResult
+    signature_identity: bytes
+    test_case_identity: bytes
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'artifact_identity': _encode(self.artifact_identity),
+            'callable_identity': _encode(self.callable_identity),
+            'declaration_identity': _encode(self.declaration_identity),
+            'execution_status': _encode(self.execution_status),
+            'native_result': _encode(self.native_result),
+            'signature_identity': _encode(self.signature_identity),
+            'test_case_identity': _encode(self.test_case_identity),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> ProviderTestExecution:
+        fields = _fields(value)
+        artifact_identity = _decode('sequence:byte:', fields.get('artifact_identity'))
+        callable_identity = _decode('sequence:byte:', fields.get('callable_identity'))
+        declaration_identity = _decode('sequence:byte:', fields.get('declaration_identity'))
+        execution_status = _decode('finite:CallableExecutionStatus', fields.get('execution_status'))
+        native_result = _decode('record:TestResult', fields.get('native_result'))
+        signature_identity = _decode('sequence:byte:', fields.get('signature_identity'))
+        test_case_identity = _decode('sequence:byte:', fields.get('test_case_identity'))
+        return cls(artifact_identity=artifact_identity, callable_identity=callable_identity, declaration_identity=declaration_identity, execution_status=execution_status, native_result=native_result, signature_identity=signature_identity, test_case_identity=test_case_identity)
+
+
+@dataclass(frozen=True)
 class ProviderTestResult:
+    compiler_callable_bindings_identity: bytes
     evidence_identity: bytes
     execution_identity: bytes
     interface_identity: bytes
@@ -1545,6 +1798,7 @@ class ProviderTestResult:
 
     def to_host_value(self) -> dict[str, Any]:
         return {'record': {'type': self.__class__.__name__, 'fields': {
+            'compiler_callable_bindings_identity': _encode(self.compiler_callable_bindings_identity),
             'evidence_identity': _encode(self.evidence_identity),
             'execution_identity': _encode(self.execution_identity),
             'interface_identity': _encode(self.interface_identity),
@@ -1560,6 +1814,7 @@ class ProviderTestResult:
     @classmethod
     def from_host_value(cls, value: Any) -> ProviderTestResult:
         fields = _fields(value)
+        compiler_callable_bindings_identity = _decode('sequence:byte:32', fields.get('compiler_callable_bindings_identity'))
         evidence_identity = _decode('sequence:byte:32', fields.get('evidence_identity'))
         execution_identity = _decode('sequence:byte:32', fields.get('execution_identity'))
         interface_identity = _decode('sequence:byte:32', fields.get('interface_identity'))
@@ -1570,11 +1825,12 @@ class ProviderTestResult:
         result_identity = _decode('sequence:byte:32', fields.get('result_identity'))
         selected_test_identities = _decode('sequence:sequence:byte::', fields.get('selected_test_identities'))
         selection_count = _decode('int', fields.get('selection_count'))
-        return cls(evidence_identity=evidence_identity, execution_identity=execution_identity, interface_identity=interface_identity, inventory_identity=inventory_identity, native_result=native_result, provider_identity=provider_identity, provider_revision_identity=provider_revision_identity, result_identity=result_identity, selected_test_identities=selected_test_identities, selection_count=selection_count)
+        return cls(compiler_callable_bindings_identity=compiler_callable_bindings_identity, evidence_identity=evidence_identity, execution_identity=execution_identity, interface_identity=interface_identity, inventory_identity=inventory_identity, native_result=native_result, provider_identity=provider_identity, provider_revision_identity=provider_revision_identity, result_identity=result_identity, selected_test_identities=selected_test_identities, selection_count=selection_count)
 
 
 @dataclass(frozen=True)
 class ProviderTestResultIdentityMaterial:
+    compiler_callable_bindings_identity: bytes
     evidence_identity: bytes
     execution_identity: bytes
     interface_identity: bytes
@@ -1587,6 +1843,7 @@ class ProviderTestResultIdentityMaterial:
 
     def to_host_value(self) -> dict[str, Any]:
         return {'record': {'type': self.__class__.__name__, 'fields': {
+            'compiler_callable_bindings_identity': _encode(self.compiler_callable_bindings_identity),
             'evidence_identity': _encode(self.evidence_identity),
             'execution_identity': _encode(self.execution_identity),
             'interface_identity': _encode(self.interface_identity),
@@ -1601,6 +1858,7 @@ class ProviderTestResultIdentityMaterial:
     @classmethod
     def from_host_value(cls, value: Any) -> ProviderTestResultIdentityMaterial:
         fields = _fields(value)
+        compiler_callable_bindings_identity = _decode('sequence:byte:32', fields.get('compiler_callable_bindings_identity'))
         evidence_identity = _decode('sequence:byte:32', fields.get('evidence_identity'))
         execution_identity = _decode('sequence:byte:32', fields.get('execution_identity'))
         interface_identity = _decode('sequence:byte:32', fields.get('interface_identity'))
@@ -1610,7 +1868,7 @@ class ProviderTestResultIdentityMaterial:
         provider_revision_identity = _decode('sequence:byte:32', fields.get('provider_revision_identity'))
         selected_test_identities = _decode('sequence:sequence:byte::', fields.get('selected_test_identities'))
         selection_count = _decode('int', fields.get('selection_count'))
-        return cls(evidence_identity=evidence_identity, execution_identity=execution_identity, interface_identity=interface_identity, inventory_identity=inventory_identity, native_result=native_result, provider_identity=provider_identity, provider_revision_identity=provider_revision_identity, selected_test_identities=selected_test_identities, selection_count=selection_count)
+        return cls(compiler_callable_bindings_identity=compiler_callable_bindings_identity, evidence_identity=evidence_identity, execution_identity=execution_identity, interface_identity=interface_identity, inventory_identity=inventory_identity, native_result=native_result, provider_identity=provider_identity, provider_revision_identity=provider_revision_identity, selected_test_identities=selected_test_identities, selection_count=selection_count)
 
 
 @dataclass(frozen=True)
@@ -2165,6 +2423,34 @@ class SufficiencyInput:
         provenance_observed = _decode('bool', fields.get('provenance_observed'))
         replay_required = _decode('bool', fields.get('replay_required'))
         return cls(has_failure_identity=has_failure_identity, has_operation_identity=has_operation_identity, minimization_required=minimization_required, observation_complete=observation_complete, provenance_observed=provenance_observed, replay_required=replay_required)
+
+
+@dataclass(frozen=True)
+class TestCallableEntry:
+    artifact_identity: bytes
+    callable_identity: bytes
+    declaration_identity: bytes
+    signature_identity: bytes
+    test_case_identity: bytes
+
+    def to_host_value(self) -> dict[str, Any]:
+        return {'record': {'type': self.__class__.__name__, 'fields': {
+            'artifact_identity': _encode(self.artifact_identity),
+            'callable_identity': _encode(self.callable_identity),
+            'declaration_identity': _encode(self.declaration_identity),
+            'signature_identity': _encode(self.signature_identity),
+            'test_case_identity': _encode(self.test_case_identity),
+        }}}
+
+    @classmethod
+    def from_host_value(cls, value: Any) -> TestCallableEntry:
+        fields = _fields(value)
+        artifact_identity = _decode('sequence:byte:', fields.get('artifact_identity'))
+        callable_identity = _decode('sequence:byte:', fields.get('callable_identity'))
+        declaration_identity = _decode('sequence:byte:', fields.get('declaration_identity'))
+        signature_identity = _decode('sequence:byte:', fields.get('signature_identity'))
+        test_case_identity = _decode('sequence:byte:', fields.get('test_case_identity'))
+        return cls(artifact_identity=artifact_identity, callable_identity=callable_identity, declaration_identity=declaration_identity, signature_identity=signature_identity, test_case_identity=test_case_identity)
 
 
 @dataclass(frozen=True)
@@ -2750,6 +3036,10 @@ class Binding:
         response = self._call('mncs.core.sequences.v1', 'byte_view_builder_push', builder, value, include)
         return _decode('record:ByteViewBuilder256', response['returned'][0])
 
+    def cancel(self, input_value: ProcessHandle) -> ProcessObservation:
+        response = self._call('mncs.std.process.v1', 'cancel', input_value)
+        return _decode('record:ProcessObservation', response['returned'][0])
+
     def check_result_identity_material(self, input_value: CheckResultContract) -> CheckResultIdentityMaterial:
         response = self._call('mncs.commons.family.contracts.v1', 'check_result_identity_material', input_value)
         return _decode('record:CheckResultIdentityMaterial', response['returned'][0])
@@ -3078,6 +3368,10 @@ class Binding:
         response = self._call('mncs.debug', 'no_overflow', input_value)
         return _decode('bool', response['returned'][0])
 
+    def observe(self, input_value: ProcessHandle) -> ProcessObservation:
+        response = self._call('mncs.std.process.v1', 'observe', input_value)
+        return _decode('record:ProcessObservation', response['returned'][0])
+
     def operation_claim_observed(self, input_value: ProvenanceObservation) -> bool:
         response = self._call('mncs.debug', 'operation_claim_observed', input_value)
         return _decode('bool', response['returned'][0])
@@ -3137,6 +3431,10 @@ class Binding:
     def put4(self, base: tuple[Any, ...], index: int, value: int) -> tuple[Any, ...]:
         response = self._call('mncs.core.sequences.v1', 'put4', base, index, value)
         return _decode('sequence:int:', response['returned'][0])
+
+    def reap(self, input_value: ProcessHandle) -> ProcessObservation:
+        response = self._call('mncs.std.process.v1', 'reap', input_value)
+        return _decode('record:ProcessObservation', response['returned'][0])
 
     def receipt_identity_material(self, input_value: ReceiptContract) -> ReceiptIdentityMaterial:
         response = self._call('mncs.commons.family.contracts.v1', 'receipt_identity_material', input_value)
@@ -3221,6 +3519,10 @@ class Binding:
     def skip(self, input_value: int) -> TestResult:
         response = self._call('mncs.test.assertions', 'skip', input_value)
         return _decode('record:TestResult', response['returned'][0])
+
+    def start(self, input_value: ProcessRequest) -> ProcessStartResult:
+        response = self._call('mncs.std.process.v1', 'start', input_value)
+        return _decode('record:ProcessStartResult', response['returned'][0])
 
     def start_scan(self, input_value: int) -> Scan:
         response = self._call('mncs.core.sequences.v1', 'start_scan', input_value)
