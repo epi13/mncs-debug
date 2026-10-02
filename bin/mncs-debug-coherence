@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Canonical executable adapter for native diagnostic coherence.
+#
+# Usage: mncs-debug-coherence REQUEST.json RESULT.json
+#
+# Both paths must be relative to the current directory without `..`
+# (run-app structured-artifact rule). Policy lives in
+# `mncs.debug.diagnostic_coherence`; this adapter is transport only.
+set -euo pipefail
+
+if [[ $# -ne 2 ]]; then
+    echo "usage: mncs-debug-coherence REQUEST.json RESULT.json" >&2
+    exit 2
+fi
+
+for path in "$1" "$2"; do
+    case "$path" in
+        /*|*..*)
+            echo "error: coherence artifact paths must be relative without '..': $path" >&2
+            exit 2
+            ;;
+    esac
+done
+
+MNCS_BIN="${MNCS:-mncs}"
+if ! command -v "$MNCS_BIN" >/dev/null 2>&1 && [[ ! -x "$MNCS_BIN" ]]; then
+    echo "error: native mncs compiler/runtime not found; set MNCS to the trusted bootstrap executable" >&2
+    exit 2
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DESCRIPTOR="$SCRIPT_DIR/../native-applications/debug-diagnostic-coherence.json"
+if [[ ! -f "$DESCRIPTOR" ]]; then
+    echo "error: coherence descriptor is unavailable: $DESCRIPTOR" >&2
+    exit 3
+fi
+
+exec "$MNCS_BIN" run-app "$DESCRIPTOR" \
+    --grant-structured debug_artifact \
+    --step-budget 1048576 \
+    -- "$1" "$2"

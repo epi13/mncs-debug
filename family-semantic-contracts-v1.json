@@ -7,7 +7,36 @@
       "contract_identity": "mncs.debugger/1",
       "contract_revision": "1",
       "exported_identity": "mncs-debug:debugger",
-      "evidence": "native/mncs/debug/debug.mncs"
+      "evidence": "native/mncs/debug/debug.mncs",
+      "canonical_entrypoint": "mncs-debug import-test",
+      "status": "native_canonical",
+      "effects": ["verify"],
+      "invocation": {
+        "kind": "executable",
+        "path": "bin/mncs-debug",
+        "toolchain": {
+          "repository": "mncs-language",
+          "path": "target/release/mncs"
+        },
+        "toolchain_env": "MNCS"
+      }
+    },
+    {
+      "contract_identity": "mncs.debug-diagnostic-coherence/1",
+      "contract_revision": "1",
+      "exported_identity": "mncs-debug:diagnostic-coherence",
+      "evidence": "native/mncs/debug/diagnostic_coherence.mncs",
+      "canonical_entrypoint": "mncs-debug-coherence",
+      "status": "native_canonical",
+      "invocation": {
+        "kind": "executable",
+        "path": "bin/mncs-debug-coherence",
+        "toolchain": {
+          "repository": "mncs-language",
+          "path": "target/release/mncs"
+        },
+        "toolchain_env": "MNCS"
+      }
     }
   ],
   "consumes": [

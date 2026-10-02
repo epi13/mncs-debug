@@ -1,0 +1,444 @@
+mncs 0.18;
+
+// mncs.debug.diagnostic_coherence — native ambient diagnostic policy.
+//
+// The host (Environment) observes verification FAILs, measures the bound
+// failure material (failure key, subject digest, request digest, toolchain
+// identity, structured evidence presence), and transports records; this
+// module owns every diagnostic reuse/selection decision: which failures
+// already have sufficient witness evidence, which need a bounded capture,
+// which need a deeper extension, and which are undebuggable, deferred, or
+// escalated.
+//
+// This module never changes a test verdict. A verification FAIL stays FAIL
+// however good the diagnostic evidence becomes; a diagnostic UNKNOWN never
+// reinterprets the test result. The two facts travel separately.
+//
+// Evidence admission is strict: every bound identity must match. Anything
+// unresolvable fails closed to a non-queued status; the host surfaces it
+// instead of capturing blindly.
+//
+// Evidence identity material (normative, hashed by the host with the
+// family digest, in this order): failure_key, subject_sha,
+// request_digest, toolchain_identity. Depth travels alongside: recorded
+// evidence satisfies a request only when its depth meets or exceeds the
+// requested depth.
+module mncs.debug.diagnostic_coherence;
+
+use mncs.std.application.v1;
+
+// Host-projected failure classes. The host maps the verification
+// failure vocabulary onto these nominal values; only this module decides
+// which classes the debugger may capture.
+enum DiagnosticFailureClass {
+    test_failure,
+    runtime_failure,
+    compile_failure,
+    infrastructure_failure,
+    timeout,
+    unsupported,
+    invalid_request
+}
+
+// Bounded diagnostic depth. Ambient passes always request minimal;
+// explicit requests may raise the depth. Each depth admits exactly the
+// operations its evidence requires, never more.
+enum DiagnosticDepth {
+    minimal,
+    standard,
+    deep
+}
+
+enum DiagnosticStatus {
+    current,
+    capture_required,
+    extend_required,
+    deferred,
+    unsupported,
+    escalate
+}
+
+enum DiagnosticReason {
+    evidence_current,
+    no_evidence,
+    input_changed,
+    depth_exceeded,
+    failure_not_debuggable,
+    evidence_missing,
+    provider_unavailable,
+    budget_deferred,
+    toolchain_unbound
+}
+
+// Next admitted operation. Names align with mncs.debug witness-level
+// operations; the ambient layer admits at most one step per decision.
+enum DiagnosticOperation {
+    none,
+    witness,
+    trace,
+    provenance,
+    replay,
+    minimize
+}
+
+// Bound identities recorded by a previous capture.
+record DiagnosticEvidence {
+    failure_key: [byte; up_to 1024],
+    subject_sha: [byte; up_to 128],
+    request_digest: [byte; up_to 128],
+    toolchain_identity: [byte; up_to 128],
+    depth: DiagnosticDepth,
+    witness_ref: [byte; up_to 1024],
+    capture_complete: bool
+}
+
+// Host-measured failure view for one failed verification subject.
+record DiagnosticFailure {
+    failure_key: [byte; up_to 1024],
+    failure_class: DiagnosticFailureClass,
+    subject_sha: [byte; up_to 128],
+    request_digest: [byte; up_to 128],
+    toolchain_identity: [byte; up_to 128],
+    has_source: bool,
+    has_request: bool,
+    has_source_binding: bool,
+    provider_available: bool,
+    requested_depth: DiagnosticDepth,
+    evidence_present: bool,
+    evidence: DiagnosticEvidence
+}
+
+record DiagnosticRequest {
+    schema_version: [byte; up_to 64],
+    max_captures: u64,
+    failures: [DiagnosticFailure; up_to 32]
+}
+
+record FailureDiagnostic {
+    failure_key: [byte; up_to 1024],
+    status: DiagnosticStatus,
+    reason: DiagnosticReason,
+    operation: DiagnosticOperation,
+    deferred: bool,
+    witness_ref: [byte; up_to 1024],
+    admitted_depth: DiagnosticDepth
+}
+
+record DiagnosticSummary {
+    failures: u64,
+    current: u64,
+    queued: u64,
+    deferred: u64,
+    unsupported: u64,
+    escalated: u64
+}
+
+record DiagnosticResult {
+    schema_version: [byte; up_to 64],
+    diagnostics: [FailureDiagnostic; up_to 32],
+    capture_queue: [[byte; up_to 1024]; up_to 32],
+    summary: DiagnosticSummary
+}
+
+record DiagnosticAccumulator {
+    diagnostics: [FailureDiagnostic; 32],
+    queue: [[byte; up_to 1024]; 32],
+    queued: u64,
+    deferred: u64,
+    current: u64,
+    unsupported: u64,
+    escalated: u64
+}
+
+fn request_schema() -> (result: [byte; up_to 64]) {
+    return [109, 110, 99, 115, 46, 100, 101, 98, 117, 103, 45, 100, 105, 97, 103, 110, 111, 115, 116, 105, 99, 45, 99, 111, 104, 101, 114, 101, 110, 99, 101, 45, 114, 101, 113, 117, 101, 115, 116, 47, 49];
+}
+
+fn result_schema() -> (result: [byte; up_to 64]) {
+    return [109, 110, 99, 115, 46, 100, 101, 98, 117, 103, 45, 100, 105, 97, 103, 110, 111, 115, 116, 105, 99, 45, 99, 111, 104, 101, 114, 101, 110, 99, 101, 47, 49];
+}
+
+fn bytes1024_equal(left: [byte; up_to 1024], right: [byte; up_to 1024]) -> (result: bool) {
+    if left.len != right.len {
+        return false;
+    }
+    iterate i over left carrying same: bool = true {
+        next same = same && left[i] == right[i];
+    }
+    return same;
+}
+
+fn bytes128_equal(left: [byte; up_to 128], right: [byte; up_to 128]) -> (result: bool) {
+    if left.len != right.len {
+        return false;
+    }
+    iterate i over left carrying same: bool = true {
+        next same = same && left[i] == right[i];
+    }
+    return same;
+}
+
+fn depth_rank(value: DiagnosticDepth) -> (result: u64) {
+    return match value {
+        DiagnosticDepth.minimal => 0,
+        DiagnosticDepth.standard => 1,
+        DiagnosticDepth.deep => 2
+    };
+}
+
+fn depth_satisfies(recorded: DiagnosticDepth, requested: DiagnosticDepth) -> (result: bool) {
+    return depth_rank(recorded) >= depth_rank(requested);
+}
+
+// Only product failures carry a debuggable execution. Compile,
+// infrastructure, timeout, unsupported, and invalid failures describe the
+// harness or the request itself; capturing a witness for them would
+// misattribute the failure to the subject under test.
+fn class_is_debuggable(value: DiagnosticFailureClass) -> (result: bool) {
+    return match value {
+        DiagnosticFailureClass.test_failure => true,
+        DiagnosticFailureClass.runtime_failure => true,
+        DiagnosticFailureClass.compile_failure => false,
+        DiagnosticFailureClass.infrastructure_failure => false,
+        DiagnosticFailureClass.timeout => false,
+        DiagnosticFailureClass.unsupported => false,
+        DiagnosticFailureClass.invalid_request => false
+    };
+}
+
+fn evidence_admits(evidence: DiagnosticEvidence, failure: DiagnosticFailure) -> (result: bool) {
+    return bytes1024_equal(evidence.failure_key, failure.failure_key)
+        && bytes128_equal(evidence.subject_sha, failure.subject_sha)
+        && bytes128_equal(evidence.request_digest, failure.request_digest)
+        && bytes128_equal(evidence.toolchain_identity, failure.toolchain_identity)
+        && evidence.capture_complete;
+}
+
+// The next operation for a depth extension. Fresh captures always start
+// at witness; extension adds exactly one deeper step.
+fn extend_operation(requested: DiagnosticDepth) -> (result: DiagnosticOperation) {
+    return match requested {
+        DiagnosticDepth.minimal => DiagnosticOperation.witness,
+        DiagnosticDepth.standard => DiagnosticOperation.trace,
+        DiagnosticDepth.deep => DiagnosticOperation.replay
+    };
+}
+
+fn default_diagnostic() -> (result: FailureDiagnostic) {
+    return FailureDiagnostic {
+        failure_key: [0; 0],
+        status: DiagnosticStatus.unsupported,
+        reason: DiagnosticReason.failure_not_debuggable,
+        operation: DiagnosticOperation.none,
+        deferred: false,
+        witness_ref: [0; 0],
+        admitted_depth: DiagnosticDepth.minimal
+    };
+}
+
+fn evaluate_failure(failure: DiagnosticFailure) -> (result: FailureDiagnostic) {
+    let witness_ref: [byte; up_to 1024] = select(failure.evidence_present, failure.evidence.witness_ref, [0; 0]);
+    let admitted_depth: DiagnosticDepth = select(failure.evidence_present, failure.evidence.depth, DiagnosticDepth.minimal);
+    if !class_is_debuggable(failure.failure_class) {
+        return FailureDiagnostic {
+            failure_key: failure.failure_key,
+            status: DiagnosticStatus.unsupported,
+            reason: DiagnosticReason.failure_not_debuggable,
+            operation: DiagnosticOperation.none,
+            deferred: false,
+            witness_ref: witness_ref,
+            admitted_depth: admitted_depth
+        };
+    }
+    if !failure.provider_available {
+        return FailureDiagnostic {
+            failure_key: failure.failure_key,
+            status: DiagnosticStatus.unsupported,
+            reason: DiagnosticReason.provider_unavailable,
+            operation: DiagnosticOperation.none,
+            deferred: false,
+            witness_ref: witness_ref,
+            admitted_depth: admitted_depth
+        };
+    }
+    if failure.toolchain_identity.len == 0 {
+        return FailureDiagnostic {
+            failure_key: failure.failure_key,
+            status: DiagnosticStatus.escalate,
+            reason: DiagnosticReason.toolchain_unbound,
+            operation: DiagnosticOperation.none,
+            deferred: false,
+            witness_ref: witness_ref,
+            admitted_depth: admitted_depth
+        };
+    }
+    if !failure.has_source || !failure.has_request {
+        // Structured source and request are required. The debugger never
+        // reconstructs an execution from prose, stack text, or filenames.
+        return FailureDiagnostic {
+            failure_key: failure.failure_key,
+            status: DiagnosticStatus.escalate,
+            reason: DiagnosticReason.evidence_missing,
+            operation: DiagnosticOperation.none,
+            deferred: false,
+            witness_ref: witness_ref,
+            admitted_depth: admitted_depth
+        };
+    }
+    if !failure.evidence_present {
+        return FailureDiagnostic {
+            failure_key: failure.failure_key,
+            status: DiagnosticStatus.capture_required,
+            reason: DiagnosticReason.no_evidence,
+            operation: DiagnosticOperation.witness,
+            deferred: false,
+            witness_ref: [0; 0],
+            admitted_depth: DiagnosticDepth.minimal
+        };
+    }
+    if !evidence_admits(failure.evidence, failure) {
+        return FailureDiagnostic {
+            failure_key: failure.failure_key,
+            status: DiagnosticStatus.capture_required,
+            reason: DiagnosticReason.input_changed,
+            operation: DiagnosticOperation.witness,
+            deferred: false,
+            witness_ref: witness_ref,
+            admitted_depth: admitted_depth
+        };
+    }
+    if !depth_satisfies(failure.evidence.depth, failure.requested_depth) {
+        return FailureDiagnostic {
+            failure_key: failure.failure_key,
+            status: DiagnosticStatus.extend_required,
+            reason: DiagnosticReason.depth_exceeded,
+            operation: extend_operation(failure.requested_depth),
+            deferred: false,
+            witness_ref: witness_ref,
+            admitted_depth: admitted_depth
+        };
+    }
+    return FailureDiagnostic {
+        failure_key: failure.failure_key,
+        status: DiagnosticStatus.current,
+        reason: DiagnosticReason.evidence_current,
+        operation: DiagnosticOperation.none,
+        deferred: false,
+        witness_ref: witness_ref,
+        admitted_depth: admitted_depth
+    };
+}
+
+fn status_queues(status: DiagnosticStatus) -> (result: bool) {
+    return match status {
+        DiagnosticStatus.current => false,
+        DiagnosticStatus.capture_required => true,
+        DiagnosticStatus.extend_required => true,
+        DiagnosticStatus.deferred => false,
+        DiagnosticStatus.unsupported => false,
+        DiagnosticStatus.escalate => false
+    };
+}
+
+fn status_is_current(status: DiagnosticStatus) -> (result: bool) {
+    return match status {
+        DiagnosticStatus.current => true,
+        DiagnosticStatus.capture_required => false,
+        DiagnosticStatus.extend_required => false,
+        DiagnosticStatus.deferred => false,
+        DiagnosticStatus.unsupported => false,
+        DiagnosticStatus.escalate => false
+    };
+}
+
+fn status_is_unsupported(status: DiagnosticStatus) -> (result: bool) {
+    return match status {
+        DiagnosticStatus.current => false,
+        DiagnosticStatus.capture_required => false,
+        DiagnosticStatus.extend_required => false,
+        DiagnosticStatus.deferred => false,
+        DiagnosticStatus.unsupported => true,
+        DiagnosticStatus.escalate => false
+    };
+}
+
+fn status_is_escalated(status: DiagnosticStatus) -> (result: bool) {
+    return match status {
+        DiagnosticStatus.current => false,
+        DiagnosticStatus.capture_required => false,
+        DiagnosticStatus.extend_required => false,
+        DiagnosticStatus.deferred => false,
+        DiagnosticStatus.unsupported => false,
+        DiagnosticStatus.escalate => true
+    };
+}
+
+fn accumulator_empty() -> (result: DiagnosticAccumulator) {
+    return DiagnosticAccumulator {
+        diagnostics: [default_diagnostic(); 32],
+        queue: [[0; 0]; 32],
+        queued: 0,
+        deferred: 0,
+        current: 0,
+        unsupported: 0,
+        escalated: 0
+    };
+}
+
+fn build_result(request: DiagnosticRequest) -> (result: DiagnosticResult) {
+    let seed: DiagnosticAccumulator = accumulator_empty();
+    iterate i over request.failures carrying acc: DiagnosticAccumulator = seed {
+        let failure: DiagnosticFailure = request.failures[i];
+        let evaluated: FailureDiagnostic = evaluate_failure(failure);
+        let queueable: bool = status_queues(evaluated.status) && failure.provider_available;
+        let admitted: bool = queueable && acc.queued < request.max_captures;
+        let verdict: FailureDiagnostic = FailureDiagnostic {
+            failure_key: evaluated.failure_key,
+            status: evaluated.status,
+            reason: evaluated.reason,
+            operation: evaluated.operation,
+            deferred: queueable && !admitted,
+            witness_ref: evaluated.witness_ref,
+            admitted_depth: evaluated.admitted_depth
+        };
+        next acc = DiagnosticAccumulator {
+            diagnostics: replace(acc.diagnostics, i, verdict),
+            queue: replace(acc.queue, acc.queued, select(admitted, failure.failure_key, acc.queue[acc.queued])),
+            queued: acc.queued +% select(admitted, 1, 0),
+            deferred: acc.deferred +% select(queueable && !admitted, 1, 0),
+            current: acc.current +% select(status_is_current(verdict.status), 1, 0),
+            unsupported: acc.unsupported +% select(status_is_unsupported(verdict.status), 1, 0),
+            escalated: acc.escalated +% select(status_is_escalated(verdict.status), 1, 0)
+        };
+    }
+    return DiagnosticResult {
+        schema_version: request.schema_version,
+        diagnostics: acc.diagnostics[0..request.failures.len],
+        capture_queue: acc.queue[0..acc.queued],
+        summary: DiagnosticSummary {
+            failures: request.failures.len,
+            current: acc.current,
+            queued: acc.queued,
+            deferred: acc.deferred,
+            unsupported: acc.unsupported,
+            escalated: acc.escalated
+        }
+    };
+}
+
+fn diagnostic_coherence_app(context: ApplicationContext) -> (result: ApplicationExit)
+    capability debug_artifact
+    effect structured_read authorized_by debug_artifact
+    effect structured_write authorized_by debug_artifact
+{
+    if !context_is_bounded(context) || context.argv_count < 2 {
+        return failure([97, 114, 103, 118, 32, 114, 101, 113, 117, 105, 114, 101, 115, 32, 50, 32, 100, 105, 97, 103, 110, 111, 115, 116, 105, 99, 32, 112, 97, 116, 104, 115], 2);
+    }
+    let request: DiagnosticRequest = structured_read(context.argv[0], request_schema());
+    let result: DiagnosticResult = build_result(request);
+    let published: u64 = structured_write(context.argv[1], result_schema(), result);
+    if published == 0 {
+        return failure([100, 105, 97, 103, 110, 111, 115, 116, 105, 99, 32, 112, 117, 98, 108, 105, 115, 104, 32, 102, 97, 105, 108, 101, 100], 3);
+    }
+    return success([]);
+}

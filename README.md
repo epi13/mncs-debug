@@ -168,6 +168,18 @@ the import and identifies the missing contract instead of reconstructing a
 command from prose. The local mapping is documented in
 [`docs/integration.md`](docs/integration.md).
 
+## Ambient environment integration
+
+`mncs-debug` is a bound `mncs-environment` provider. Environment invokes
+`mncs.debugger/1` (`import-test`) under the `verify` effect when ambient
+verification records a FAIL, and consults the native
+`mncs.debug.diagnostic_coherence` policy
+(`mncs.debug-diagnostic-coherence/1`) for reuse, depth, and escalation
+decisions. Witness capture reuses the exact library roots the test run
+saw: obligation-declared roots plus the test provider's
+`adapter_library_paths`, all passed explicitly. See
+[`docs/ambient-diagnostics.md`](docs/ambient-diagnostics.md).
+
 ## Actions, Forge, and LSP boundaries
 
 - [`integration/mncs-actions-provider.json`](integration/mncs-actions-provider.json)
