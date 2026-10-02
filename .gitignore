@@ -7,6 +7,9 @@ target/
 .mncs/*
 !.mncs/
 !.mncs/project.json
+# Provider-managed agent worktrees (environment provision_checkouts);
+# environment-owned runtime state, never source.
+/.worktrees/
 artifacts/
 *.trace.json
 *.witness.json
