@@ -1,0 +1,15 @@
+{
+  "schema_version": "mncs.native-application/1",
+  "application_identity": "mncs-debug.diagnostic-coherence",
+  "source": "../native/mncs/debug/diagnostic_coherence.mncs",
+  "module": "mncs.debug.diagnostic_coherence",
+  "entry_function": "diagnostic_coherence_app",
+  "profile": "0.18",
+  "interface_identity": "9fcd4d008a7138df26324966ecc54f3863442e059b86c231dc88fa123eaac7af",
+  "libraries": [
+    "../../mncs-language/library",
+    "../native"
+  ],
+  "environment_keys": [],
+  "required_capabilities": ["debug_artifact"]
+}
