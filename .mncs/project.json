@@ -1,7 +1,7 @@
 {
   "schema_version": "mncs-family.repository-manifest/v0alpha1",
   "repository": "mncs-debug",
-  "revision": 5,
+  "revision": 6,
   "manifest_location": "in-repository",
   "authority": {
     "note": "mncs-debug owns debugger semantics, witnesses, trace and capability truth; process/filesystem/transport code remains an explicit adapter boundary."
@@ -26,7 +26,19 @@
     ],
     "consumes": [
       {"contract": "mncs-test.test-provider", "envelope": {"op": "any"}, "required": false},
-      {"contract": "mncs-language.semantic-identity", "envelope": {"op": "any"}, "required": true}
+      {"contract": "mncs-language.semantic-identity", "envelope": {"op": "any"}, "required": true},
+      {
+        "contract": "mncs-stdlib.stdlib-source",
+        "envelope": {
+          "op": "any"
+        },
+        "required": true,
+        "evidence_refs": [
+          "native/mncs/debug/debug.mncs",
+          "native/mncs/debug/diagnostic_coherence.mncs"
+        ],
+        "scope": "native runtime imports; legacy pre-extraction toolchains may bind equivalent language library sources"
+      }
     ],
     "tests": [
       {"test": "debug-tests", "covers": ["debugger"], "obligation": "self", "command": {"argv": ["python3", "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"]}}
