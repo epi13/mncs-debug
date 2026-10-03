@@ -12,7 +12,7 @@
     "debug-no-capture 14.4ms -> 3.3ms (capture gating)",
     "derivation-stability golden test (execution/transition/state/value/event ids)"
   ],
-  "final_debug_revision": "TBD-at-delivery",
+  "final_debug_revision": "842b5739b4825eabd3b6d7f9b94e64364314630f",
   "final_vm_revision": "f00ec384584f70125241c1bbb02b45f387c7d0ff",
   "pressures": [
     {
