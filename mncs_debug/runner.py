@@ -26,6 +26,7 @@ from .protocol import (
     return_digest,
     sha256_value,
     sha256_file,
+    sha256_file_memoized,
     validate_language_observation,
     validate_language_source_map,
 )
@@ -468,7 +469,7 @@ def _compiler_ref(mncs_path: Path) -> dict[str, Any]:
     return {
         "kind": "external-mncs-reference-runtime",
         "binary_path": mncs_path.as_posix(),
-        "binary_sha256": sha256_file(mncs_path),
+        "binary_sha256": sha256_file_memoized(mncs_path),
         "observed_checkout_revision": _git_revision(mncs_path),
         "baseline_revision": "1da244a58d656b3058de05d0fc0f799a5e2f0106",
         "baseline_note": "The observability campaign baseline is the verified mncs-language origin/main revision; the selected local binary is an observed executable and is never assumed to be identical without its digest/revision.",
@@ -807,7 +808,7 @@ def build_witness(
             "program_fingerprint": execution.get("program_fingerprint") if isinstance(execution, dict) else None,
             "target": target,
             "request": request,
-            "runtime": {"sha256": sha256_file(mncs_path), "revision": _git_revision(mncs_path)},
+            "runtime": {"sha256": sha256_file_memoized(mncs_path), "revision": _git_revision(mncs_path)},
         },
     )
     source = static.get("source") if isinstance(static.get("source"), dict) else None

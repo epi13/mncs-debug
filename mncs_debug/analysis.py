@@ -28,16 +28,38 @@ from .protocol import (
 )
 from .runner import ProcessObservation, RunnerError, build_witness, collect_static, resolve_mncs, run_process
 from .native_core import NativeCoreError, default_stdlib_library
-from .generated.debug import (
-    EvidencePresence,
-    MinimizationStatus,
-    ProvenanceClaimKind,
-    ProvenanceClaimStatus,
-    ProvenanceObservation,
-    ReplayStatus,
-    TraceCompleteness,
-    TraceObservation,
+_GENERATED_NAMES = frozenset(
+    {
+        "EvidencePresence",
+        "MinimizationStatus",
+        "ProvenanceClaimKind",
+        "ProvenanceClaimStatus",
+        "ProvenanceObservation",
+        "ReplayStatus",
+        "TraceCompleteness",
+        "TraceObservation",
+    }
 )
+
+
+def _require_generated() -> None:
+    # See native_core: bare-global reads inside function bodies never
+    # consult module __getattr__, so consumers call this first.
+    if "TraceObservation" not in globals():
+        from .generated import debug as _generated_debug
+
+        globals().update(
+            {name: getattr(_generated_debug, name) for name in _GENERATED_NAMES}
+        )
+
+
+def __getattr__(name: str):
+    # Lazily bind the ~185 KB generated binding (see native_core):
+    # importing it eagerly costs every CLI invocation ~55 ms.
+    if name in _GENERATED_NAMES:
+        _require_generated()
+        return globals()[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def load_witness(path: Path) -> dict[str, Any]:
@@ -355,6 +377,7 @@ def _evidence_facts_from_artifacts(artifacts: Iterable[dict[str, Any]]) -> dict[
     normalize literal fields into the native vocabulary and retains artifact
     identities for provenance.
     """
+    _require_generated()
 
     facts = {
         "traces": [],
@@ -476,6 +499,7 @@ def _witness_observations(
     receives the concrete failure/event/effect/source facts and decides what
     they establish.
     """
+    _require_generated()
 
     outcome = witness.get("outcome") if isinstance(witness.get("outcome"), dict) else {}
     failure = outcome.get("failure") if isinstance(outcome.get("failure"), dict) else {}

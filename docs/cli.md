@@ -36,6 +36,7 @@ live bind-stop --root DIR (--op ID | --function ID | --effect PHASE | --failure)
 live clear-stop --root DIR --id ID
 live terminate --root DIR
 live attach --root DIR
+live pipe --root DIR [--timeout S]
 live close --root DIR [--remove]
 live retain --root DIR --store DIR
 live fetch --store DIR --evidence-id ID --output PATH
@@ -47,6 +48,16 @@ api --request REQUEST.json | --stdio
 `backtrace`, `value-origin`, and `effect-provenance` are API projections, not
 separate CLI commands; use `inspect`/`why` on the CLI or the matching API
 operations below.
+
+`live pipe` serves many session operations in one client process over
+stdin/stdout JSONL, avoiding ~80 ms of per-command startup (warm queries
+drop to sub-millisecond). Request lines carry `{"id", "op", "params"}`;
+response lines carry `{"id", "ok", "result"|"error"}`. Ops: `resume`,
+`continue`, `step_in`, `step_over`, `step_out`, `terminate`, `inspect`
+(`view` or batched `views`), `bind_stop`, `clear_stop`, `status`, `close`.
+Bookkeeping is identical to the one-shot commands, and one-shot commands
+may interleave safely with a running pipe. The session stays resident when
+the pipe exits.
 
 The API request envelope is `mncs.debug-api/1`:
 

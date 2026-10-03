@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 import platform
 import sys
 from collections.abc import Iterable
@@ -126,6 +127,53 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+_DIGEST_MEMO_MAX_ENTRIES = 256
+
+
+def _digest_memo_path() -> Path:
+    cache = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
+    return Path(cache) / "mncs-debug" / "digests.json"
+
+
+def sha256_file_memoized(path: Path) -> str:
+    """Digest large rarely-changing files (runtime binaries) without rehashing.
+
+    The memo is keyed by resolved path plus size and mtime; any change to
+    either rehashes. This MUST only annotate provenance (which binary ran),
+    never validate integrity (whether a file was tampered with): integrity
+    paths keep using :func:`sha256_file`.
+    """
+    resolved = path.expanduser().resolve()
+    try:
+        stat = resolved.stat()
+    except OSError:
+        return sha256_file(resolved)
+    key = f"{resolved}\x00{stat.st_size}\x00{stat.st_mtime_ns}"
+    memo_path = _digest_memo_path()
+    try:
+        memo = json.loads(memo_path.read_text()) if memo_path.is_file() else {}
+    except (OSError, ValueError):
+        memo = {}
+    if isinstance(memo, dict):
+        hit = memo.get(key)
+        if isinstance(hit, str) and len(hit) == 64:
+            return hit
+    digest = sha256_file(resolved)
+    try:
+        memo_path.parent.mkdir(parents=True, exist_ok=True)
+        fresh: dict[str, str] = {key: digest}
+        if isinstance(memo, dict):
+            for older_key, older_value in memo.items():
+                if len(fresh) >= _DIGEST_MEMO_MAX_ENTRIES:
+                    break
+                if isinstance(older_key, str) and isinstance(older_value, str):
+                    fresh.setdefault(older_key, older_value)
+        memo_path.write_text(json.dumps(fresh))
+    except OSError:
+        pass
+    return digest
 
 
 def file_artifact(path: Path, kind: str, *, relative_to: Path | None = None) -> dict[str, Any]:

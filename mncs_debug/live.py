@@ -63,6 +63,10 @@ def resolve_mncs_vm(value: str | None = None) -> Path:
     env_value = os.environ.get("MNCS_VM")
     if env_value:
         candidates.append(Path(env_value))
+    # Prefer an optimized driver: release compiles ~15x faster than debug
+    # with byte-identical artifacts. The serving binary is recorded in
+    # session.json, so the choice stays evidenced, never silent.
+    candidates.append(Path(__file__).resolve().parents[2] / "mncs-vm/target/release/mncs-vm")
     candidates.append(Path(__file__).resolve().parents[2] / "mncs-vm/target/debug/mncs-vm")
     which = shutil.which("mncs-vm")
     if which:
@@ -102,24 +106,35 @@ def _session_id(material: dict[str, Any]) -> str:
 
 
 class LiveClient:
-    """One short JSONL conversation with a debug daemon."""
+    """One short JSONL conversation with a debug daemon.
+
+    One connection per call, closed before returning: the daemon
+    serves one connection at a time, so clients must never hold a
+    connection open across operations. Connection setup is ~50 us;
+    persistence belongs in the client process (see :class:`LivePipe`),
+    not on the wire.
+    """
 
     def __init__(self, socket_path: Path, timeout_seconds: float = 30.0) -> None:
         self._socket_path = socket_path
         self._timeout = timeout_seconds
         self._next_id = 0
 
-    def call(self, op: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Send one request and return the ``result`` or raise ``LiveError``."""
-
-        self._next_id += 1
-        request = {"id": self._next_id, "op": op, "params": params or {}}
+    def _connect(self) -> socket.socket:
         try:
             connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             connection.settimeout(self._timeout)
             connection.connect(os.fspath(self._socket_path))
         except OSError as exc:
             raise LiveError(f"cannot reach debug daemon at {self._socket_path}: {exc}") from exc
+        return connection
+
+    def call(self, op: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Send one request and return the ``result`` or raise ``LiveError``."""
+
+        self._next_id += 1
+        request = {"id": self._next_id, "op": op, "params": params or {}}
+        connection = self._connect()
         try:
             payload = (json.dumps(request) + "\n").encode("utf-8")
             connection.sendall(payload)
@@ -375,15 +390,26 @@ def _shutdown_daemon(socket_path: Path, process: subprocess.Popen[bytes] | None 
             pass
 
 
-def _drive(root: Path, op: str, timeout_seconds: float) -> dict[str, Any]:
+def _live_document(root: Path) -> dict[str, Any]:
     document = _read_session_document(root)
     if document.get("state") != "live":
         raise LiveError(f"session at {root} is {document.get('state')}, not live")
     token = document.get("continuation_token")
     if not isinstance(token, str) or not token:
         raise LiveError(f"session at {root} has no continuation token")
+    return document
+
+
+def _drive(root: Path, op: str, timeout_seconds: float) -> dict[str, Any]:
+    document = _live_document(root)
     client = LiveClient(Path(str(document["socket"])), timeout_seconds=timeout_seconds)
-    result = client.call(op, {"token": token})
+    return _drive_with(root, document, client, op)
+
+
+def _drive_with(
+    root: Path, document: dict[str, Any], client: LiveClient, op: str
+) -> dict[str, Any]:
+    result = client.call(op, {"token": document.get("continuation_token")})
     return _absorb_event(root, document, result, client)
 
 
@@ -464,12 +490,29 @@ def inspect_session(
         raise LiveError(f"finished sessions answer observation/effects/stops, not {view!r}")
     if document.get("state") != "live":
         raise LiveError(f"session at {root} is {document.get('state')}")
-    token = document.get("continuation_token")
-    client = LiveClient(Path(str(document["socket"])), timeout_seconds=timeout_seconds)
+    return _inspect_live(
+        document,
+        LiveClient(Path(str(document["socket"])), timeout_seconds=timeout_seconds),
+        view,
+        max_frames=max_frames,
+        max_values=max_values,
+        max_value_bytes=max_value_bytes,
+    )
+
+
+def _inspect_live(
+    document: dict[str, Any],
+    client: LiveClient,
+    view: str,
+    *,
+    max_frames: int,
+    max_values: int,
+    max_value_bytes: int,
+) -> dict[str, Any]:
     return client.call(
         "inspect",
         {
-            "token": token,
+            "token": document.get("continuation_token"),
             "view": view,
             "max_frames": max_frames,
             "max_values": max_values,
@@ -481,10 +524,14 @@ def inspect_session(
 def bind_stop(root: Path, target: dict[str, Any], stop_id: str | None = None) -> dict[str, Any]:
     """Bind a stop condition on the live execution."""
 
-    document = _read_session_document(root)
-    if document.get("state") != "live":
-        raise LiveError(f"session at {root} is {document.get('state')}, not live")
+    document = _live_document(root)
     client = LiveClient(Path(str(document["socket"])))
+    return _bind_with(document, client, target, stop_id)
+
+
+def _bind_with(
+    document: dict[str, Any], client: LiveClient, target: dict[str, Any], stop_id: str | None
+) -> dict[str, Any]:
     params: dict[str, Any] = {"token": document.get("continuation_token"), "target": target}
     if stop_id is not None:
         params["id"] = stop_id
@@ -494,24 +541,27 @@ def bind_stop(root: Path, target: dict[str, Any], stop_id: str | None = None) ->
 def clear_stop(root: Path, stop_id: str) -> dict[str, Any]:
     """Clear one bound stop condition by id."""
 
-    document = _read_session_document(root)
-    if document.get("state") != "live":
-        raise LiveError(f"session at {root} is {document.get('state')}, not live")
+    document = _live_document(root)
     client = LiveClient(Path(str(document["socket"])))
+    return _clear_with(document, client, stop_id)
+
+
+def _clear_with(document: dict[str, Any], client: LiveClient, stop_id: str) -> dict[str, Any]:
     return client.call("clear_stop", {"token": document.get("continuation_token"), "id": stop_id})
 
 
 def terminate_session(root: Path, timeout_seconds: float = 60.0) -> dict[str, Any]:
     """Terminate the live execution and finalize terminal evidence."""
 
-    document = _read_session_document(root)
-    if document.get("state") != "live":
-        raise LiveError(f"session at {root} is {document.get('state')}, not live")
+    document = _live_document(root)
     client = LiveClient(Path(str(document["socket"])), timeout_seconds=timeout_seconds)
-    try:
-        result = client.call("terminate", {"token": document.get("continuation_token")})
-    except LiveError:
-        raise
+    return _terminate_with(root, document, client)
+
+
+def _terminate_with(
+    root: Path, document: dict[str, Any], client: LiveClient
+) -> dict[str, Any]:
+    result = client.call("terminate", {"token": document.get("continuation_token")})
     if result.get("event") != "finished":
         raise LiveError(f"terminate did not finish the execution: {result!r}"[:512])
     return _absorb_event(root, document, result, client)
@@ -570,7 +620,17 @@ def attach_session(root: Path, timeout_seconds: float = 10.0) -> dict[str, Any]:
         orientation["stale"] = True
         orientation["stale_reason"] = f"daemon socket {socket_path} is gone"
         return orientation
-    client = LiveClient(socket_path, timeout_seconds=timeout_seconds)
+    return _attach_live_status(
+        document, stops, orientation, LiveClient(socket_path, timeout_seconds=timeout_seconds)
+    )
+
+
+def _attach_live_status(
+    document: dict[str, Any],
+    stops: list[dict[str, Any]],
+    orientation: dict[str, Any],
+    client: LiveClient,
+) -> dict[str, Any]:
     try:
         capabilities = client.call("capabilities")
     except LiveError as exc:
@@ -642,6 +702,221 @@ def close_session(root: Path, *, remove: bool = False) -> dict[str, Any]:
     if remove:
         return _wipe_session_dir(root, document, terminated=terminated is not None)
     return {"session": document, "terminated": terminated is not None, "removed": False}
+
+
+class LivePipe:
+    """Many session operations over one client process.
+
+    One-shot CLI commands pay full process startup per query; a pipe
+    holds the session root in memory and re-reads the small session
+    handle per op, so interleaved one-shot commands stay safe (their
+    token wins; ours then fails closed). Each op still uses one short
+    daemon connection — the daemon serves one connection at a time,
+    so holding one open would starve every other client.
+    Bookkeeping (session.json, stops.json, finish.json) is identical
+    to the one-shot path: the same ``_drive_with``/``_absorb_event``
+    helpers run in both.
+    """
+
+    def __init__(self, root: Path, timeout_seconds: float = 120.0) -> None:
+        self._root = root.resolve()
+        self._timeout = timeout_seconds
+        self._client: LiveClient | None = None
+
+    def close(self) -> None:
+        """Forget cached client state (the session stays resident)."""
+
+        self._client = None
+
+    def _client_for(self, document: dict[str, Any]) -> LiveClient:
+        socket_path = Path(str(document.get("socket", "")))
+        if self._client is None or self._client._socket_path != socket_path:
+            self._client = LiveClient(socket_path, timeout_seconds=self._timeout)
+        return self._client
+
+    def dispatch(self, op: str, params: dict[str, Any]) -> dict[str, Any]:
+        """Run one session operation; raise ``LiveError`` on failure."""
+
+        root = self._root
+        if op in ("resume", "continue", "step_in", "step_over", "step_out"):
+            document = _live_document(root)
+            return _drive_with(root, document, self._client_for(document), op)
+        if op == "terminate":
+            document = _live_document(root)
+            return _terminate_with(root, document, self._client_for(document))
+        if op == "inspect":
+            return self._inspect(params)
+        if op == "bind_stop":
+            document = _live_document(root)
+            target = params.get("target")
+            if not isinstance(target, dict):
+                raise LiveError("bind_stop needs a target object")
+            stop_id = params.get("id")
+            if stop_id is not None and not isinstance(stop_id, str):
+                raise LiveError("bind_stop id must be a string")
+            return _bind_with(document, self._client_for(document), target, stop_id)
+        if op == "clear_stop":
+            document = _live_document(root)
+            stop_id = params.get("id")
+            if not isinstance(stop_id, str) or not stop_id:
+                raise LiveError("clear_stop needs a string id")
+            return _clear_with(document, self._client_for(document), stop_id)
+        if op == "status":
+            return self._status()
+        if op == "close":
+            result = close_session(root, remove=bool(params.get("remove", False)))
+            self.close()
+            return result
+        raise LiveError(
+            "unknown pipe op "
+            f"{op!r}; want resume, continue, step_in, step_over, step_out,"
+            " terminate, inspect, bind_stop, clear_stop, status, close"
+        )
+
+    def _inspect(self, params: dict[str, Any]) -> dict[str, Any]:
+        views = params.get("views")
+        if views is None:
+            views = [params.get("view", "stack")]
+        if (
+            not isinstance(views, list)
+            or not views
+            or any(not isinstance(view, str) for view in views)
+        ):
+            raise LiveError("inspect needs a view string or a non-empty views list")
+        for view in views:
+            if view not in ("stack", "observation", "effects", "stops"):
+                raise LiveError(f"unknown inspect view {view!r}")
+        try:
+            bounds = {
+                "max_frames": int(params.get("max_frames", 16)),
+                "max_values": int(params.get("max_values", 64)),
+                "max_value_bytes": int(params.get("max_value_bytes", 4096)),
+            }
+        except (TypeError, ValueError) as exc:
+            raise LiveError(f"inspect bounds must be integers: {exc}") from exc
+        if len(views) == 1:
+            return self._one_view(views[0], bounds)
+        # Batched read-only views: one request, no state transition.
+        return {"views": {view: self._one_view(view, bounds) for view in views}}
+
+    def _one_view(self, view: str, bounds: dict[str, int]) -> dict[str, Any]:
+        root = self._root
+        if view == "stops":
+            return {"stops": _read_stops(root)}
+        document = _read_session_document(root)
+        if document.get("state") == "finished":
+            finish_path = root / "finish.json"
+            if not finish_path.exists():
+                raise LiveError(f"finished session at {root} has no finish.json")
+            finish = load_json(finish_path)
+            if view == "observation":
+                return {"observation": (finish or {}).get("stream")}
+            if view == "effects":
+                return {"effects": ((finish or {}).get("record") or {}).get("effects")}
+            raise LiveError(f"finished sessions answer observation/effects/stops, not {view!r}")
+        if document.get("state") != "live":
+            raise LiveError(f"session at {root} is {document.get('state')}")
+        return _inspect_live(document, self._client_for(document), view, **bounds)
+
+    def _status(self) -> dict[str, Any]:
+        root = self._root
+        try:
+            document = _read_session_document(root)
+        except (LiveError, OSError, ValueError) as exc:
+            return {
+                "root": root.as_posix(),
+                "attached": False,
+                "stale": True,
+                "stale_reason": str(exc)[:512],
+            }
+        state = document.get("state")
+        try:
+            stops = _read_stops(root)
+        except (LiveError, OSError, ValueError):
+            stops = []
+        orientation: dict[str, Any] = {
+            "root": root.as_posix(),
+            "attached": True,
+            "stale": False,
+            "state": state,
+            "session_id": document.get("session_id"),
+            "execution": document.get("execution"),
+            "artifact": document.get("artifact"),
+            "stop_sequence": document.get("stop_sequence"),
+            "stop_count": len(stops),
+            "finish": document.get("finish"),
+        }
+        if state == "finished":
+            finish_path = root / "finish.json"
+            orientation["finish_evidence"] = finish_path.exists()
+            if finish_path.exists():
+                try:
+                    orientation["finish_sha256"] = sha256_file(finish_path)
+                except OSError:
+                    pass
+            return orientation
+        if state == "closed":
+            orientation["stale"] = True
+            orientation["stale_reason"] = "session is closed"
+            return orientation
+        if state != "live":
+            orientation["stale"] = True
+            orientation["stale_reason"] = f"unknown session state {state!r}"
+            return orientation
+        socket_path = Path(str(document.get("socket", "")))
+        if not socket_path.exists():
+            orientation["stale"] = True
+            orientation["stale_reason"] = f"daemon socket {socket_path} is gone"
+            return orientation
+        return _attach_live_status(document, stops, orientation, self._client_for(document))
+
+
+def run_pipe(root: Path, infile: Any, outfile: Any, timeout_seconds: float = 120.0) -> int:
+    """Serve JSONL session operations until stdin closes.
+
+    Request lines: ``{"id": <any>, "op": <name>, "params": {...}}``.
+    Response lines: ``{"id": <same>, "ok": true, "result": {...}}`` or
+    ``{"id": <same>, "ok": false, "error": {"message": ...}}``.
+    Blank lines are ignored. The session stays resident on exit.
+    """
+
+    pipe = LivePipe(root, timeout_seconds=timeout_seconds)
+    try:
+        for raw in infile:
+            line = raw.strip()
+            if not line:
+                continue
+            try:
+                request = json.loads(line)
+            except json.JSONDecodeError as exc:
+                outfile.write(json.dumps({"id": None, "ok": False, "error": {"message": f"request is not JSON: {exc}"}}) + "\n")
+                outfile.flush()
+                continue
+            request_id = request.get("id") if isinstance(request, dict) else None
+            op = request.get("op") if isinstance(request, dict) else None
+            params = request.get("params") if isinstance(request, dict) else None
+            if not isinstance(op, str) or not op:
+                outfile.write(json.dumps({"id": request_id, "ok": False, "error": {"message": "request needs a string op"}}) + "\n")
+                outfile.flush()
+                continue
+            if params is None:
+                params = {}
+            if not isinstance(params, dict):
+                outfile.write(json.dumps({"id": request_id, "ok": False, "error": {"message": "request params must be an object"}}) + "\n")
+                outfile.flush()
+                continue
+            try:
+                result = pipe.dispatch(op, params)
+            except LiveError as exc:
+                outfile.write(json.dumps({"id": request_id, "ok": False, "error": {"message": str(exc)[:2048]}}) + "\n")
+            except (OSError, ValueError) as exc:
+                outfile.write(json.dumps({"id": request_id, "ok": False, "error": {"message": str(exc)[:2048]}}) + "\n")
+            else:
+                outfile.write(json.dumps({"id": request_id, "ok": True, "result": result}) + "\n")
+            outfile.flush()
+    finally:
+        pipe.close()
+    return 0
 
 
 def _wipe_session_dir(

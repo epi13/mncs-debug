@@ -16,30 +16,56 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from .generated.debug import (
-    Binding,
-    BindingError,
-    DiagnosticLoopInput,
-    DebugOutcome,
-    DecisionInput,
-    DiagnosticOperation,
-    EvidenceGap,
-    EvidencePresence,
-    EvidenceFactsInput,
-    EnvironmentEntry,
-    MinimizationStatus,
-    ProcessRequest,
-    ProcessResourceEnvelope,
-    ProcessResult,
-    ProvenanceClaimKind,
-    ProvenanceClaimStatus,
-    ProvenanceObservation,
-    ReplayStatus,
-    RuntimeStatus,
-    SufficiencyInput,
-    TraceCompleteness,
-    TraceObservation,
+_GENERATED_NAMES = frozenset(
+    {
+        "Binding",
+        "BindingError",
+        "DiagnosticLoopInput",
+        "DebugOutcome",
+        "DecisionInput",
+        "DiagnosticOperation",
+        "EvidenceGap",
+        "EvidencePresence",
+        "EvidenceFactsInput",
+        "EnvironmentEntry",
+        "MinimizationStatus",
+        "ProcessRequest",
+        "ProcessResourceEnvelope",
+        "ProcessResult",
+        "ProvenanceClaimKind",
+        "ProvenanceClaimStatus",
+        "ProvenanceObservation",
+        "ReplayStatus",
+        "RuntimeStatus",
+        "SufficiencyInput",
+        "TraceCompleteness",
+        "TraceObservation",
+    }
 )
+
+
+def _require_generated() -> None:
+    # Inject the generated binding into module globals on first need.
+    # Module __getattr__ alone is not enough: bare-global reads inside
+    # function bodies never consult it, so every function below that
+    # names a generated type calls this first.
+    if "Binding" not in globals():
+        from .generated import debug as _generated_debug
+
+        globals().update(
+            {name: getattr(_generated_debug, name) for name in _GENERATED_NAMES}
+        )
+
+
+def __getattr__(name: str):
+    # The generated binding is ~185 KB and costs ~55 ms to import; most
+    # CLI invocations never touch it, so bind it on first use instead of
+    # at module import. All uses are function-local (annotations are
+    # strings under ``from __future__ import annotations``).
+    if name in _GENERATED_NAMES:
+        _require_generated()
+        return globals()[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 class NativeCoreError(RuntimeError):
@@ -56,6 +82,7 @@ def _label(value: Any) -> str | None:
     This is presentation normalization only. It deliberately accepts enum
     instances, not arbitrary integers or strings supplied as semantic codes.
     """
+    _require_generated()
 
     if not isinstance(value, (DebugOutcome, DiagnosticOperation, EvidenceGap)):
         return None
@@ -64,6 +91,7 @@ def _label(value: Any) -> str | None:
 
 
 def _runtime_status(value: str | RuntimeStatus) -> RuntimeStatus:
+    _require_generated()
     if isinstance(value, RuntimeStatus):
         return value
     if not isinstance(value, str) or not value:
@@ -121,10 +149,14 @@ def _libraries(core: Path) -> list[Path]:
     stdlib = default_stdlib_library(workspace)
     if stdlib is not None and stdlib not in libraries:
         libraries.append(stdlib)
+    # NOTE: only narrow source roots are listed. The native launcher
+    # hashes every file under each --library root on every call, so a
+    # broad workspace root (mncs-test holds ~340 MB of build outputs)
+    # costs tens of seconds per invocation. The core needs mncs.test.*
+    # from mncs-test/native only; MNCS_LIBRARY_PATH can still add more.
     for candidate in (
         workspace / "mncs-language" / "library",
         workspace / "MNCS-Commons" / "src" / "mncs_commons" / "mesh" / "mncs",
-        workspace / "mncs-test",
         workspace / "mncs-test" / "native",
     ):
         if candidate.is_dir() and candidate not in libraries:
@@ -132,9 +164,23 @@ def _libraries(core: Path) -> list[Path]:
     return libraries
 
 
+def _ensure_shared_native_cache() -> None:
+    # The native launcher defaults its compiled-artifact cache to a
+    # CWD-relative `.mncs/` directory: every working directory keeps a
+    # private cold cache and pollutes checkouts. Point it at one shared
+    # content-addressed cache unless the operator already chose a root.
+    if "MNCS_NATIVE_APPLICATION_CACHE_DIR" not in os.environ:
+        cache_home = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
+        os.environ["MNCS_NATIVE_APPLICATION_CACHE_DIR"] = str(
+            Path(cache_home) / "mncs-native-applications"
+        )
+
+
 def _binding(
     *, mncs_path: Path, core_path: Path | None, timeout_seconds: float
 ) -> Binding:
+    _require_generated()
+    _ensure_shared_native_cache()
     core = core_path or default_core_path()
     if not core.exists():
         raise NativeCoreError(f"native debug core is missing: {core}")
@@ -165,6 +211,8 @@ def run_process(
     timeout_seconds: float = 60.0,
 ) -> dict[str, Any]:
     """Request one bounded process effect from the native Debug application."""
+    _require_generated()
+    _ensure_shared_native_cache()
 
     core = core_path or default_core_path()
     libraries = _libraries(core)
@@ -256,6 +304,7 @@ def decide(
     timeout_seconds: float = 10.0,
 ) -> dict[str, Any]:
     """Ask the native core for one typed semantic decision."""
+    _require_generated()
 
     binding = _binding(
         mncs_path=mncs_path, core_path=core_path, timeout_seconds=timeout_seconds
@@ -293,6 +342,7 @@ def sufficiency(
     timeout_seconds: float = 10.0,
 ) -> dict[str, Any]:
     """Ask the native debugger policy for the next typed evidence operation."""
+    _require_generated()
 
     binding = _binding(
         mncs_path=mncs_path, core_path=core_path, timeout_seconds=timeout_seconds
@@ -335,6 +385,7 @@ def reduce_evidence_facts(
     timeout_seconds: float = 10.0,
 ) -> dict[str, Any]:
     """Reduce bounded typed artifact observations through native policy."""
+    _require_generated()
 
     def fixed(values: list[Any], capacity: int, default: Any) -> tuple[tuple[Any, ...], int, bool]:
         overflow = len(values) > capacity
@@ -417,6 +468,7 @@ def diagnostic_loop(
     reducer decides sufficiency, replay/mismatch escalation, and the next
     diagnostic operation from the typed observations supplied here.
     """
+    _require_generated()
 
     def fixed(values: list[Any], capacity: int, default: Any) -> tuple[tuple[Any, ...], int, bool]:
         overflow = len(values) > capacity

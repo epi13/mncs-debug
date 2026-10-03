@@ -23,6 +23,7 @@ from mncs_debug.live import (
     inspect_session,
     resolve_mncs_vm,
     resume_session,
+    run_pipe,
     start_session,
     step_session,
     terminate_session,
@@ -57,6 +58,106 @@ def start_add2(root: Path, **overrides) -> dict:
     }
     params.update(overrides)
     return start_session(**params)
+
+
+@unittest.skipUnless(LIVE_AVAILABLE, "mncs-vm driver or corpus not available")
+class LivePipeTest(unittest.TestCase):
+    def _start_stopped(self, directory: str) -> Path:
+        root = Path(directory) / "session"
+        probe = start_session(
+            root=Path(directory) / "probe",
+            vm_path=VM,
+            target={"module": "mncs.vmcorpus.arith.v1", "name": "add3"},
+            arguments=[int_arg(10)],
+            compile_path=CORPUS,
+            capture="bounded",
+        )
+        operations = [event.get("operation") for event in (probe["event"].get("stream") or {}).get("events", []) if event.get("operation")]
+        close_session(Path(directory) / "probe", remove=True)
+        # add3 nests calls, so step_in stops again instead of finishing.
+        started = start_session(
+            root=root,
+            vm_path=VM,
+            target={"module": "mncs.vmcorpus.arith.v1", "name": "add3"},
+            arguments=[int_arg(10)],
+            compile_path=CORPUS,
+            capture="none",
+            stops=[{"id": "s", "target": {"kind": "operation", "instruction": operations[0]}}],
+        )
+        self.assertEqual(started["event"]["event"], "stopped")
+        return root
+
+    def _serve(self, root: Path, requests: list[dict]) -> list[dict]:
+        import io
+
+        infile = io.StringIO("\n".join(json.dumps(request) for request in requests) + "\n")
+        outfile = io.StringIO()
+        self.assertEqual(run_pipe(root, infile, outfile), 0)
+        return [json.loads(line) for line in outfile.getvalue().splitlines() if line.strip()]
+
+    def test_pipe_serves_many_ops_one_process(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="mncs-live-test-") as directory:
+            root = self._start_stopped(directory)
+            responses = self._serve(
+                root,
+                [
+                    {"id": 1, "op": "status"},
+                    {"id": 2, "op": "inspect", "params": {"view": "stack"}},
+                    {"id": 3, "op": "inspect", "params": {"views": ["stack", "effects", "stops"]}},
+                    {"id": 4, "op": "bind_stop", "params": {"target": {"kind": "failure_or_trap"}, "id": "f"}},
+                    {"id": 5, "op": "clear_stop", "params": {"id": "f"}},
+                    {"id": 6, "op": "step_in"},
+                    {"id": 7, "op": "continue"},
+                ],
+            )
+            self.assertEqual([response["id"] for response in responses], [1, 2, 3, 4, 5, 6, 7])
+            self.assertTrue(all(response["ok"] for response in responses), responses)
+            self.assertEqual(responses[0]["result"]["state"], "live")
+            self.assertIn("stack", responses[1]["result"])
+            self.assertEqual(set(responses[2]["result"]["views"]), {"stack", "effects", "stops"})
+            self.assertEqual(responses[3]["result"]["condition"]["id"], "f")
+            self.assertTrue(responses[4]["result"]["cleared"])
+            # Same bookkeeping as the one-shot path: stops appended, terminal evidence written.
+            stops = json.loads((root / "stops.json").read_text(encoding="utf-8"))
+            self.assertGreaterEqual(len(stops), 2)
+            self.assertEqual(responses[6]["result"]["session"]["state"], "finished")
+            self.assertTrue((root / "finish.json").exists())
+            close_session(root, remove=True)
+
+    def test_pipe_errors_fail_closed(self) -> None:
+        import io
+
+        with tempfile.TemporaryDirectory(prefix="mncs-live-test-") as directory:
+            root = self._start_stopped(directory)
+            infile = io.StringIO(
+                '{"id": 1, "op": "bogus"}\n'
+                "not json\n"
+                '{"id": 2}\n'
+                '{"id": 3, "op": "inspect", "params": {"view": "nope"}}\n'
+                '{"id": 4, "op": "status"}\n'
+            )
+            outfile = io.StringIO()
+            self.assertEqual(run_pipe(root, infile, outfile), 0)
+            responses = [json.loads(line) for line in outfile.getvalue().splitlines()]
+            self.assertEqual([response["ok"] for response in responses], [False, False, False, False, True])
+            self.assertEqual([response["id"] for response in responses], [1, None, 2, 3, 4])
+            # The session is untouched by failed ops: still live at the first stop.
+            attached = attach_session(root)
+            self.assertFalse(attached["stale"])
+            self.assertEqual(attached["stop_sequence"], 1)
+            close_session(root, remove=True)
+
+    def test_pipe_interleaves_with_one_shot(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="mncs-live-test-") as directory:
+            root = self._start_stopped(directory)
+            first = self._serve(root, [{"id": 1, "op": "inspect", "params": {"view": "stack"}}])
+            self.assertTrue(first[0]["ok"])
+            stepped = step_session(root, "in")
+            self.assertEqual(stepped["event"]["event"], "stopped")
+            second = self._serve(root, [{"id": 2, "op": "status"}])
+            self.assertTrue(second[0]["ok"])
+            self.assertEqual(second[0]["result"]["stop_sequence"], stepped["session"]["stop_sequence"])
+            close_session(root, remove=True)
 
 
 @unittest.skipUnless(LIVE_AVAILABLE, "mncs-vm driver or corpus not available")

@@ -1,0 +1,95 @@
+{
+  "baseline_revision": "1995ea4",
+  "campaign": "mncs-debug-performance-20261003",
+  "evidence": [
+    "pipe smoke: inspect x50 median 0.38ms, batch/step/continue/interleave OK",
+    "capabilities 602ms -> 78ms warm (digest memo, identical output)",
+    "live start 1.02s -> 0.21s (release driver)",
+    "mncs-vm compile 875ms debug / 54ms release, byte-identical artifacts",
+    "decide() 30-92s -> 8.2s warm (narrow roots + shared cache + toolchain cache hit)",
+    "MNCS_TIMINGS: cache-hit-load 4927ms + session-open 3042ms on hit path",
+    "stop scaling flat at 0/10/200 stops (indexed)",
+    "debug-no-capture 14.4ms -> 3.3ms (capture gating)",
+    "derivation-stability golden test (execution/transition/state/value/event ids)"
+  ],
+  "final_debug_revision": "TBD-at-delivery",
+  "final_vm_revision": "f00ec384584f70125241c1bbb02b45f387c7d0ff",
+  "pressures": [
+    {
+      "after": "IMPROVED: debugger-side warm path 30-90s -> 8-9s via narrow library roots, shared cache dir, and toolchain cache adoption; cold compile and hit validation remain toolchain-owned",
+      "before": "FAIL (10-80s recompilation per call)",
+      "classification": "PARTIALLY_RESOLVED",
+      "commons_id": null,
+      "consumers": [
+        "mncs-debug",
+        "mncs-test",
+        "mncs-doctor",
+        "mncs-forge"
+      ],
+      "local_id": "MNCS-DEBUG-P-015",
+      "owner": "mncs-language/runtime"
+    },
+    {
+      "after": "REPRODUCED: no observation-mode execution contract in Forge; recent Forge work is resource-policy/continuous-verification; VM daemon remains execution holder",
+      "before": "FAIL",
+      "classification": "STILL_OPEN",
+      "commons_id": null,
+      "consumers": [
+        "mncs-debug",
+        "mncs-forge"
+      ],
+      "local_id": "MNCS-DEBUG-P-016",
+      "owner": "mncs-forge"
+    },
+    {
+      "after": "STABLE: interface identity 31f110be... unchanged; cache keys stable across cwds",
+      "before": "UNKNOWN",
+      "classification": "STILL_OPEN",
+      "commons_id": null,
+      "consumers": [
+        "mncs-debug"
+      ],
+      "local_id": "MNCS-DEBUG-P-017",
+      "owner": "mncs-language"
+    },
+    {
+      "after": "REPRODUCED with new cost evidence: debug binaries cost ~15x compile (875ms vs 54ms); release mncs stale (Sep 23) vs debug (Oct 1); debugger now prefers release mncs-vm when built but keeps debug mncs default",
+      "before": "FAIL",
+      "classification": "STILL_OPEN",
+      "commons_id": null,
+      "consumers": [
+        "mncs-debug"
+      ],
+      "local_id": "MNCS-DEBUG-P-018",
+      "owner": "mncs-language"
+    },
+    {
+      "after": "NEW: cache-hit-load ~4.9s + session-open ~3.0s per native call on debug builds; warm floor 8-9s",
+      "before": "FAIL",
+      "classification": "STILL_OPEN",
+      "commons_id": null,
+      "consumers": [
+        "mncs-debug",
+        "mncs-test",
+        "mncs-doctor",
+        "mncs-forge"
+      ],
+      "local_id": "MNCS-DEBUG-P-020",
+      "owner": "mncs-language/runtime"
+    },
+    {
+      "after": "NEW: every file under library roots hashed per call (367MB incl. 340MB build outputs for a broad root); debugger narrowed its own roots",
+      "before": "FAIL",
+      "classification": "STILL_OPEN",
+      "commons_id": null,
+      "consumers": [
+        "mncs-debug"
+      ],
+      "local_id": "MNCS-DEBUG-P-021",
+      "owner": "mncs-language/runtime"
+    }
+  ],
+  "profile": "debug-performance",
+  "rule": "capability landed is distinct from consumer verified; layered PASS, FAIL, UNKNOWN, INVALID, and partial evidence remain distinct",
+  "schema_version": "mncs.debug-pressure-reconciliation/2"
+}

@@ -280,6 +280,21 @@ completed run. Post-execution watch queries keep their meaning;
 live watch stops remain explicitly unsupported until the VM defines
 the watched-state relation.
 
+`live pipe` serves many operations over one client process
+(stdin/stdout JSONL, one request per line) instead of paying
+process startup per query; each op still uses one short daemon
+connection (the daemon serves one connection at a time), and
+one-shot commands may interleave safely. `inspect` accepts batched
+`views` for grouped read-only queries. The debugger resolves the
+release VM driver when one is built (recorded in `session.json`),
+falling back to debug.
+
+Native semantic queries reuse the toolchain's compiled-artifact
+cache: the debugger passes narrow source-only library roots and one
+shared cache directory, so warm calls skip recompilation. Cache-hit
+validation cost and uncached `execute`/`observe` paths remain
+toolchain-owned pressures (P-015, P-020, P-021).
+
 ## Targeted observation
 
 `break` resolves a function, exact operation identity, or source line through

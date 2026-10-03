@@ -36,6 +36,7 @@ from .protocol import (
     file_artifact,
     load_json,
     sha256_file,
+    sha256_file_memoized,
     validate_document,
     validate_witness_integrity,
     write_json,
@@ -53,6 +54,7 @@ from .live import (
     inspect_session as live_inspect,
     resolve_mncs_vm,
     resume_session as live_resume,
+    run_pipe as live_run_pipe,
     start_session as live_start,
     step_session as live_step,
     terminate_session as live_terminate,
@@ -307,6 +309,13 @@ def _build_parser() -> argparse.ArgumentParser:
     live_fetch.add_argument("--output", required=True)
     live_fetch.add_argument("--format", choices=("json", "text"), default="json")
 
+    live_pipe = live_sub.add_parser(
+        "pipe",
+        help="serve JSONL session ops on stdin/stdout in one process (no per-query startup)",
+    )
+    live_pipe.add_argument("--root", required=True)
+    live_pipe.add_argument("--timeout", type=float, default=120.0)
+
     replay = sub.add_parser("replay", help="inspect a trace or boundedly re-execute a witness")
     replay.add_argument("witness")
     replay.add_argument("--mode", choices=("trace", "reexecute"), default="trace")
@@ -465,7 +474,7 @@ def _cmd_capabilities(args: argparse.Namespace) -> int:
     try:
         runtime = resolve_mncs(args.mncs)
         runtime_path = runtime.as_posix()
-        runtime_digest = sha256_file(runtime)
+        runtime_digest = sha256_file_memoized(runtime)
     except RunnerError:
         pass
     document = capability_document(runtime_path=runtime_path, runtime_digest=runtime_digest)
@@ -1190,6 +1199,8 @@ def _cmd_live(args: argparse.Namespace) -> int:
         )
         return EXIT_SUCCESS
     root = _path(args.root)
+    if command == "pipe":
+        return live_run_pipe(root, sys.stdin, sys.stdout, timeout_seconds=args.timeout)
     if command in ("resume", "continue"):
         document = live_resume(root, args.timeout) if command == "resume" else live_continue(root, args.timeout)
         _write(document, args.output, text=_live_event_text(document["event"]) if args.format == "text" else None)
