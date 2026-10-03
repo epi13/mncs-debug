@@ -1,50 +1,174 @@
 {
-  "schema_version": "mncs-family.repository-manifest/v0alpha1",
-  "repository": "mncs-debug",
-  "revision": 8,
-  "manifest_location": "in-repository",
-  "authority": {
-    "note": "mncs-debug owns debugger semantics, witnesses, trace and capability truth; process/filesystem/transport code remains an explicit adapter boundary."
-  },
-  "verification": {
-    "schema_version": "mncs-family.verification-obligation-inventory/v1",
-    "obligation_inventory": ".mncs/verification-obligations.json"
-  },
-  "organization": {
-    "layout": "mncs.repository-layout/1",
-    "surfaces": [
-      {"path": "mncs_debug/", "class": "compatibility", "authority": "mncs-debug", "note": "Host protocol, process, observation, and presentation adapters around the native debugger decision core; it is not a second semantic authority.", "classification": {"authority": "compatibility", "lifecycle": "active", "boundary_kind": "process", "semantic_role": "compatibility-adapter"}},
-      {"path": "mncs_debug/analysis.py", "class": "compatibility", "authority": "mncs-debug", "note": "Compatibility adapter: decodes bounded external artifacts and transports typed observations to the native decision core; it does not decide outcome or sufficiency.", "classification": {"authority": "compatibility", "lifecycle": "active", "boundary_kind": "process", "semantic_role": "compatibility-adapter"}},
-      {"path": "native/mncs/debug/", "class": "canonical", "authority": "mncs-debug", "note": "Native debugger outcome, evidence sufficiency, escalation, and stop policy are canonical here.", "classification": {"authority": "canonical", "lifecycle": "active", "boundary_kind": "none", "semantic_role": "canonical-semantic"}},
-      {"path": "mncs_debug/transport.py", "class": "host-boundary", "note": "Process, artifact, and protocol adaptation.", "classification": {"authority": "none", "lifecycle": "active", "boundary_kind": "process", "semantic_role": "platform-adapter"}},
-      {"path": "pressures/", "class": "reference", "authority": "MNCS-Commons", "note": "Local pressure evidence; Commons owns lifecycle.", "classification": {"authority": "reference", "lifecycle": "active", "boundary_kind": "none", "semantic_role": "reference"}}
-    ]
-  },
-  "contracts": {
-    "provides": [
-      {"contract": "debugger", "version": "1", "kind": "structured-debugger", "stability": "experimental", "fingerprint_sources": ["mncs_debug/", "native/mncs/debug/", "schemas/debug-capabilities.schema.json"], "effects": ["verify"], "invocation": {"kind": "executable", "path": "bin/mncs-debug", "toolchain": {"repository": "mncs-language", "path": "target/release/mncs"}, "toolchain_env": "MNCS"}},
-      {"contract": "repository-remediation", "version": "1", "kind": "remediation-tool", "stability": "experimental", "fingerprint_sources": ["mncs_debug/remediate.py", "native-applications/", "mncs_debug/generated/debug.py"], "effects": ["write"], "invocation": {"kind": "executable", "path": "bin/mncs-debug", "fixed_argv": ["remediate"], "toolchain": {"repository": "mncs-language", "path": "target/release/mncs"}, "toolchain_env": "MNCS"}}
+ "schema_version": "mncs-family.repository-manifest/v0alpha1",
+ "repository": "mncs-debug",
+ "revision": 9,
+ "manifest_location": "in-repository",
+ "authority": {
+  "note": "mncs-debug owns debugger semantics, witnesses, trace and capability truth; process/filesystem/transport code remains an explicit adapter boundary."
+ },
+ "verification": {
+  "schema_version": "mncs-family.verification-obligation-inventory/v1",
+  "obligation_inventory": ".mncs/verification-obligations.json"
+ },
+ "organization": {
+  "layout": "mncs.repository-layout/1",
+  "surfaces": [
+   {
+    "path": "mncs_debug/",
+    "class": "compatibility",
+    "authority": "mncs-debug",
+    "note": "Host protocol, process, observation, and presentation adapters around the native debugger decision core; it is not a second semantic authority.",
+    "classification": {
+     "authority": "compatibility",
+     "lifecycle": "active",
+     "boundary_kind": "process",
+     "semantic_role": "compatibility-adapter"
+    }
+   },
+   {
+    "path": "mncs_debug/analysis.py",
+    "class": "compatibility",
+    "authority": "mncs-debug",
+    "note": "Compatibility adapter: decodes bounded external artifacts and transports typed observations to the native decision core; it does not decide outcome or sufficiency.",
+    "classification": {
+     "authority": "compatibility",
+     "lifecycle": "active",
+     "boundary_kind": "process",
+     "semantic_role": "compatibility-adapter"
+    }
+   },
+   {
+    "path": "native/mncs/debug/",
+    "class": "canonical",
+    "authority": "mncs-debug",
+    "note": "Native debugger outcome, evidence sufficiency, escalation, and stop policy are canonical here.",
+    "classification": {
+     "authority": "canonical",
+     "lifecycle": "active",
+     "boundary_kind": "none",
+     "semantic_role": "canonical-semantic"
+    }
+   },
+   {
+    "path": "pressures/",
+    "class": "reference",
+    "authority": "MNCS-Commons",
+    "note": "Local pressure evidence; Commons owns lifecycle.",
+    "classification": {
+     "authority": "reference",
+     "lifecycle": "active",
+     "boundary_kind": "none",
+     "semantic_role": "reference"
+    }
+   }
+  ]
+ },
+ "contracts": {
+  "provides": [
+   {
+    "contract": "debugger",
+    "version": "1",
+    "kind": "structured-debugger",
+    "stability": "experimental",
+    "fingerprint_sources": [
+     "mncs_debug/",
+     "native/mncs/debug/",
+     "schemas/debug-capabilities.schema.json"
     ],
-    "consumes": [
-      {"contract": "mncs-test.test-provider", "envelope": {"op": "any"}, "required": false},
-      {"contract": "mncs-language.semantic-identity", "envelope": {"op": "any"}, "required": true},
-      {
-        "contract": "mncs-stdlib.stdlib-source",
-        "envelope": {
-          "op": "any"
-        },
-        "required": true,
-        "evidence_refs": [
-          "native/mncs/debug/debug.mncs",
-          "native/mncs/debug/diagnostic_coherence.mncs"
-        ],
-        "scope": "native runtime imports; legacy pre-extraction toolchains may bind equivalent language library sources"
-      }
+    "effects": [
+     "verify"
     ],
-    "tests": [
-      {"test": "debug-tests", "covers": ["debugger"], "obligation": "self", "command": {"argv": ["python3", "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"]}}
-    ]
-  },
-  "projection_inventory": ".mncs/projections.json",
-  "structure_profile": {"repository": "machine-native-complexity-development-specification", "path": "profiles/semantic-project.json", "identity": "sha256:259e41ea542e7a1400f1471b0316de4fafc888d6f953c8e91165ff2cfe1e78cb"}
+    "invocation": {
+     "kind": "executable",
+     "path": "bin/mncs-debug",
+     "toolchain": {
+      "repository": "mncs-language",
+      "path": "target/release/mncs"
+     },
+     "toolchain_env": "MNCS"
+    }
+   },
+   {
+    "contract": "repository-remediation",
+    "version": "1",
+    "kind": "remediation-tool",
+    "stability": "experimental",
+    "fingerprint_sources": [
+     "mncs_debug/remediate.py",
+     "native-applications/",
+     "mncs_debug/generated/debug.py"
+    ],
+    "effects": [
+     "write"
+    ],
+    "invocation": {
+     "kind": "executable",
+     "path": "bin/mncs-debug",
+     "fixed_argv": [
+      "remediate"
+     ],
+     "toolchain": {
+      "repository": "mncs-language",
+      "path": "target/release/mncs"
+     },
+     "toolchain_env": "MNCS"
+    }
+   }
+  ],
+  "consumes": [
+   {
+    "contract": "mncs-test.test-provider",
+    "envelope": {
+     "op": "any"
+    },
+    "required": false
+   },
+   {
+    "contract": "mncs-language.semantic-identity",
+    "envelope": {
+     "op": "any"
+    },
+    "required": true
+   },
+   {
+    "contract": "mncs-stdlib.stdlib-source",
+    "envelope": {
+     "op": "any"
+    },
+    "required": true,
+    "evidence_refs": [
+     "native/mncs/debug/debug.mncs",
+     "native/mncs/debug/diagnostic_coherence.mncs"
+    ],
+    "scope": "native runtime imports; legacy pre-extraction toolchains may bind equivalent language library sources"
+   }
+  ],
+  "tests": [
+   {
+    "test": "debug-tests",
+    "covers": [
+     "debugger"
+    ],
+    "obligation": "self",
+    "command": {
+     "argv": [
+      "python3",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tests",
+      "-p",
+      "test_*.py"
+     ]
+    }
+   }
+  ]
+ },
+ "projection_inventory": ".mncs/projections.json",
+ "structure_profile": {
+  "repository": "machine-native-complexity-development-specification",
+  "path": "profiles/semantic-project.json",
+  "identity": "sha256:259e41ea542e7a1400f1471b0316de4fafc888d6f953c8e91165ff2cfe1e78cb"
+ }
 }
