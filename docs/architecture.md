@@ -65,6 +65,7 @@ The minimum coherent model currently implemented is:
 | provenance | native value/frame/effect references plus exact source correspondence; missing scheduler/external causality remains explicit |
 | stop condition | MNCS-native semantic core's `should_stop` decision for the terminal classification |
 | resident session | durable directory binding one witness with indexes, memo, and attach/reconnect |
+| live session | durable handle over a running/stopped VM execution with stops, typed inspection, and resume |
 | stop set | resolved semantic target plus selected-capture positions over a bounded run |
 | watch | binding/value resolution to runtime observations plus the native origin chain |
 | retention | one witness retained verbatim as one Store object with a fetch receipt |
@@ -73,10 +74,12 @@ The minimum coherent model currently implemented is:
 Conventional debugger operations map onto that model as follows:
 
 ```text
-breakpoint  → stop set: resolved target plus selected-capture positions (no live suspension)
-watchpoint  → watch: binding/value observations plus origin chain (no live stops)
-step        → future advance over one semantic transition
+breakpoint  → stop set: resolved target plus selected-capture positions (post-execution)
+            → live stop: VM suspension at an authoritative identity (live sessions)
+watchpoint  → watch: binding/value observations plus origin chain (query, no live stops)
+step        → live step over one semantic transition (in/over/out; VM execution only)
 backtrace   → native execution-scoped frame ancestry for the bounded run
+            → live typed stack views while stopped
 replay      → trace inspection or bounded re-execution, with guarantees named
 why x?      → current partial static-dataflow and event-path provenance
 ```
@@ -101,6 +104,8 @@ Protocol versioning is schema-based rather than terminal-command-based:
 | `mncs.debug-api/1` | Forge/actions/LSP machine request envelope |
 | `mncs.debug-validation/1` | validation result with no text scraping |
 | `mncs.debug-resident-session/1` | durable session binding one witness with indexes and memo |
+| `mncs.debug-live-session/1` | durable handle over a live VM execution: socket, token, stops, terminal evidence |
+| `mncs.debug-live-evidence/1` | immutable terminal evidence of a finished live execution (outcome, record, stream, stops) |
 | `mncs.debug-stop-set/1` | resolved semantic target plus targeted capture positions |
 | `mncs.debug-retention/1` | Store retention/fetch receipt for one witness |
 | `mncs.debug-phases/1` | on-demand compiler pipeline projection for a program |
@@ -242,6 +247,38 @@ diagnostic questions answer in milliseconds instead of recompiling the native
 core. Re-execution and minimization stay outside sessions because they
 produce new witnesses; run them against the session witness and open a new
 session on the result.
+
+## Live sessions
+
+`mncs.debug-live-session/1` is a resident handle over a currently
+running/stopped VM execution, served by one `mncs-vm debug --serve`
+daemon per session. `live start` spawns the daemon and runs to the
+first bound stop or finish; `live resume`, `live continue`,
+`live step-in|step-over|step-out`, and `live terminate` drive the
+same execution through typed JSONL requests; `live inspect` reads
+bounded typed stack/observation/effect views without disturbing it;
+`live bind-stop`/`clear-stop` manage conditions mid-run; `live
+attach` validates the handle and reports liveness without driving;
+`live close` terminates, shuts the daemon down, and optionally
+removes the directory.
+
+The VM owns suspension truthfully (`mncs.vm.debug/1`): stops hold
+the same run state resume continues, continuation tokens are
+single-owner and execution-bound, and terminal stops are
+inspectable but not resumable. The session directory keeps the
+handle (`session.json`), an append-only stop history (`stops.json`),
+and write-once terminal evidence (`finish.json`) with the outcome,
+VM record, shared-shape observation stream, and stop history.
+`live retain`/`fetch` persist that evidence in Store under the VM
+execution identity; live executions are never snapshotted into
+Store mid-run.
+
+Live sessions complement evidence sessions without changing their
+meaning: when a live execution finishes, its terminal evidence is
+immutable and can be retained, compared, and replayed like any
+completed run. Post-execution watch queries keep their meaning;
+live watch stops remain explicitly unsupported until the VM defines
+the watched-state relation.
 
 ## Targeted observation
 

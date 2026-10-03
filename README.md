@@ -45,14 +45,17 @@ The initial implementation can:
 - project compiler-owned study, pass, and resolution facts on demand; and
 - expose capability discovery and a newline-delimited Forge-ready API.
 
-The current runtime still cannot provide true suspended sessions, stop-on-
-watchpoint behavior, expression evaluation, task ancestry, scheduler control,
-or deterministic effect replay. Imported-source operation maps and external
-environment capture are also bounded by explicit compiler/runtime boundaries.
-These are represented as capability states and pressure records, not hidden
-behind a fake debugger interface. `break`, `watch`, sessions, and replay
-are targeted-observation operations over bounded runs, not live-process
-controls.
+The reference runtime still cannot suspend, so `break`, `watch`,
+evidence sessions, and trace replay stay targeted-observation operations
+over bounded runs, not live-process controls. Live execution is available
+through the canonical VM instead: `mncs-debug live ...` holds a resident
+session over one `mncs-vm` execution with true suspension at
+identity-bound safe points, typed inspection, stepping, and resume or
+terminate under continuation tokens. Still unsupported everywhere: live
+watch stops, expression evaluation, task ancestry, scheduler control,
+reverse execution, and external-effect replay. These are represented as
+capability states and pressure records, not hidden behind a fake debugger
+interface.
 
 This is intentionally not GDB/LLDB with MNCS text around it. GDB and LLDB can
 remain independent investigative witnesses, but the stable model here is

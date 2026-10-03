@@ -27,8 +27,15 @@ trustworthy debugger facts, bounded artifact mutation, and explicit capability
 states. A `blocked`, `mismatch`, `partially_supported`, or unavailable result
 must not be promoted to a successful conclusion by the provider.
 
-The current API has no live session token, stop request, evaluate operation,
-or scheduler control because the runtime cannot support those semantics. Those
-operations must be added only with a corresponding capability and evidence
-contract. Native backtrace/value/effect queries are terminal projections over
-the bounded observation stream; they do not imply suspension or watchpoints.
+The `mncs.debug-api/1` stdio surface itself has no live session token,
+stop request, evaluate operation, or scheduler control: it stays an
+evidence-session provider over completed witnesses. Live execution is a
+separate explicit surface: `mncs-debug live ...` holds a resident session
+(`mncs.debug-live-session/1`) over one VM execution via a `mncs-vm debug
+--serve` daemon, with typed stop records, continuation tokens, stepping,
+and terminal evidence (`mncs.debug-live-evidence/1`). The daemon is a
+VM-owned execution holder, not a second execution system, and Forge-owned
+observation execution remains an open pressure (P-016). Native
+backtrace/value/effect queries over evidence sessions are terminal
+projections over the bounded observation stream; they do not imply
+suspension or watchpoints.

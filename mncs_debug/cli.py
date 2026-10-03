@@ -7,6 +7,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Callable
 
@@ -41,8 +42,23 @@ from .protocol import (
 )
 from .runner import RunnerError, build_witness, resolve_mncs, run_process
 from .session import SessionError, attach_session, close_session, open_session, query_session
+from .live import (
+    LiveError,
+    attach_session as live_attach,
+    bind_stop as live_bind_stop,
+    clear_stop as live_clear_stop,
+    close_session as live_close,
+    continue_session as live_continue,
+    default_sessions_root,
+    inspect_session as live_inspect,
+    resolve_mncs_vm,
+    resume_session as live_resume,
+    start_session as live_start,
+    step_session as live_step,
+    terminate_session as live_terminate,
+)
 from .remediate import crash_envelope, remediate
-from .retain import RetentionError, StoreUnavailable, fetch_witness, retain_witness
+from .retain import RetentionError, StoreUnavailable, fetch_live_evidence, fetch_witness, retain_live_evidence, retain_witness
 from .targets import TargetError, UnresolvedTarget, record_stop_set, watch_binding, watch_value, witness_stop_set
 
 
@@ -201,6 +217,95 @@ def _build_parser() -> argparse.ArgumentParser:
     session_close.add_argument("--wipe", action="store_true", help="remove the session directory after closing")
     session_close.add_argument("--output")
     session_close.add_argument("--format", choices=("json", "text"), default="json")
+
+    live = sub.add_parser("live", help="live VM debug sessions: stop, inspect, step, resume")
+    live_sub = live.add_subparsers(dest="live_command", required=True)
+
+    live_start = live_sub.add_parser("start", help="spawn a debug daemon and start one live execution")
+    live_start.add_argument("--root", help="session directory; defaults to a fresh directory under the live root")
+    live_start.add_argument("--compile", help="self-contained .mncs source to compile in the daemon")
+    live_start.add_argument("--artifact", help="frozen mncs.vm.artifact/1 JSON file")
+    live_start.add_argument("--callable", help="MODULE::NAME entry point")
+    live_start.add_argument("--function", help="function identity entry point")
+    live_start.add_argument("--args", help="JSON file with an array of wire execution values")
+    live_start.add_argument("--args-json", help="inline JSON array of wire execution values")
+    live_start.add_argument("--envelope", help="JSON resource envelope file")
+    live_start.add_argument("--providers", help="JSON const-provider map file")
+    live_start.add_argument("--capture", choices=("none", "bounded", "selected", "failure-only", "diagnostic"), default="none")
+    live_start.add_argument("--max-events", type=int, default=256)
+    live_start.add_argument("--max-values", type=int, default=128)
+    live_start.add_argument("--max-value-bytes", type=int, default=4096)
+    live_start.add_argument("--selected", action="append", default=[], help="selected operation identity; may be repeated")
+    live_start.add_argument("--stop-op", action="append", default=[], help="stop before an SSA instruction identity; may be repeated")
+    live_start.add_argument("--stop-function", action="append", default=[], help="stop at function entry; may be repeated")
+    live_start.add_argument("--stop-effect", choices=("before", "after", "both"), help="stop around provider dispatch")
+    live_start.add_argument("--stop-failure", action=argparse.BooleanOptionalAction, default=True, help="suspend before finalizing abnormal outcomes")
+    live_start.add_argument("--mncs-vm", help="explicit mncs-vm driver binary")
+    live_start.add_argument("--timeout", type=float, default=120.0)
+    live_start.add_argument("--output")
+    live_start.add_argument("--format", choices=("json", "text"), default="json")
+
+    for name, help_text in (
+        ("resume", "resume until the next stop or finish"),
+        ("continue", "run until another stop, failure, completion, or bound"),
+        ("step-in", "advance to the next observable transition (into calls)"),
+        ("step-over", "advance beyond the current operation (over calls)"),
+        ("step-out", "advance until the current frame returns"),
+        ("terminate", "terminate the execution and finalize terminal evidence"),
+    ):
+        drive = live_sub.add_parser(name, help=help_text)
+        drive.add_argument("--root", required=True)
+        drive.add_argument("--timeout", type=float, default=120.0)
+        drive.add_argument("--output")
+        drive.add_argument("--format", choices=("json", "text"), default="json")
+
+    live_inspect = live_sub.add_parser("inspect", help="read-only inspection of a live or finished session")
+    live_inspect.add_argument("--root", required=True)
+    live_inspect.add_argument("--view", choices=("stack", "observation", "effects", "stops"), default="stack")
+    live_inspect.add_argument("--max-frames", type=int, default=16)
+    live_inspect.add_argument("--max-values", type=int, default=64)
+    live_inspect.add_argument("--max-value-bytes", type=int, default=4096)
+    live_inspect.add_argument("--output")
+    live_inspect.add_argument("--format", choices=("json", "text"), default="json")
+
+    live_bind = live_sub.add_parser("bind-stop", help="bind a stop condition on the live execution")
+    live_bind.add_argument("--root", required=True)
+    live_bind.add_argument("--id", help="stop identity; minted when omitted")
+    live_bind.add_argument("--op", help="stop before an SSA instruction identity")
+    live_bind.add_argument("--function", help="stop at function entry")
+    live_bind.add_argument("--effect", choices=("before", "after", "both"), help="stop around provider dispatch")
+    live_bind.add_argument("--failure", action="store_true", help="stop at abnormal terminal boundaries")
+    live_bind.add_argument("--output")
+    live_bind.add_argument("--format", choices=("json", "text"), default="json")
+
+    live_clear = live_sub.add_parser("clear-stop", help="clear one bound stop condition by id")
+    live_clear.add_argument("--root", required=True)
+    live_clear.add_argument("--id", required=True)
+    live_clear.add_argument("--output")
+    live_clear.add_argument("--format", choices=("json", "text"), default="json")
+
+    live_attach = live_sub.add_parser("attach", help="validate a live session and report status plus orientation")
+    live_attach.add_argument("--root", required=True)
+    live_attach.add_argument("--output")
+    live_attach.add_argument("--format", choices=("json", "text"), default="json")
+
+    live_close = live_sub.add_parser("close", help="terminate, shut the daemon down, optionally remove the directory")
+    live_close.add_argument("--root", required=True)
+    live_close.add_argument("--remove", action="store_true", help="remove the session directory after closing")
+    live_close.add_argument("--output")
+    live_close.add_argument("--format", choices=("json", "text"), default="json")
+
+    live_retain = live_sub.add_parser("retain", help="retain finished live evidence as a Store object")
+    live_retain.add_argument("--root", required=True)
+    live_retain.add_argument("--store", required=True)
+    live_retain.add_argument("--output")
+    live_retain.add_argument("--format", choices=("json", "text"), default="json")
+
+    live_fetch = live_sub.add_parser("fetch", help="fetch retained live evidence by execution identity")
+    live_fetch.add_argument("--store", required=True)
+    live_fetch.add_argument("--evidence-id", required=True)
+    live_fetch.add_argument("--output", required=True)
+    live_fetch.add_argument("--format", choices=("json", "text"), default="json")
 
     replay = sub.add_parser("replay", help="inspect a trace or boundedly re-execute a witness")
     replay.add_argument("witness")
@@ -1006,6 +1111,196 @@ def _cmd_api(args: argparse.Namespace) -> int:
     return EXIT_SUCCESS
 
 
+def _live_event_text(event: dict[str, Any]) -> str:
+    if event.get("event") == "stopped":
+        stop = event.get("stop", {})
+        point = stop.get("safe_point", {})
+        reasons = ",".join(
+            reason.get("kind", "?") for reason in stop.get("reasons", []) if isinstance(reason, dict)
+        )
+        return (
+            f"stopped #{stop.get('stop_sequence')} at {point.get('kind')} "
+            f"{(point.get('instruction') or point.get('block'))} "
+            f"(depth={point.get('depth')} reasons={reasons})"
+        )
+    outcome = event.get("outcome", {})
+    return f"finished: {outcome.get('kind')}"
+
+
+def _cmd_live(args: argparse.Namespace) -> int:
+    command = args.live_command
+    if command == "start":
+        if bool(args.callable) == bool(args.function):
+            raise ValueError("live start needs exactly one of --callable or --function")
+        if args.callable:
+            if "::" not in args.callable:
+                raise ValueError("live start --callable needs MODULE::NAME")
+            module, name = args.callable.split("::", 1)
+            target: dict[str, Any] = {"module": module, "name": name}
+        else:
+            target = {"function": args.function}
+        if args.args and args.args_json:
+            raise ValueError("live start takes at most one of --args or --args-json")
+        arguments: list[Any] = []
+        if args.args:
+            loaded = load_json(_path(args.args))
+            if not isinstance(loaded, list):
+                raise ValueError("live start --args must hold a JSON array")
+            arguments = loaded
+        elif args.args_json:
+            loaded = json.loads(args.args_json)
+            if not isinstance(loaded, list):
+                raise ValueError("live start --args-json must hold a JSON array")
+            arguments = loaded
+        envelope = load_json(_path(args.envelope)) if args.envelope else None
+        providers = load_json(_path(args.providers)) if args.providers else None
+        stops: list[dict[str, Any]] = []
+        for index, instruction in enumerate(args.stop_op):
+            stops.append({"id": f"op:{index}", "target": {"kind": "operation", "instruction": instruction}})
+        for index, function in enumerate(args.stop_function):
+            stops.append({"id": f"function:{index}", "target": {"kind": "function", "function": function}})
+        if args.stop_effect:
+            stops.append({"id": "effect", "target": {"kind": "effect_boundary", "phase": args.stop_effect}})
+        capture = "failure_only" if args.capture == "failure-only" else args.capture
+        root = _path(args.root) if args.root else default_sessions_root() / f"live-{os.getpid()}-{int(time.time())}"
+        document = live_start(
+            root=root,
+            vm_path=resolve_mncs_vm(args.mncs_vm),
+            target=target,
+            arguments=arguments,
+            envelope=envelope,
+            providers=providers,
+            artifact_path=_path(args.artifact) if args.artifact else None,
+            compile_path=_path(args.compile) if args.compile else None,
+            capture=capture,
+            max_events=args.max_events,
+            max_values=args.max_values,
+            max_value_bytes=args.max_value_bytes,
+            selected_operations=args.selected,
+            stops=stops,
+            stop_on_abnormal_terminal=args.stop_failure,
+            timeout_seconds=args.timeout,
+        )
+        _write(
+            document,
+            args.output,
+            text=f"live session {document['session']['session_id']} at {root}: {_live_event_text(document['event'])}"
+            if args.format == "text"
+            else None,
+        )
+        return EXIT_SUCCESS
+    root = _path(args.root)
+    if command in ("resume", "continue"):
+        document = live_resume(root, args.timeout) if command == "resume" else live_continue(root, args.timeout)
+        _write(document, args.output, text=_live_event_text(document["event"]) if args.format == "text" else None)
+        return EXIT_SUCCESS
+    if command in ("step-in", "step-over", "step-out"):
+        mode = {"step-in": "in", "step-over": "over", "step-out": "out"}[command]
+        document = live_step(root, mode, args.timeout)
+        _write(document, args.output, text=_live_event_text(document["event"]) if args.format == "text" else None)
+        return EXIT_SUCCESS
+    if command == "terminate":
+        document = live_terminate(root, args.timeout)
+        _write(document, args.output, text=_live_event_text(document["event"]) if args.format == "text" else None)
+        return EXIT_SUCCESS
+    if command == "inspect":
+        document = live_inspect(
+            root,
+            args.view,
+            max_frames=args.max_frames,
+            max_values=args.max_values,
+            max_value_bytes=args.max_value_bytes,
+        )
+        if args.format == "text":
+            if args.view == "stack":
+                frames = document.get("stack", {}).get("frames", [])
+                text = f"{len(frames)} frames; current={frames[0].get('function') if frames else None}"
+            elif args.view == "stops":
+                text = f"{len(document.get('stops', []))} stops"
+            elif args.view == "effects":
+                text = f"{len(document.get('effects', []))} effects"
+            else:
+                observation = document.get("observation", {}) or {}
+                text = f"{len(observation.get('events', []))} events, {len(observation.get('values', []))} values"
+        else:
+            text = None
+        _write(document, args.output, text=text)
+        return EXIT_SUCCESS
+    if command == "bind-stop":
+        chosen = [args.op is not None, args.function is not None, args.effect is not None, args.failure]
+        if sum(chosen) != 1:
+            raise ValueError("live bind-stop needs exactly one of --op, --function, --effect, --failure")
+        if args.op is not None:
+            target = {"kind": "operation", "instruction": args.op}
+        elif args.function is not None:
+            target = {"kind": "function", "function": args.function}
+        elif args.effect is not None:
+            target = {"kind": "effect_boundary", "phase": args.effect}
+        else:
+            target = {"kind": "failure_or_trap"}
+        document = live_bind_stop(root, target, args.id)
+        _write(
+            document,
+            args.output,
+            text=f"bound {document['condition']['id']}" if args.format == "text" else None,
+        )
+        return EXIT_SUCCESS
+    if command == "clear-stop":
+        document = live_clear_stop(root, args.id)
+        _write(
+            document,
+            args.output,
+            text=f"cleared={document['cleared']}" if args.format == "text" else None,
+        )
+        return EXIT_SUCCESS
+    if command == "attach":
+        document = live_attach(root)
+        _write(
+            document,
+            args.output,
+            text=(
+                f"live session {document.get('session_id')} {document.get('state')} "
+                f"(stale={document.get('stale')} stops={document.get('stop_count')})"
+                + (f" reason={document.get('stale_reason')}" if document.get("stale") else "")
+            )
+            if args.format == "text"
+            else None,
+        )
+        return EXIT_SUCCESS if not document.get("stale") else EXIT_FAILURE
+    if command == "close":
+        document = live_close(root, remove=args.remove)
+        _write(
+            document,
+            args.output,
+            text=f"closed (terminated={document['terminated']} removed={document['removed']})"
+            if args.format == "text"
+            else None,
+        )
+        return EXIT_SUCCESS
+    if command == "retain":
+        finish_path = root / "finish.json"
+        if not finish_path.exists():
+            raise ValueError(f"session at {root} has no finish.json; only finished sessions retain evidence")
+        document = retain_live_evidence(evidence_path=finish_path, store_path=_path(args.store))
+        _write(
+            document,
+            args.output,
+            text=f"retained {document['retention_id']} ({document['bytes']} bytes)" if args.format == "text" else None,
+        )
+        return EXIT_SUCCESS
+    if command == "fetch":
+        document = fetch_live_evidence(
+            store_path=_path(args.store), evidence_id=args.evidence_id, output_path=_path(args.output)
+        )
+        _write(
+            document,
+            None,
+            text=f"fetched {document['bytes']} bytes to {args.output}" if args.format == "text" else None,
+        )
+        return EXIT_SUCCESS
+    raise ValueError(f"unknown live command {command!r}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -1021,6 +1316,7 @@ def main(argv: list[str] | None = None) -> int:
             "why": _cmd_why,
             "open": _cmd_open,
             "session": _cmd_session,
+            "live": _cmd_live,
             "break": _cmd_break,
             "watch": _cmd_watch,
             "phases": _cmd_phases,
@@ -1037,7 +1333,7 @@ def main(argv: list[str] | None = None) -> int:
             "provider": _cmd_api,
         }
         return handlers[args.command](args)
-    except (RunnerError, SessionError, TargetError, RetentionError, StoreUnavailable, ValueError, OSError, json.JSONDecodeError) as exc:
+    except (RunnerError, SessionError, LiveError, TargetError, RetentionError, StoreUnavailable, ValueError, OSError, json.JSONDecodeError) as exc:
         print(f"mncs-debug: {exc}", file=sys.stderr)
         return EXIT_INVALID_INVOCATION if isinstance(exc, (SessionError, TargetError, ValueError)) else EXIT_INFRASTRUCTURE
 

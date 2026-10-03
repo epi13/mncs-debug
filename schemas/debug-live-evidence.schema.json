@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mncs.debug-live-evidence/1",
+  "title": "mncs.debug-live-evidence/1",
+  "description": "Immutable terminal evidence of a finished live VM debug execution: the terminal outcome, the VM execution record, the retained observation stream (shared mncs.execution-observation/1 shape), and the stop history. Written once when the execution finishes or is terminated; never mutated.",
+  "type": "object",
+  "required": ["schema_version", "protocol_version", "outcome", "record", "stops"],
+  "properties": {
+    "schema_version": {"const": "mncs.debug-live-evidence/1"},
+    "protocol_version": {"type": "integer"},
+    "outcome": {"type": "object"},
+    "record": {"type": "object"},
+    "stream": {"type": ["object", "null"]},
+    "stops": {"type": "array"},
+    "finalized_at": {"type": "string"}
+  },
+  "additionalProperties": false
+}

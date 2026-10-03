@@ -28,6 +28,17 @@ import-test TEST_RESULT [--test-id ID]
 import-actions PROVIDER_RESULT PROVIDER_CHECK RECEIPT MANIFEST PROOF
 retain WITNESS --store DIR
 fetch --store DIR --witness-id ID --output PATH
+live start (--compile SOURCE | --artifact FILE) (--callable MODULE::NAME | --function ID) [--args-json JSON] [--root DIR] [--stop-op ID] [--stop-function ID] [--stop-effect before|after|both] [--capture POLICY]
+live resume|continue --root DIR
+live step-in|step-over|step-out --root DIR
+live inspect --root DIR [--view stack|observation|effects|stops]
+live bind-stop --root DIR (--op ID | --function ID | --effect PHASE | --failure) [--id ID]
+live clear-stop --root DIR --id ID
+live terminate --root DIR
+live attach --root DIR
+live close --root DIR [--remove]
+live retain --root DIR --store DIR
+live fetch --store DIR --evidence-id ID --output PATH
 remediate --target DIR --json [--dry-run] [--changed-path PATH] [--budget N]
 export WITNESS --kind witness|trace|inspection|provenance
 api --request REQUEST.json | --stdio

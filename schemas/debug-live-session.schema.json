@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mncs.debug-live-session/1",
+  "title": "mncs.debug-live-session/1",
+  "description": "Resident handle over a live VM debug execution served by one mncs-vm daemon. Unlike mncs.debug-resident-session/1 (a view over completed immutable evidence), this tracks a running/stopped execution: the token, stop sequence, and state advance while the terminal evidence files stay write-once.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "protocol_version",
+    "session_id",
+    "state",
+    "socket",
+    "execution",
+    "artifact",
+    "stop_sequence"
+  ],
+  "properties": {
+    "schema_version": {"const": "mncs.debug-live-session/1"},
+    "protocol_version": {"type": "integer"},
+    "session_id": {"type": "string"},
+    "state": {"enum": ["live", "finished", "closed"]},
+    "socket": {"type": "string"},
+    "daemon_pid": {"type": ["integer", "null"]},
+    "vm_binary": {"type": "string"},
+    "execution": {"type": ["string", "null"]},
+    "artifact": {"type": ["string", "null"]},
+    "callable": {"type": "object"},
+    "stop_sequence": {"type": ["integer", "null"]},
+    "continuation_token": {"type": ["string", "null"]},
+    "created_at": {"type": "string"},
+    "updated_at": {"type": "string"},
+    "finish": {"type": ["object", "null"]},
+    "close_note": {"type": "string"}
+  },
+  "additionalProperties": false
+}
