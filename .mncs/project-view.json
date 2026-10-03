@@ -1,0 +1,152 @@
+{
+  "capabilities": [
+    {
+      "contract": "debugger",
+      "effects": [
+        "verify"
+      ],
+      "fingerprint_sources": [
+        "mncs_debug/",
+        "native/mncs/debug/",
+        "schemas/debug-capabilities.schema.json"
+      ],
+      "invocation": {
+        "kind": "executable",
+        "path": "bin/mncs-debug",
+        "toolchain": {
+          "path": "target/release/mncs",
+          "repository": "mncs-language"
+        },
+        "toolchain_env": "MNCS"
+      },
+      "kind": "structured-debugger",
+      "stability": "experimental",
+      "version": "1"
+    },
+    {
+      "contract": "repository-remediation",
+      "effects": [
+        "write"
+      ],
+      "fingerprint_sources": [
+        "mncs_debug/remediate.py",
+        "native-applications/",
+        "mncs_debug/generated/debug.py"
+      ],
+      "invocation": {
+        "fixed_argv": [
+          "remediate"
+        ],
+        "kind": "executable",
+        "path": "bin/mncs-debug",
+        "toolchain": {
+          "path": "target/release/mncs",
+          "repository": "mncs-language"
+        },
+        "toolchain_env": "MNCS"
+      },
+      "kind": "remediation-tool",
+      "stability": "experimental",
+      "version": "1"
+    }
+  ],
+  "dependencies": [
+    {
+      "contract": "mncs-test.test-provider",
+      "envelope": {
+        "op": "any"
+      },
+      "required": false
+    },
+    {
+      "contract": "mncs-language.semantic-identity",
+      "envelope": {
+        "op": "any"
+      },
+      "required": true
+    },
+    {
+      "contract": "mncs-stdlib.stdlib-source",
+      "envelope": {
+        "op": "any"
+      },
+      "evidence_refs": [
+        "native/mncs/debug/debug.mncs",
+        "native/mncs/debug/diagnostic_coherence.mncs"
+      ],
+      "required": true,
+      "scope": "native runtime imports; legacy pre-extraction toolchains may bind equivalent language library sources"
+    }
+  ],
+  "entry": [
+    "python3 -m unittest discover -s tests -p 'test_*.py'"
+  ],
+  "purpose": "Self-hosted debugging, tracing, replay, and execution introspection for the MNCS ecosystem.",
+  "repository": "mncs-debug",
+  "schema_version": "mncs.project-view/1",
+  "source_identity": "sha256:ca10058d764e62774a07d11ceddd1956cc63fcb93a3b80a39605b5b7a7e9f28e",
+  "structure": {
+    "layout": "mncs.repository-layout/1",
+    "surfaces": [
+      {
+        "authority": "mncs-debug",
+        "class": "compatibility",
+        "classification": {
+          "authority": "compatibility",
+          "boundary_kind": "process",
+          "lifecycle": "active",
+          "semantic_role": "compatibility-adapter"
+        },
+        "note": "Host protocol, process, observation, and presentation adapters around the native debugger decision core; it is not a second semantic authority.",
+        "path": "mncs_debug/"
+      },
+      {
+        "authority": "mncs-debug",
+        "class": "compatibility",
+        "classification": {
+          "authority": "compatibility",
+          "boundary_kind": "process",
+          "lifecycle": "active",
+          "semantic_role": "compatibility-adapter"
+        },
+        "note": "Compatibility adapter: decodes bounded external artifacts and transports typed observations to the native decision core; it does not decide outcome or sufficiency.",
+        "path": "mncs_debug/analysis.py"
+      },
+      {
+        "authority": "mncs-debug",
+        "class": "canonical",
+        "classification": {
+          "authority": "canonical",
+          "boundary_kind": "none",
+          "lifecycle": "active",
+          "semantic_role": "canonical-semantic"
+        },
+        "note": "Native debugger outcome, evidence sufficiency, escalation, and stop policy are canonical here.",
+        "path": "native/mncs/debug/"
+      },
+      {
+        "class": "host-boundary",
+        "classification": {
+          "authority": "none",
+          "boundary_kind": "process",
+          "lifecycle": "active",
+          "semantic_role": "platform-adapter"
+        },
+        "note": "Process, artifact, and protocol adaptation.",
+        "path": "mncs_debug/transport.py"
+      },
+      {
+        "authority": "MNCS-Commons",
+        "class": "reference",
+        "classification": {
+          "authority": "reference",
+          "boundary_kind": "none",
+          "lifecycle": "active",
+          "semantic_role": "reference"
+        },
+        "note": "Local pressure evidence; Commons owns lifecycle.",
+        "path": "pressures/"
+      }
+    ]
+  }
+}

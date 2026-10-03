@@ -1,6 +1,20 @@
 # mncs-debug
 
 <!-- MNCS:generated:begin -->
+## Project entry
+
+Self-hosted debugging, tracing, replay, and execution introspection for the MNCS ecosystem.
+
+```bash
+python3 -m unittest discover -s tests -p 'test_*.py'
+```
+
+Declared capabilities (declarations do not establish execution health):
+
+- `debugger/1` — structured-debugger (experimental)
+- `repository-remediation/1` — remediation-tool (experimental)
+
+Semantic sources and ownership: `.mncs/projections.json`.
 <!-- MNCS:generated:end -->
 
 Self-hosted debugging, tracing, replay, and execution introspection for the
