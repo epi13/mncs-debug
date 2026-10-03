@@ -14,3 +14,5 @@ artifacts/
 *.trace.json
 *.witness.json
 evidence/generated/
+# Toolchain native caches written under fixture dirs during test runs.
+tests/fixtures/.mncs/

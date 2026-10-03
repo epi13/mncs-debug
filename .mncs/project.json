@@ -1,7 +1,7 @@
 {
   "schema_version": "mncs-family.repository-manifest/v0alpha1",
   "repository": "mncs-debug",
-  "revision": 6,
+  "revision": 7,
   "manifest_location": "in-repository",
   "authority": {
     "note": "mncs-debug owns debugger semantics, witnesses, trace and capability truth; process/filesystem/transport code remains an explicit adapter boundary."
@@ -22,7 +22,8 @@
   },
   "contracts": {
     "provides": [
-      {"contract": "debugger", "version": "1", "kind": "structured-debugger", "stability": "experimental", "fingerprint_sources": ["mncs_debug/", "native/mncs/debug/", "schemas/debug-capabilities.schema.json"]}
+      {"contract": "debugger", "version": "1", "kind": "structured-debugger", "stability": "experimental", "fingerprint_sources": ["mncs_debug/", "native/mncs/debug/", "schemas/debug-capabilities.schema.json"], "effects": ["verify"], "invocation": {"kind": "executable", "path": "bin/mncs-debug", "toolchain": {"repository": "mncs-language", "path": "target/release/mncs"}, "toolchain_env": "MNCS"}},
+      {"contract": "repository-remediation", "version": "1", "kind": "remediation-tool", "stability": "experimental", "fingerprint_sources": ["mncs_debug/remediate.py", "native-applications/", "mncs_debug/generated/debug.py"], "effects": ["write"], "invocation": {"kind": "executable", "path": "bin/mncs-debug", "fixed_argv": ["remediate"], "toolchain": {"repository": "mncs-language", "path": "target/release/mncs"}, "toolchain_env": "MNCS"}}
     ],
     "consumes": [
       {"contract": "mncs-test.test-provider", "envelope": {"op": "any"}, "required": false},

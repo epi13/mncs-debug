@@ -7,9 +7,11 @@
   "profile": "0.18",
   "interface_identity": "9fcd4d008a7138df26324966ecc54f3863442e059b86c231dc88fa123eaac7af",
   "libraries": [
-    "../../mncs-language/library",
+    "../../mncs-stdlib/library",
     "../native"
   ],
   "environment_keys": [],
-  "required_capabilities": ["debug_artifact"]
+  "required_capabilities": [
+    "debug_artifact"
+  ]
 }

@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .capabilities import capability_document
-from .native_core import NativeCoreError, decide as native_decide
+from .native_core import NativeCoreError, decide as native_decide, default_stdlib_library
 from .protocol import (
     MAX_STATIC_RECORDS,
     WITNESS_SCHEMA,
@@ -650,6 +650,37 @@ def _native_static_index(
     }
 
 
+def libraries_for_run(
+    library_paths: list[Path] | None,
+    test_result: dict[str, Any] | None,
+) -> list[Path]:
+    """Resolve the library roots for one runtime invocation.
+
+    Explicit roots win, then test-result provenance, then the derived
+    extracted standard library (disabled by an explicit empty
+    MNCS_STDLIB_ROOT). The ambient MNCS_LIBRARY_PATH is never inherited.
+    """
+
+    libraries = [path.resolve() for path in (library_paths or [])]
+    if not libraries and isinstance(test_result, dict):
+        provenance = test_result.get("provenance") if isinstance(test_result.get("provenance"), dict) else {}
+        raw_libraries = provenance.get("libraries") if isinstance(provenance.get("libraries"), list) else []
+        libraries = [
+            Path(item["path"]).resolve()
+            for item in raw_libraries
+            if isinstance(item, dict) and isinstance(item.get("path"), str) and Path(item["path"]).is_dir()
+        ]
+    # Derived roots are recorded in witness provenance and replay recipes
+    # like any other library, so re-execution reuses exactly what the
+    # recording observed.
+    stdlib_library = default_stdlib_library()
+    if stdlib_library is not None:
+        resolved_stdlib = stdlib_library.resolve()
+        if resolved_stdlib not in libraries:
+            libraries.append(resolved_stdlib)
+    return libraries
+
+
 def build_witness(
     *,
     mncs_path: Path,
@@ -670,15 +701,7 @@ def build_witness(
     request_path = request_path.resolve()
     cwd = cwd.resolve()
     mncs_path = mncs_path.resolve()
-    libraries = [path.resolve() for path in (library_paths or [])]
-    if not libraries and isinstance(test_result, dict):
-        provenance = test_result.get("provenance") if isinstance(test_result.get("provenance"), dict) else {}
-        raw_libraries = provenance.get("libraries") if isinstance(provenance.get("libraries"), list) else []
-        libraries = [
-            Path(item["path"]).resolve()
-            for item in raw_libraries
-            if isinstance(item, dict) and isinstance(item.get("path"), str) and Path(item["path"]).is_dir()
-        ]
+    libraries = libraries_for_run(library_paths, test_result)
     environment = dict(os.environ)
     if libraries:
         environment["MNCS_LIBRARY_PATH"] = os.pathsep.join(os.fspath(path) for path in libraries)
