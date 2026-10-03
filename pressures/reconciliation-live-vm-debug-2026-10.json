@@ -10,7 +10,7 @@
     "live smoke flows: start/inspect/step-in/continue/attach/retain/fetch/close",
     "stale-daemon kill and attach/close repair flows"
   ],
-  "final_debug_revision": "TBD-at-delivery",
+  "final_debug_revision": "8e3c273608f7dfae64d3d66d09105fc454531507",
   "final_vm_revision": "8999423b8fc6c210df81e2ddf3560d43deb1215f",
   "pressures": [
     {
