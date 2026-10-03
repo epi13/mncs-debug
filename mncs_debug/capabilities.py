@@ -160,6 +160,42 @@ def capability_document(*, runtime_path: str | None = None, runtime_digest: str 
             "owner": "mncs-language/mncs-debug",
             "evidence": "native/mncs/debug/debug.mncs is invoked through the current executor for outcome decisions",
         },
+        {
+            "id": "targeted_stop_sets",
+            "state": "supported",
+            "owner": "mncs-debug",
+            "evidence": "function/operation/line targets resolve through the compiler source map to selected-capture stop sets; live suspension remains unsupported",
+        },
+        {
+            "id": "value_watches",
+            "state": "supported",
+            "owner": "mncs-debug",
+            "evidence": "binding/value watches resolve to runtime value observations plus native origin chains without re-execution",
+        },
+        {
+            "id": "resident_debug_sessions",
+            "state": "supported",
+            "owner": "mncs-debug",
+            "evidence": "file-backed resident sessions bind one witness with precomputed indexes, attach/reconnect, memoized warm queries, and stale detection",
+        },
+        {
+            "id": "store_evidence_retention",
+            "state": "supported",
+            "owner": "mncs-debug/mncs-store",
+            "evidence": "integrity-validated witnesses are retained verbatim as single Store objects and fetched back byte-identical",
+        },
+        {
+            "id": "debugger_remediation",
+            "state": "supported",
+            "owner": "mncs-debug",
+            "evidence": "mncs.remediation/1 repairs dead descriptor libraries, missing stdlib entries, and stale interface identities with evidence",
+        },
+        {
+            "id": "compiler_phase_inspection",
+            "state": "supported",
+            "owner": "mncs-debug/mncs-language",
+            "evidence": "compiler-owned study, pass, and resolution facts are projected on demand for a recorded program",
+        },
     ]
     material = {
         "protocol_version": PROTOCOL_VERSION,
@@ -187,6 +223,10 @@ def capability_document(*, runtime_path: str | None = None, runtime_digest: str 
             "mncs.debug-api/1",
             "mncs.debug-validation/1",
             "mncs.debug-minimization/1",
+            "mncs.debug-resident-session/1",
+            "mncs.debug-stop-set/1",
+            "mncs.debug-retention/1",
+            "mncs.debug-phases/1",
         ],
         "runtime": {"path": runtime_path, "sha256": runtime_digest},
         "identity_basis": "content-derived capability list plus selected runtime digest; wall-clock facts are excluded",

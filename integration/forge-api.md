@@ -17,6 +17,8 @@ parse a human summary.
 | `why` | witness plus operation/value/question | `mncs.debug-provenance/1` |
 | `inspect-value` / `value-origin` | witness plus native value identity | value capture and origin chain in `mncs.debug-provenance/1` |
 | `effect-provenance` | witness plus native effect identity | invocation/result lineage in `mncs.debug-provenance/1` |
+| `break` | witness plus exactly one of `function`, `operation_identity`, `line` | `mncs.debug-stop-set/1` resolved without execution |
+| `watch` | witness plus exactly one of `binding`, `value` | value observations plus origin chain in `mncs.debug-provenance/1` |
 | `replay` | witness plus `trace` or `reexecute` mode | `mncs.debug-replay/1` |
 | `minimize` | witness plus bounded attempt count | `mncs.debug-minimization/1` |
 
