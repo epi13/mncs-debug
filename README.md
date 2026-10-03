@@ -1,5 +1,8 @@
 # mncs-debug
 
+<!-- MNCS:generated:begin -->
+<!-- MNCS:generated:end -->
+
 Self-hosted debugging, tracing, replay, and execution introspection for the
 MNCS ecosystem.
 

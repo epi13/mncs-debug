@@ -1,0 +1,17 @@
+{
+  "schema_version": "mncs.project-intent/1",
+  "purpose": "Self-hosted debugging, tracing, replay, and execution introspection for the MNCS ecosystem.",
+  "entry": [
+    "python3 -m unittest discover -s tests -p 'test_*.py'"
+  ],
+  "milestones": [
+    {
+      "id": "mncs-debug:projection-conformance",
+      "title": "Declared ambient projection surfaces satisfy their contract",
+      "subject_slot": "declarations",
+      "evidence": "projection-conformance",
+      "dependencies": [],
+      "blockers": []
+    }
+  ]
+}
