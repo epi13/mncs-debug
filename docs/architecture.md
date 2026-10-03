@@ -64,12 +64,17 @@ The minimum coherent model currently implemented is:
 | witness | immutable reproducibility artifact with inputs, identities, output evidence, limitations, and replay recipe |
 | provenance | native value/frame/effect references plus exact source correspondence; missing scheduler/external causality remains explicit |
 | stop condition | MNCS-native semantic core's `should_stop` decision for the terminal classification |
+| resident session | durable directory binding one witness with indexes, memo, and attach/reconnect |
+| stop set | resolved semantic target plus selected-capture positions over a bounded run |
+| watch | binding/value resolution to runtime observations plus the native origin chain |
+| retention | one witness retained verbatim as one Store object with a fetch receipt |
+| compiler phases | on-demand projection of study, pass, and resolution facts for a program |
 
 Conventional debugger operations map onto that model as follows:
 
 ```text
-breakpoint  → future stop on an event/location/condition
-watchpoint  → future stop on a state relationship change
+breakpoint  → stop set: resolved target plus selected-capture positions (no live suspension)
+watchpoint  → watch: binding/value observations plus origin chain (no live stops)
 step        → future advance over one semantic transition
 backtrace   → native execution-scoped frame ancestry for the bounded run
 replay      → trace inspection or bounded re-execution, with guarantees named
@@ -95,6 +100,10 @@ Protocol versioning is schema-based rather than terminal-command-based:
 | `mncs.debug-provenance/1` | partial causal/dataflow claims and explicit omissions |
 | `mncs.debug-api/1` | Forge/actions/LSP machine request envelope |
 | `mncs.debug-validation/1` | validation result with no text scraping |
+| `mncs.debug-resident-session/1` | durable session binding one witness with indexes and memo |
+| `mncs.debug-stop-set/1` | resolved semantic target plus targeted capture positions |
+| `mncs.debug-retention/1` | Store retention/fetch receipt for one witness |
+| `mncs.debug-phases/1` | on-demand compiler pipeline projection for a program |
 | `mncs.execution-observation/1` | language/runtime-owned bounded typed execution facts carried inside a witness |
 | `mncs.execution-source-map/1` | compiler-owned source correspondence joined by operation identity |
 
@@ -214,6 +223,69 @@ Minimization changes only integer request arguments and keeps a candidate only
 when that signature remains exact. It is conservative and can report
 `no_reduction` or `blocked`; it does not claim semantic equivalence beyond the
 recorded signature.
+
+## Resident sessions
+
+`mncs.debug-resident-session/1` binds one witness copy to a session directory
+with precomputed event/value/operation/frame indexes and a content-addressed
+memo of query results. `session open` validates and copies the witness,
+`session attach` reports status plus a compact orientation without loading
+full evidence, `session query` answers `inspect`, `trace`, `why`, `replay`,
+`sufficiency`, `diagnose`, and `phases` from indexes plus memo, and `session
+close` tears down with an optional wipe.
+
+The held witness is evidence and is never mutated: a digest mismatch marks
+the session stale and refuses queries. Derived state (indexes, memo entries,
+statistics) rebuilds automatically and reports that it did. Native
+sufficiency/diagnosis calls memoize by request identity, so repeated
+diagnostic questions answer in milliseconds instead of recompiling the native
+core. Re-execution and minimization stay outside sessions because they
+produce new witnesses; run them against the session witness and open a new
+session on the result.
+
+## Targeted observation
+
+`break` resolves a function, exact operation identity, or source line through
+the compiler-owned source map and records with selected capture, returning a
+`mncs.debug-stop-set/1` with the resolution, the executions spent, and the
+matched trace events. Against an existing witness it resolves with zero
+executions. Manifest programs without a source map accept only explicit
+operation ids. `watch` resolves a value binding (or identity) to runtime
+value observations plus the native origin chain, reusing
+`mncs.debug-provenance/1`; ambiguous bindings return the candidate list
+instead of guessing. Both are available over the Forge API in witness mode.
+Stop sets are targeted capture positions over a bounded run, not live
+suspension points; `breakpoints`, `watchpoints`, and `step_continue_pause`
+remain `unsupported` capabilities.
+
+## Store retention
+
+`retain` stores one integrity-validated witness verbatim as a single Store
+object under the witness identity, with a small descriptor carrying the
+execution and failure links. `fetch` retrieves it by identity and revalidates
+integrity before reporting success. Retention is explicit and bounded — one
+object per witness, no event-stream dumps — and fails closed when the sibling
+Store boundary is unavailable.
+
+## Remediation
+
+`remediate` speaks `mncs.remediation/1` over the repository domain for
+debugger-owned infrastructure: dead descriptor library entries, descriptors
+missing the stdlib entry their bare invocation needs, and stale frozen
+interface identities or host bindings. Identity repairs apply only when the
+MNCS module source is unchanged versus git, so a local semantic edit is never
+silently blessed; anything else escalates with a precise action. The provider
+is declared in `.mncs/project.json` as `repository-remediation` with a
+`remediate` fixed-argv invocation.
+
+## Compiler phases
+
+`phases` projects the compiler pipeline behind a recorded program on demand:
+compilation status and fingerprints, stage fingerprints, pass executions with
+transformation edges, name resolutions, unresolved obligations, and the
+static function/operation correspondence. The program resolves exactly as
+replay resolves it (digest-checked originals or embedded bytes), and nothing
+is retained at record time, so normal recording pays no introspection cost.
 
 ## Native/host trust boundary
 

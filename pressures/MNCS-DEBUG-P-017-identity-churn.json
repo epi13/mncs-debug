@@ -1,0 +1,35 @@
+{
+  "id": "MNCS-DEBUG-P-017",
+  "title": "Frozen interface identities churn on transitive dependency moves",
+  "status": "open",
+  "severity": "major",
+  "owner_layer_candidate": "mncs-language/compiler",
+  "pinned_revisions": {
+    "baseline_file": "docs/baseline/revisions.json",
+    "mncs-debug": "campaign/native-debug-20261002 over 34ddf6b",
+    "mncs-language": "425de20 stdlib/extraction-20261002",
+    "mncs-stdlib": "4f13827 stdlib/bootstrap-20261002"
+  },
+  "debugger_capability_attempted": ["native_semantic_core", "stable frozen bindings/descriptors"],
+  "minimal_reproducer": {
+    "program": "native/mncs/debug/debug.mncs",
+    "command": "mncs abi native/mncs/debug/debug.mncs (before vs after the stdlib extraction)"
+  },
+  "expected_semantics": "A module interface identity covers the module's own interface, so moving an unchanged dependency to a new repository does not invalidate every downstream frozen binding.",
+  "actual_behavior_limitation": "The mncs.debug interface identity changed (7018beae to 31f110be) with zero source edits when stdlib files moved, failing closed every frozen host binding and native-application descriptor and taking the native debug core offline until regeneration.",
+  "why_capability_matters": "Transitive coupling makes every dependency move a family-wide outage for frozen consumers; fail-closed is correct but the blast radius is large and silent until first use.",
+  "current_workaround": "The mncs.remediation/1 provider detects stale identities and re-freezes them when the module source is git-clean; descriptors and bindings were regenerated for the extraction.",
+  "host_language_code_required": {
+    "present": true,
+    "classification": "legitimate platform/bootstrap boundary",
+    "files": ["mncs_debug/remediate.py"],
+    "why": "Detection and regeneration orchestration is host-side; identity semantics stay compiler-owned.",
+    "changes_semantics": false
+  },
+  "proposed_primitive_or_semantic_direction": "Document whether transitive coupling is intended; if it is, publish a machine-readable identity-refresh procedure per consumer kind, or scope identities to the module interface plus declared dependency pins.",
+  "alternatives_considered": ["unpinned dynamic bindings (loses fail-closed safety)", "family-wide regeneration lockstep (manual, as done here)"],
+  "tests_evidence": ["binding regeneration 7018beae to 31f110be with identical module source", "remediate stale-identity reconciliation tests"],
+  "affected_files_or_modules": ["mncs-language interface identity", "mncs_debug/generated/debug.py", "native-applications/*.json", "mncs_debug/remediate.py"],
+  "dependencies_on_other_pressures": [],
+  "resolution_criteria": "Identity stability semantics are documented, and dependency moves either preserve consumer bindings or trigger a mechanical, detectable refresh."
+}

@@ -7,21 +7,35 @@ code reports failure.
 
 ```text
 capabilities [--mncs PATH]
-record PROGRAM REQUEST [--capture POLICY] [--max-events N] [--max-values N] [--max-value-bytes N] [--operation ID] [--test-result FILE]
+record PROGRAM REQUEST [--capture POLICY] [--max-events N] [--max-values N] [--max-value-bytes N] [--operation ID] [--test-result FILE] [--library ROOT]
 inspect WITNESS [--event EVENT_ID]
+sufficiency WITNESS [--inspection FILE] [--evidence-artifact FILE] [--evidence-operation trace|provenance|replay|minimization]
+diagnose WITNESS [--max-steps N] [--inspection FILE] [--evidence-artifact FILE]
 trace WITNESS [--kind KIND] [--operation OPERATION_ID] [--from N] [--limit N]
 why WITNESS [--operation OPERATION_ID] [--value VALUE_ID] [--question TEXT]
-backtrace WITNESS
-value-origin WITNESS VALUE_ID
-effect-provenance WITNESS EFFECT_ID
 open WITNESS
+session open WITNESS --root DIR [--force]
+session attach --root DIR
+session query --root DIR --op inspect|trace|why|replay|sufficiency|diagnose|phases [op options]
+session close --root DIR [--wipe]
+break (--program PROGRAM --request REQUEST | --witness WITNESS) (--function NAME | --operation ID | --line N)
+watch WITNESS (--binding NAME | --value ID)
+phases WITNESS [--kind all|summary|passes|resolutions]
 replay WITNESS --mode trace|reexecute [--deterministic]
 minimize WITNESS [--max-attempts N]
 validate ARTIFACT
 import-test TEST_RESULT [--test-id ID]
+import-actions PROVIDER_RESULT PROVIDER_CHECK RECEIPT MANIFEST PROOF
+retain WITNESS --store DIR
+fetch --store DIR --witness-id ID --output PATH
+remediate --target DIR --json [--dry-run] [--changed-path PATH] [--budget N]
 export WITNESS --kind witness|trace|inspection|provenance
 api --request REQUEST.json | --stdio
 ```
+
+`backtrace`, `value-origin`, and `effect-provenance` are API projections, not
+separate CLI commands; use `inspect`/`why` on the CLI or the matching API
+operations below.
 
 The API request envelope is `mncs.debug-api/1`:
 
@@ -36,6 +50,12 @@ The API request envelope is `mncs.debug-api/1`:
 }
 ```
 
+API operations: `capabilities`, `open`, `inspect`, `frames`/`backtrace`,
+`trace`, `why`, `inspect-value`/`value-origin`, `effect-provenance`,
+`break` (witness plus one of `function`, `operation_identity`, `line`),
+`watch` (witness plus one of `binding`, `value`), `replay`, `minimize`.
+See `integration/forge-api.md` for the Forge provider boundary.
+
 The `provider` command is an alias for `api` during the bootstrap stage. The
 Actions registration is owned separately by
 `mncs-actions/actions/mncs-debug`; this CLI alias is only its debugger-side
@@ -49,3 +69,8 @@ policy, and the witness carries the bounded `mncs.execution-observation/1`
 stream plus the compiler-owned `mncs.execution-source-map/1` when available.
 The legacy multi-command collector is used only for older runtimes that do not
 provide that contract.
+
+Library roots resolve explicitly: `--library` flags win, then test-result
+provenance, then the derived extracted-stdlib sibling (disabled by an empty
+`MNCS_STDLIB_ROOT`). The ambient `MNCS_LIBRARY_PATH` is never inherited.
+Derived roots are recorded in witness provenance and replay recipes.
