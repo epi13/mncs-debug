@@ -1,0 +1,112 @@
+{
+  "baseline_revision": "1f293d1",
+  "campaign": "mncs-live-vm-debug-2026-10",
+  "evidence": [
+    "mncs-vm tests/debug.rs (15 tests)",
+    "mncs-vm tests/cli.rs (4 tests)",
+    "mncs-debug tests/test_live.py (8 tests)",
+    "mncs.vm.debug/1 contract",
+    "mncs.debug-live-session/1 and mncs.debug-live-evidence/1 contracts",
+    "live smoke flows: start/inspect/step-in/continue/attach/retain/fetch/close",
+    "stale-daemon kill and attach/close repair flows"
+  ],
+  "final_debug_revision": "TBD-at-delivery",
+  "final_vm_revision": "8999423b8fc6c210df81e2ddf3560d43deb1215f",
+  "pressures": [
+    {
+      "after": "PASS for VM execution: suspend at identity-bound safe points, inspect typed state, resume/step/terminate under continuation tokens; reference runtime still has no suspension",
+      "before": "FAIL",
+      "classification": "RESOLVED_AT_VM_LAYER",
+      "commons_id": "MNCS-RUNTIME-A32B31916255",
+      "consumers": [
+        "mncs-debug",
+        "mncs-test"
+      ],
+      "local_id": "MNCS-DEBUG-P-004",
+      "owner": "mncs-vm"
+    },
+    {
+      "after": "PASS for forward re-execution of admitted deterministic artifacts (identity, stops, transition digests, value identities reproduce); reverse/time-travel and external-effect replay remain unsupported",
+      "before": "FAIL",
+      "classification": "PARTIALLY_RESOLVED",
+      "commons_id": null,
+      "consumers": [
+        "mncs-debug",
+        "mncs-test"
+      ],
+      "local_id": "MNCS-DEBUG-P-005",
+      "owner": "mncs-vm"
+    },
+    {
+      "after": "REPRODUCED: VM debug captures values scoped to retained operations at the VM layer for live sessions; reference-runtime ambient value filtering still owner-deferred",
+      "before": "FAIL",
+      "classification": "PARTIALLY_RESOLVED",
+      "commons_id": null,
+      "consumers": [
+        "mncs-debug"
+      ],
+      "local_id": "MNCS-DEBUG-P-014",
+      "owner": "mncs-language/runtime"
+    },
+    {
+      "after": "REPRODUCED: cold policy calls still 10s-80s; live VM sessions amortize startup across stops/inspects/steps inside one execution but do not warm the toolchain itself",
+      "before": "FAIL",
+      "classification": "STILL_OPEN",
+      "commons_id": null,
+      "consumers": [
+        "mncs-debug"
+      ],
+      "local_id": "MNCS-DEBUG-P-015",
+      "owner": "mncs-language/runtime"
+    },
+    {
+      "after": "REPRODUCED: Forge has runner/receipt substrate but no observation-mode execution contract; debug daemon path is VM-owned and Forge-evolvable, not a second execution system",
+      "before": "FAIL",
+      "classification": "STILL_OPEN",
+      "commons_id": null,
+      "consumers": [
+        "mncs-debug",
+        "mncs-forge"
+      ],
+      "local_id": "MNCS-DEBUG-P-016",
+      "owner": "mncs-forge"
+    },
+    {
+      "after": "STABLE_THIS_RUN: module interface identity unchanged across live-debug runs; transitive-dependency blast radius unresolved",
+      "before": "UNKNOWN",
+      "classification": "STILL_OPEN",
+      "commons_id": null,
+      "consumers": [
+        "mncs-debug"
+      ],
+      "local_id": "MNCS-DEBUG-P-017",
+      "owner": "mncs-language"
+    },
+    {
+      "after": "REPRODUCED: pinned release toolchain remains older than debug toolchain; no regression, no fix",
+      "before": "FAIL",
+      "classification": "STILL_OPEN",
+      "commons_id": null,
+      "consumers": [
+        "mncs-debug"
+      ],
+      "local_id": "MNCS-DEBUG-P-018",
+      "owner": "mncs-language"
+    },
+    {
+      "after": "PASS: mncs-vm owns suspension, safe points, stop conditions, typed inspection, resume/step/terminate, and observation streams; mncs-debug consumes via mncs.vm.debug/1",
+      "before": "FAIL",
+      "classification": "RESOLVED",
+      "commons_id": null,
+      "consumers": [
+        "mncs-debug",
+        "mncs-test"
+      ],
+      "local_id": "MNCS-DEBUG-P-019",
+      "owner": "mncs-vm"
+    }
+  ],
+  "profile": "live-vm-debug",
+  "rule": "capability landed is distinct from consumer verified; layered PASS, FAIL, UNKNOWN, INVALID, and partial evidence remain distinct",
+  "schema_version": "mncs.debug-pressure-reconciliation/2"
+}

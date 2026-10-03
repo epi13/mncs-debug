@@ -18,6 +18,8 @@ from typing import Any
 
 SESSION_SCHEMA = "mncs.debug-session/1"
 RESIDENT_SESSION_SCHEMA = "mncs.debug-resident-session/1"
+LIVE_SESSION_SCHEMA = "mncs.debug-live-session/1"
+LIVE_EVIDENCE_SCHEMA = "mncs.debug-live-evidence/1"
 STOP_SET_SCHEMA = "mncs.debug-stop-set/1"
 RETENTION_SCHEMA = "mncs.debug-retention/1"
 PHASES_SCHEMA = "mncs.debug-phases/1"
@@ -264,6 +266,8 @@ def validate_document(value: Any, expected_schema: str | None = None) -> list[st
     required: dict[str, tuple[str, ...]] = {
         SESSION_SCHEMA: ("schema_version", "protocol_version", "session_id", "state", "witness_id", "capabilities"),
         RESIDENT_SESSION_SCHEMA: ("schema_version", "protocol_version", "session_id", "state", "witness_id", "witness_sha256"),
+        LIVE_SESSION_SCHEMA: ("schema_version", "protocol_version", "session_id", "state", "socket", "execution", "artifact", "stop_sequence"),
+        LIVE_EVIDENCE_SCHEMA: ("schema_version", "protocol_version", "outcome", "record", "stops"),
         STOP_SET_SCHEMA: ("schema_version", "protocol_version", "stop_set_id", "target", "resolution", "matched_events"),
         RETENTION_SCHEMA: ("schema_version", "protocol_version", "retention_id", "witness_id", "store", "bytes", "result"),
         PHASES_SCHEMA: ("schema_version", "protocol_version", "phases_id", "witness_id", "status", "kind", "compilation", "passes", "resolutions"),
