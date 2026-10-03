@@ -17,6 +17,10 @@ from pathlib import Path
 from typing import Any
 
 SESSION_SCHEMA = "mncs.debug-session/1"
+RESIDENT_SESSION_SCHEMA = "mncs.debug-resident-session/1"
+STOP_SET_SCHEMA = "mncs.debug-stop-set/1"
+RETENTION_SCHEMA = "mncs.debug-retention/1"
+PHASES_SCHEMA = "mncs.debug-phases/1"
 EVENT_SCHEMA = "mncs.debug-event/1"
 TRACE_SCHEMA = "mncs.debug-trace/1"
 WITNESS_SCHEMA = "mncs.debug-witness/1"
@@ -259,6 +263,10 @@ def validate_document(value: Any, expected_schema: str | None = None) -> list[st
 
     required: dict[str, tuple[str, ...]] = {
         SESSION_SCHEMA: ("schema_version", "protocol_version", "session_id", "state", "witness_id", "capabilities"),
+        RESIDENT_SESSION_SCHEMA: ("schema_version", "protocol_version", "session_id", "state", "witness_id", "witness_sha256"),
+        STOP_SET_SCHEMA: ("schema_version", "protocol_version", "stop_set_id", "target", "resolution", "matched_events"),
+        RETENTION_SCHEMA: ("schema_version", "protocol_version", "retention_id", "witness_id", "store", "bytes", "result"),
+        PHASES_SCHEMA: ("schema_version", "protocol_version", "phases_id", "witness_id", "status", "kind", "compilation", "passes", "resolutions"),
         EVENT_SCHEMA: ("schema_version", "protocol_version", "event_id", "execution_identity", "sequence", "kind", "location", "payload", "relationships"),
         TRACE_SCHEMA: ("schema_version", "protocol_version", "trace_id", "execution_identity", "events", "capture_policy", "bounded"),
         WITNESS_SCHEMA: ("schema_version", "protocol_version", "witness_id", "execution_identity", "program", "request", "outcome", "trace", "replay", "capabilities", "provenance"),

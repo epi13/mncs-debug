@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-debug/blob/main/schemas/debug-resident-session.schema.json",
+  "title": "MNCS Debug Resident Session",
+  "type": "object",
+  "required": ["schema_version", "protocol_version", "session_id", "state", "witness_id", "witness_sha256"],
+  "properties": {
+    "schema_version": {"const": "mncs.debug-resident-session/1"},
+    "protocol_version": {"const": 1},
+    "session_id": {"type": "string"},
+    "state": {"enum": ["open", "closed", "stale"]},
+    "witness_id": {"type": "string"},
+    "witness_sha256": {"type": "string"},
+    "witness_bytes": {"type": "integer"},
+    "execution_identity": {"type": ["string", "null"]},
+    "failure_class": {"type": ["string", "null"]},
+    "indexes": {"type": "object"},
+    "index_digest": {"type": "string"},
+    "memo": {"type": "object"},
+    "queries": {"type": "integer"},
+    "opened_at": {"type": ["string", "null"]},
+    "last_query_at": {"type": ["string", "null"]},
+    "closed_at": {"type": ["string", "null"]},
+    "stale_reason": {"type": "string"},
+    "observed_witness_sha256": {"type": ["string", "null"]},
+    "source_path": {"type": "string"},
+    "transport": {"type": "object"}
+  },
+  "additionalProperties": true
+}
