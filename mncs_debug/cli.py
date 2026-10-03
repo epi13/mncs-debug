@@ -98,6 +98,117 @@ def _add_runtime_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--library", action="append", default=[], help="MNCS library root; may be repeated")
 
 
+FORGE_OBSERVATION_SCHEMA = "mncs.forge-observation/1"
+
+
+def _add_executor_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--executor",
+        choices=("local", "forge"),
+        default="local",
+        help="execute the observation locally or submit it to Forge-owned execution",
+    )
+    parser.add_argument(
+        "--forge-binary",
+        default="mncs-forge",
+        help="Forge executable used when --executor forge is selected",
+    )
+    parser.add_argument(
+        "--forge-config",
+        default=None,
+        help="Forge project configuration used when --executor forge is selected (required)",
+    )
+
+
+def _observe_through_forge(
+    *,
+    forge_binary: str,
+    forge_config: str | None,
+    program: Path,
+    request_path: Path,
+    cwd: Path,
+    timeout_seconds: float,
+    mncs_path: Path,
+    core_path: Path | None,
+    library_paths: list[Path],
+    capture_policy: str,
+    max_events: int,
+    max_values: int,
+    max_value_bytes: int,
+    selected_operations: list[str],
+    test_result_path: Path | None = None,
+) -> dict[str, Any]:
+    """Submit one record-equivalent observation to Forge-owned execution.
+
+    Debug declares intent (program, request, capture policy); Forge owns the
+    working directory, environment, deadline, and provenance of the run. All
+    inputs are absolute paths so they resolve identically under Forge's
+    project. The returned witness is validated before use.
+    """
+
+    if not forge_config:
+        raise ValueError("--executor forge requires --forge-config")
+    command = [
+        forge_binary,
+        "--config",
+        str(_path(forge_config)),
+        "mncs",
+        "observe",
+        str(program),
+        str(request_path),
+        "--mncs-binary",
+        str(mncs_path),
+        "--timeout-seconds",
+        str(timeout_seconds),
+        "--capture-policy",
+        capture_policy,
+        "--max-events",
+        str(max_events),
+        "--max-values",
+        str(max_values),
+        "--max-value-bytes",
+        str(max_value_bytes),
+    ]
+    if core_path is not None:
+        command.extend(("--core-path", str(core_path)))
+    if test_result_path is not None:
+        command.extend(("--test-result", str(test_result_path)))
+    if library_paths:
+        command.extend(("--library-paths", json.dumps([str(path) for path in library_paths])))
+    for operation in selected_operations:
+        command.extend(("--selected-operation", operation))
+    completed = run_process(command, cwd, timeout_seconds)
+    if completed.timed_out:
+        raise RunnerError(f"forge observe exceeded {timeout_seconds:g} seconds")
+    try:
+        document = json.loads(completed.stdout.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as error:
+        raise RunnerError(
+            "forge observe returned invalid JSON: "
+            + (completed.stderr.decode("utf-8", errors="replace")[-500:] or str(error))
+        ) from error
+    if (
+        completed.returncode != 0
+        or not isinstance(document, dict)
+        or document.get("schema_version") != FORGE_OBSERVATION_SCHEMA
+    ):
+        detail: Any = document.get("error") if isinstance(document, dict) else None
+        if isinstance(detail, dict):
+            detail = f"{detail.get('code')}: {detail.get('message')}"
+        elif completed.returncode != 0:
+            detail = completed.stderr.decode("utf-8", errors="replace")[-500:] or f"exit {completed.returncode}"
+        else:
+            detail = f"unexpected Forge response: {str(document)[:300]}"
+        raise ValueError(f"forge observe failed: {detail}")
+    witness = document.get("witness_document")
+    if not isinstance(witness, dict):
+        raise RunnerError("forge observation carried no witness document")
+    errors = validate_witness_integrity(witness)
+    if errors:
+        raise RunnerError(f"forge observation witness failed validation: {errors[0]}")
+    return witness
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="mncs-debug",
@@ -132,6 +243,7 @@ def _build_parser() -> argparse.ArgumentParser:
         command.add_argument("--test-result", help="optional pinned mncs.test-result/1 document")
         command.add_argument("--output", help="write witness JSON to this path")
         command.add_argument("--format", choices=("json", "text"), default="json")
+        _add_executor_options(command)
 
     inspect = sub.add_parser("inspect", help="inspect a witness as structured state")
     inspect.add_argument("witness")
@@ -360,6 +472,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     import_test.add_argument("--output")
     import_test.add_argument("--format", choices=("json", "text"), default="json")
+    _add_executor_options(import_test)
 
     import_actions = sub.add_parser(
         "import-actions",
@@ -496,21 +609,40 @@ def _cmd_record(args: argparse.Namespace) -> int:
         raise ValueError("--max-value-bytes must be between 0 and 65536")
     if args.capture == "selected" and not args.operation:
         raise ValueError("--capture selected requires at least one --operation")
-    witness = build_witness(
-        mncs_path=runtime,
-        program_path=program,
-        request_path=request,
-        cwd=cwd,
-        timeout_seconds=args.timeout,
-        capture_policy=args.capture,
-        max_events=args.max_events,
-        max_values=args.max_values,
-        max_value_bytes=args.max_value_bytes,
-        selected_operations=args.operation,
-        test_result=test_result,
-        core_path=_path(args.core) if args.core else None,
-        library_paths=[_path(path) for path in args.library],
-    )
+    if args.executor == "forge":
+        witness = _observe_through_forge(
+            forge_binary=args.forge_binary,
+            forge_config=args.forge_config,
+            program=program,
+            request_path=request,
+            cwd=cwd,
+            timeout_seconds=args.timeout,
+            mncs_path=runtime,
+            core_path=_path(args.core) if args.core else None,
+            library_paths=[_path(path) for path in args.library],
+            capture_policy=args.capture,
+            max_events=args.max_events,
+            max_values=args.max_values,
+            max_value_bytes=args.max_value_bytes,
+            selected_operations=args.operation,
+            test_result_path=_path(args.test_result) if args.test_result else None,
+        )
+    else:
+        witness = build_witness(
+            mncs_path=runtime,
+            program_path=program,
+            request_path=request,
+            cwd=cwd,
+            timeout_seconds=args.timeout,
+            capture_policy=args.capture,
+            max_events=args.max_events,
+            max_values=args.max_values,
+            max_value_bytes=args.max_value_bytes,
+            selected_operations=args.operation,
+            test_result=test_result,
+            core_path=_path(args.core) if args.core else None,
+            library_paths=[_path(path) for path in args.library],
+        )
     _write(witness, args.output, text=_text_summary(witness) if args.format == "text" else None)
     return EXIT_SUCCESS if witness.get("outcome", {}).get("failure_class") in {"success", "test_failure"} else EXIT_FAILURE
 
@@ -806,21 +938,42 @@ def _cmd_import_test(args: argparse.Namespace) -> int:
         selected_result["test_result_artifact"] = file_artifact(
             result_path, "mncs-test-result", relative_to=result_path.parent
         )
-        witness = build_witness(
-            mncs_path=_runtime(args),
-            program_path=program,
-            request_path=request_path,
-            cwd=_path(args.cwd) if args.cwd else program.parent,
-            timeout_seconds=args.timeout,
-            capture_policy=args.capture,
-            max_events=args.max_events,
-            max_values=args.max_values,
-            max_value_bytes=args.max_value_bytes,
-            selected_operations=args.operation,
-            test_result=selected_result,
-            core_path=_path(args.core) if args.core else None,
-            library_paths=[_path(path) for path in args.library],
-        )
+        if args.executor == "forge":
+            selected_path = Path(directory) / "selected-result.json"
+            selected_path.write_text(json.dumps(selected_result), encoding="utf-8")
+            witness = _observe_through_forge(
+                forge_binary=args.forge_binary,
+                forge_config=args.forge_config,
+                program=program,
+                request_path=request_path,
+                cwd=_path(args.cwd) if args.cwd else program.parent,
+                timeout_seconds=args.timeout,
+                mncs_path=_runtime(args),
+                core_path=_path(args.core) if args.core else None,
+                library_paths=[_path(path) for path in args.library],
+                capture_policy=args.capture,
+                max_events=args.max_events,
+                max_values=args.max_values,
+                max_value_bytes=args.max_value_bytes,
+                selected_operations=args.operation,
+                test_result_path=selected_path,
+            )
+        else:
+            witness = build_witness(
+                mncs_path=_runtime(args),
+                program_path=program,
+                request_path=request_path,
+                cwd=_path(args.cwd) if args.cwd else program.parent,
+                timeout_seconds=args.timeout,
+                capture_policy=args.capture,
+                max_events=args.max_events,
+                max_values=args.max_values,
+                max_value_bytes=args.max_value_bytes,
+                selected_operations=args.operation,
+                test_result=selected_result,
+                core_path=_path(args.core) if args.core else None,
+                library_paths=[_path(path) for path in args.library],
+                )
     _write(witness, args.output, text=_text_summary(witness) if args.format == "text" else None)
     return EXIT_SUCCESS if witness.get("outcome", {}).get("failure_class") in {"success", "test_failure"} else EXIT_FAILURE
 

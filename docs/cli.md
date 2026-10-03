@@ -7,7 +7,7 @@ code reports failure.
 
 ```text
 capabilities [--mncs PATH]
-record PROGRAM REQUEST [--capture POLICY] [--max-events N] [--max-values N] [--max-value-bytes N] [--operation ID] [--test-result FILE] [--library ROOT]
+record PROGRAM REQUEST [--capture POLICY] [--max-events N] [--max-values N] [--max-value-bytes N] [--operation ID] [--test-result FILE] [--library ROOT] [--executor local|forge]
 inspect WITNESS [--event EVENT_ID]
 sufficiency WITNESS [--inspection FILE] [--evidence-artifact FILE] [--evidence-operation trace|provenance|replay|minimization]
 diagnose WITNESS [--max-steps N] [--inspection FILE] [--evidence-artifact FILE]
@@ -24,7 +24,7 @@ phases WITNESS [--kind all|summary|passes|resolutions]
 replay WITNESS --mode trace|reexecute [--deterministic]
 minimize WITNESS [--max-attempts N]
 validate ARTIFACT
-import-test TEST_RESULT [--test-id ID]
+import-test TEST_RESULT [--test-id ID] [--executor local|forge]
 import-actions PROVIDER_RESULT PROVIDER_CHECK RECEIPT MANIFEST PROOF
 retain WITNESS --store DIR
 fetch --store DIR --witness-id ID --output PATH
@@ -48,6 +48,14 @@ api --request REQUEST.json | --stdio
 `backtrace`, `value-origin`, and `effect-provenance` are API projections, not
 separate CLI commands; use `inspect`/`why` on the CLI or the matching API
 operations below.
+
+`record` and `import-test` accept `--executor local|forge` (default
+`local`). With `--executor forge --forge-config FORGE.toml`, the
+observation is submitted to Forge-owned execution (`development.mncs.observe`):
+Forge owns the working directory, environment, deadline, and provenance,
+then returns the validated witness. `--forge-binary` selects the Forge
+executable (default `mncs-forge`). Capture semantics are identical; only
+execution ownership changes. See `integration/forge-api.md`.
 
 `live pipe` serves many session operations in one client process over
 stdin/stdout JSONL, avoiding ~80 ms of per-command startup (warm queries
