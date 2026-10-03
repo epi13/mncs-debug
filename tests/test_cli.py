@@ -348,6 +348,149 @@ class RuntimeCliTests(unittest.TestCase):
             self.assertEqual(rejected.returncode, 1)
             self.assertIn("witness_id does not match content", rejected.stdout)
 
+class ForgeExecutorCliTests(unittest.TestCase):
+    """Forge-submitted observation plumbing without a native toolchain.
+
+    A stub Forge binary stands in for ``mncs-forge mncs observe``; the
+    witness it serves is integrity-valid but carries no native facts.
+    """
+
+    def run_cli(self, *arguments: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, str(BIN), *arguments],
+            cwd=ROOT,
+            env=dict(os.environ),
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+
+    def test_forge_executor_requires_config(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="mncs-debug-forge-executor-") as directory:
+            root = Path(directory)
+            missing = self.run_cli(
+                "record",
+                str(PROGRAM),
+                str(SUCCESS_REQUEST),
+                "--mncs",
+                sys.executable,
+                "--output",
+                str(root / "witness.json"),
+                "--executor",
+                "forge",
+            )
+            self.assertEqual(missing.returncode, 2)
+            self.assertIn("--forge-config", missing.stderr)
+
+    def test_forge_executor_returns_validated_observe_witness(self) -> None:
+        from mncs_debug.protocol import identity
+
+        material = {
+            "schema_version": "mncs.debug-witness/1",
+            "protocol_version": 1,
+            "execution_identity": "execution-stub",
+            "session": {},
+            "program": {},
+            "request": {},
+            "compiler": {},
+            "runtime": {},
+            "outcome": {"failure_class": "success"},
+            "trace": {
+                "schema_version": "mncs.debug-trace/1",
+                "protocol_version": 1,
+                "trace_id": "trace-stub",
+                "execution_identity": "execution-stub",
+                "events": [],
+                "capture_policy": "bounded",
+                "bounded": True,
+            },
+            "static": {},
+            "artifacts": [],
+            "process": {},
+            "replay": {},
+            "capabilities": {
+                "schema_version": "mncs.debug-capabilities/1",
+                "protocol_version": 1,
+                "debugger": "mncs-debug",
+                "debugger_version": "stub",
+                "capabilities_id": "stub",
+                "capabilities": [],
+                "protocols": [],
+            },
+            "provenance": {},
+            "limitations": [],
+        }
+        witness = {**material, "witness_id": identity("witness", material)}
+        with tempfile.TemporaryDirectory(prefix="mncs-debug-forge-executor-") as directory:
+            root = Path(directory)
+            (root / "stub-witness.json").write_text(json.dumps(witness), encoding="utf-8")
+            stub = root / "stub-forge"
+            stub.write_text(
+                "#!/usr/bin/env python3\n"
+                "import json, sys\n"
+                "from pathlib import Path\n"
+                "here = Path(sys.argv[0]).parent\n"
+                "witness = json.loads((here / 'stub-witness.json').read_text(encoding='utf-8'))\n"
+                "(here / 'seen.json').write_text(json.dumps(sys.argv[1:]), encoding='utf-8')\n"
+                "assert 'observe' in sys.argv[1:], sys.argv\n"
+                "assert '--executor' not in sys.argv[1:], sys.argv\n"
+                "print(json.dumps({'schema_version': 'mncs.forge-observation/1', 'witness_document': witness}))\n",
+                encoding="utf-8",
+            )
+            stub.chmod(0o755)
+            forged_path = root / "forged.json"
+            forged = self.run_cli(
+                "record",
+                str(PROGRAM),
+                str(SUCCESS_REQUEST),
+                "--mncs",
+                sys.executable,
+                "--output",
+                str(forged_path),
+                "--capture",
+                "failure-only",
+                "--executor",
+                "forge",
+                "--forge-binary",
+                str(stub),
+                "--forge-config",
+                str(root / "forge.toml"),
+            )
+            self.assertEqual(forged.returncode, 0, forged.stderr)
+            self.assertEqual(_json(forged_path), witness)
+            seen = json.loads((root / "seen.json").read_text(encoding="utf-8"))
+            self.assertIn(str(PROGRAM.resolve()), seen)
+            self.assertIn(str(SUCCESS_REQUEST.resolve()), seen)
+            self.assertEqual(seen[seen.index("--capture-policy") + 1], "failure-only")
+
+    def test_forge_executor_rejects_invalid_observe_response(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="mncs-debug-forge-executor-") as directory:
+            root = Path(directory)
+            stub = root / "stub-forge"
+            stub.write_text(
+                "#!/usr/bin/env python3\nprint('{\"ok\": false}')\n",
+                encoding="utf-8",
+            )
+            stub.chmod(0o755)
+            rejected = self.run_cli(
+                "record",
+                str(PROGRAM),
+                str(SUCCESS_REQUEST),
+                "--mncs",
+                sys.executable,
+                "--output",
+                str(root / "witness.json"),
+                "--executor",
+                "forge",
+                "--forge-binary",
+                str(stub),
+                "--forge-config",
+                str(root / "forge.toml"),
+            )
+            self.assertEqual(rejected.returncode, 2)
+            self.assertIn("forge observe failed", rejected.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

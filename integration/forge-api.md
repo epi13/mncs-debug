@@ -34,8 +34,19 @@ separate explicit surface: `mncs-debug live ...` holds a resident session
 (`mncs.debug-live-session/1`) over one VM execution via a `mncs-vm debug
 --serve` daemon, with typed stop records, continuation tokens, stepping,
 and terminal evidence (`mncs.debug-live-evidence/1`). The daemon is a
-VM-owned execution holder, not a second execution system, and Forge-owned
-observation execution remains an open pressure (P-016). Native
+VM-owned execution holder, not a second execution system. Native
 backtrace/value/effect queries over evidence sessions are terminal
 projections over the bounded observation stream; they do not imply
 suspension or watchpoints.
+
+## Observation submission to Forge
+
+`record`, `run`, and `import-test` accept `--executor forge
+--forge-config FORGE.toml` (default executor is `local`). Debug submits
+program, request, and capture policy to Forge's `development.mncs.observe`
+operation; Forge owns confinement, deadline, and provenance, invokes the
+local record entry, and returns the validated witness with Forge
+execution identity. Capture semantics are identical to local execution;
+only execution ownership changes. This is the submission side of
+MNCS-DEBUG-P-016; the contract is documented in Forge's
+`docs/mncs-execution-modes.md`.
