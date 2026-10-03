@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-debug/blob/main/schemas/debug-stop-set.schema.json",
+  "title": "MNCS Debug Stop Set",
+  "type": "object",
+  "required": ["schema_version", "protocol_version", "stop_set_id", "target", "resolution", "matched_events"],
+  "properties": {
+    "schema_version": {"const": "mncs.debug-stop-set/1"},
+    "protocol_version": {"const": 1},
+    "stop_set_id": {"type": "string"},
+    "target": {"type": "object"},
+    "resolution": {"type": "object"},
+    "witness_id": {"type": ["string", "null"]},
+    "executions": {"type": "integer"},
+    "capture_policy": {"type": ["string", "null"]},
+    "matched_events": {"type": "array", "items": {"type": "string"}},
+    "matched_event_count": {"type": "integer"},
+    "suspension": {"type": "object"}
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-debug/blob/main/schemas/debug-retention.schema.json",
+  "title": "MNCS Debug Retention",
+  "type": "object",
+  "required": ["schema_version", "protocol_version", "retention_id", "witness_id", "store", "bytes", "result"],
+  "properties": {
+    "schema_version": {"const": "mncs.debug-retention/1"},
+    "protocol_version": {"const": 1},
+    "retention_id": {"type": "string"},
+    "witness_id": {"type": "string"},
+    "execution_identity": {"type": ["string", "null"]},
+    "store": {"type": "object"},
+    "bytes": {"type": "integer"},
+    "result": {"type": "string"},
+    "integrity": {"type": "string"}
+  },
+  "additionalProperties": true
+}

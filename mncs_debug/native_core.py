@@ -80,10 +80,47 @@ def _label_like(value: str) -> str:
     return re.sub(r"(?<!^)(?=[A-Z])", "_", value).lower()
 
 
+def default_workspace() -> Path:
+    """Return the workspace root containing the debugger checkout."""
+    return Path(__file__).resolve().parents[2]
+
+
+def default_stdlib_library(workspace: Path | None = None) -> Path | None:
+    """Resolve the extracted `mncs-stdlib` library root.
+
+    An explicit `MNCS_STDLIB_ROOT` wins: it names the stdlib checkout root
+    (a direct `.../library` path is also accepted) and an empty value
+    disables derivation for hermetic runs. Otherwise a `mncs-stdlib`
+    sibling of the debugger workspace is used. The legacy in-language
+    tree remains a caller-side fallback, not a stdlib claim.
+    """
+
+    override = os.environ.get("MNCS_STDLIB_ROOT")
+    if override is not None:
+        if not override:
+            return None
+        candidate = Path(override)
+        library = candidate if candidate.name == "library" else candidate / "library"
+        return library if library.is_dir() else None
+    anchors = [workspace] if workspace is not None else []
+    anchors.append(default_workspace())
+    for anchor in anchors:
+        if anchor is None:
+            continue
+        candidate = anchor / "mncs-stdlib" / "library"
+        if candidate.is_dir():
+            return candidate
+    return None
+
+
 def _libraries(core: Path) -> list[Path]:
     configured = os.environ.get("MNCS_LIBRARY_PATH", "")
     libraries = [Path(item) for item in configured.split(os.pathsep) if item]
-    workspace = core.parents[3].parent
+    parents = core.resolve().parents
+    workspace = parents[3].parent if len(parents) > 4 else default_workspace()
+    stdlib = default_stdlib_library(workspace)
+    if stdlib is not None and stdlib not in libraries:
+        libraries.append(stdlib)
     for candidate in (
         workspace / "mncs-language" / "library",
         workspace / "MNCS-Commons" / "src" / "mncs_commons" / "mesh" / "mncs",

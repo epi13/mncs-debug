@@ -1,0 +1,34 @@
+{
+  "id": "MNCS-DEBUG-P-014",
+  "title": "Selected capture filters events but retains unfiltered values",
+  "status": "open",
+  "severity": "minor",
+  "owner_layer_candidate": "mncs-language/runtime",
+  "pinned_revisions": {
+    "baseline_file": "docs/baseline/revisions.json",
+    "mncs-debug": "campaign/native-debug-20261002 over 34ddf6b",
+    "mncs-language": "425de20 stdlib/extraction-20261002"
+  },
+  "debugger_capability_attempted": ["targeted_stop_sets", "bounded selected capture"],
+  "minimal_reproducer": {
+    "program": "examples/nested.mncs",
+    "command": "mncs observe examples/nested.mncs examples/nested-request.json --capture selected --operation 'mncs:0.2:operation:examples.debug.nested::wrapper::entry::%24mncs%24call%240' --max-events 64 --max-values 64 --max-value-bytes 1024"
+  },
+  "expected_semantics": "Selected capture retains only the observations attributable to the selected operations, so targeted witnesses stay small.",
+  "actual_behavior_limitation": "Selected capture retains 2 targeted events but all 5 values (identical value set to bounded capture), so witnesses stay large even for single-operation stop sets (77KB vs 120KB on the nested fixture).",
+  "why_capability_matters": "Targeted debugging without giant process logs needs value capture scoped to the selection; otherwise every stop set drags the full value context.",
+  "current_workaround": "Stop sets report matched events (the targeted part) and treat retained values as ambient context; witnesses remain bounded but not minimal.",
+  "host_language_code_required": {
+    "present": false,
+    "classification": "none",
+    "files": [],
+    "why": "No host code involved; the runtime decides the value filter.",
+    "changes_semantics": false
+  },
+  "proposed_primitive_or_semantic_direction": "Scope selected capture values to the selected operations (plus request/response roots), or document values as intentionally ambient with a separate value-selection contract.",
+  "alternatives_considered": ["debugger-side value projection (hides runtime evidence)", "max-values clamping per stop set (loses targeted values first)"],
+  "tests_evidence": ["break record-mode: 16 bounded events vs 4 selected events with identical 5 values"],
+  "affected_files_or_modules": ["mncs-language selected capture", "mncs_debug/targets.py"],
+  "dependencies_on_other_pressures": [],
+  "resolution_criteria": "A selected-capture observation documents and implements its value filter, and stop-set witnesses carry only selection-attributable values plus declared roots."
+}

@@ -1,0 +1,34 @@
+{
+  "id": "MNCS-DEBUG-P-016",
+  "title": "No Forge-owned observation/debug execution contract",
+  "status": "open",
+  "severity": "major",
+  "owner_layer_candidate": "mncs-forge",
+  "pinned_revisions": {
+    "baseline_file": "docs/baseline/revisions.json",
+    "mncs-debug": "campaign/native-debug-20261002 over 34ddf6b",
+    "mncs-forge": "089e719 campaign/process-entry-continuous-closure-20260923"
+  },
+  "debugger_capability_attempted": ["forge-owned debug execution", "observation-mode confinement/provenance"],
+  "minimal_reproducer": {
+    "program": "tests/fixtures/checked-add.mncs.json",
+    "command": "MNCS=/path/to/mncs ./bin/mncs-debug record tests/fixtures/checked-add.mncs.json tests/fixtures/checked-add-success-request.json --output /tmp/w.json"
+  },
+  "expected_semantics": "Debug observation executes through Forge-owned confinement with artifact ownership, deadlines, bounded output, execution identity, and provenance, like any other family execution.",
+  "actual_behavior_limitation": "The debugger executes `mncs observe/call` through owned subprocesses with explicit cwd/timeout/env; Forge consumes the debugger through the JSONL api/provider boundary but cannot submit or own observation-mode work.",
+  "why_capability_matters": "Two execution owners (Forge for workflows, debugger for observation) duplicate confinement, deadline, and provenance logic and risk divergence.",
+  "current_workaround": "Debugger-side execution stays explicit and bounded (cwd, timeout, sanitized env, recorded libraries); Forge drives witness-mode break/watch/inspect/trace/why/replay/minimize through the api without new processes.",
+  "host_language_code_required": {
+    "present": true,
+    "classification": "legitimate platform/bootstrap boundary",
+    "files": ["mncs_debug/runner.py"],
+    "why": "Process execution is inherently host-bound until a Forge observation contract exists.",
+    "changes_semantics": false
+  },
+  "proposed_primitive_or_semantic_direction": "A small Forge observation-mode execution contract (submit program+request+capture policy, receive bounded observation artifact with Forge execution identity) that record/import-test can target with an explicit executor flag.",
+  "alternatives_considered": ["debugger-owned daemon execution (second execution system)", "shell-only Forge steps calling the CLI (no typed contract)"],
+  "tests_evidence": ["api break/watch witness-mode operations", "integration/forge-api.md"],
+  "affected_files_or_modules": ["mncs-forge execution contracts", "mncs_debug/runner.py", "mncs_debug/cli.py api"],
+  "dependencies_on_other_pressures": ["MNCS-DEBUG-P-004"],
+  "resolution_criteria": "A record-equivalent observation can be submitted through Forge with Forge-owned identity and provenance, chosen explicitly per invocation."
+}

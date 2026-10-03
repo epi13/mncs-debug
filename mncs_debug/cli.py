@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .analysis import (
+    compiler_phases,
     diagnostic_loop,
     inspect_witness,
     diagnostic_sufficiency,
@@ -39,6 +40,10 @@ from .protocol import (
     write_json,
 )
 from .runner import RunnerError, build_witness, resolve_mncs, run_process
+from .session import SessionError, attach_session, close_session, open_session, query_session
+from .remediate import crash_envelope, remediate
+from .retain import RetentionError, StoreUnavailable, fetch_witness, retain_witness
+from .targets import TargetError, UnresolvedTarget, record_stop_set, watch_binding, watch_value, witness_stop_set
 
 
 EXIT_SUCCESS = 0
@@ -158,6 +163,45 @@ def _build_parser() -> argparse.ArgumentParser:
     open_command.add_argument("--output")
     open_command.add_argument("--format", choices=("json", "text"), default="json")
 
+    session = sub.add_parser("session", help="durable resident inspection sessions with warm queries")
+    session_sub = session.add_subparsers(dest="session_command", required=True)
+
+    session_open = session_sub.add_parser("open", help="bind a witness copy to a resident session directory")
+    session_open.add_argument("witness")
+    session_open.add_argument("--root", required=True, help="session directory; created when missing")
+    session_open.add_argument("--force", action="store_true", help="reopen over an existing session")
+    session_open.add_argument("--output")
+    session_open.add_argument("--format", choices=("json", "text"), default="json")
+
+    session_attach = session_sub.add_parser("attach", help="validate a session and report status plus orientation")
+    session_attach.add_argument("--root", required=True)
+    session_attach.add_argument("--output")
+    session_attach.add_argument("--format", choices=("json", "text"), default="json")
+
+    session_query = session_sub.add_parser("query", help="answer one memoized query against a session")
+    session_query.add_argument("--root", required=True)
+    session_query.add_argument("--op", required=True, choices=("inspect", "trace", "why", "replay", "sufficiency", "diagnose", "phases"))
+    session_query.add_argument("--event", help="inspect: selected event identity")
+    session_query.add_argument("--kind", help="trace: event kind filter; phases: one of all, summary, passes, resolutions")
+    session_query.add_argument("--operation", help="trace/why: semantic operation identity")
+    session_query.add_argument("--value", help="why: native value identity")
+    session_query.add_argument("--question", help="why: provenance question")
+    session_query.add_argument("--from", dest="start", type=int, help="trace: first sequence")
+    session_query.add_argument("--limit", type=int, help="trace: maximum events (1-512)")
+    session_query.add_argument("--inspection", help="sufficiency/diagnose: reuse an inspection artifact")
+    session_query.add_argument("--evidence-artifact", action="append", default=[], help="sufficiency/diagnose: typed artifact JSON; may be repeated")
+    session_query.add_argument("--max-steps", type=int, help="diagnose: bounded loop steps")
+    session_query.add_argument("--mncs", help="explicit executable path for native sufficiency/diagnosis")
+    session_query.add_argument("--core", help="override the MNCS semantic debug core")
+    session_query.add_argument("--output")
+    session_query.add_argument("--format", choices=("json", "text"), default="json")
+
+    session_close = session_sub.add_parser("close", help="close a session, optionally removing its directory")
+    session_close.add_argument("--root", required=True)
+    session_close.add_argument("--wipe", action="store_true", help="remove the session directory after closing")
+    session_close.add_argument("--output")
+    session_close.add_argument("--format", choices=("json", "text"), default="json")
+
     replay = sub.add_parser("replay", help="inspect a trace or boundedly re-execute a witness")
     replay.add_argument("witness")
     replay.add_argument("--mode", choices=("trace", "reexecute"), default="trace")
@@ -216,6 +260,62 @@ def _build_parser() -> argparse.ArgumentParser:
     import_actions.add_argument("--timeout", type=float, default=120.0)
     import_actions.add_argument("--output")
     import_actions.add_argument("--format", choices=("json", "text"), default="json")
+
+    break_command = sub.add_parser("break", help="resolve a semantic target to a targeted stop set")
+    break_command.add_argument("--program", help="MNCS source or manifest (record mode)")
+    break_command.add_argument("--request", help="execution request JSON (record mode)")
+    break_command.add_argument("--witness", help="resolve against a retained witness without executing")
+    target_group = break_command.add_mutually_exclusive_group(required=True)
+    target_group.add_argument("--function", help="function name or identity")
+    target_group.add_argument("--operation", help="exact semantic operation identity")
+    target_group.add_argument("--line", help="1-based source line (source programs only)")
+    break_command.add_argument("--mncs", help="explicit executable path for the MNCS runtime")
+    break_command.add_argument("--cwd", help="explicit process working directory")
+    break_command.add_argument("--timeout", type=float, default=30.0)
+    break_command.add_argument("--core", help="override the MNCS semantic debug core")
+    break_command.add_argument("--library", action="append", default=[], help="MNCS library root; may be repeated")
+    break_command.add_argument("--max-events", type=int, default=512)
+    break_command.add_argument("--max-values", type=int, default=1024)
+    break_command.add_argument("--max-value-bytes", type=int, default=4096)
+    break_command.add_argument("--output", help="write the stop-set JSON to this path")
+    break_command.add_argument("--witness-out", help="record mode: write the recorded witness here")
+    break_command.add_argument("--format", choices=("json", "text"), default="json")
+
+    phases = sub.add_parser("phases", help="project the compiler pipeline behind a recorded program")
+    phases.add_argument("witness")
+    phases.add_argument("--kind", choices=("all", "summary", "passes", "resolutions"), default="all")
+    phases.add_argument("--mncs")
+    phases.add_argument("--timeout", type=float)
+    phases.add_argument("--output")
+    phases.add_argument("--format", choices=("json", "text"), default="json")
+
+    watch = sub.add_parser("watch", help="resolve a value binding to observations plus origin chain")
+    watch.add_argument("witness")
+    watch_group = watch.add_mutually_exclusive_group(required=True)
+    watch_group.add_argument("--binding", help="runtime value binding name")
+    watch_group.add_argument("--value", help="exact native value identity")
+    watch.add_argument("--output")
+    watch.add_argument("--format", choices=("json", "text"), default="json")
+
+    retain = sub.add_parser("retain", help="retain one witness as a Store object")
+    retain.add_argument("witness")
+    retain.add_argument("--store", required=True, help="Store root directory")
+    retain.add_argument("--output")
+    retain.add_argument("--format", choices=("json", "text"), default="json")
+
+    fetch = sub.add_parser("fetch", help="fetch one retained witness by identity")
+    fetch.add_argument("--store", required=True, help="Store root directory")
+    fetch.add_argument("--witness-id", required=True)
+    fetch.add_argument("--output", required=True, help="write the fetched witness here")
+    fetch.add_argument("--format", choices=("json", "text"), default="json")
+
+    remediate_command = sub.add_parser("remediate", help="remediate debugger infrastructure (mncs.remediation/1)")
+    remediate_command.add_argument("--target", required=True, help="checkout root (repository domain)")
+    remediate_command.add_argument("--json", action="store_true", help="print exactly one envelope on stdout")
+    remediate_command.add_argument("--dry-run", action="store_true")
+    remediate_command.add_argument("--changed-path", action="append", default=[], help="scope-relative hint; may be repeated")
+    remediate_command.add_argument("--budget", type=int, default=256)
+    remediate_command.add_argument("--mncs", help="explicit executable path for toolchain observations")
 
     export = sub.add_parser("export", help="export a witness projection for another consumer")
     export.add_argument("witness")
@@ -375,6 +475,76 @@ def _cmd_open(args: argparse.Namespace) -> int:
     document = make_session(witness)
     _write(document, args.output, text=f"opened {document['session_id']}" if args.format == "text" else None)
     return EXIT_SUCCESS
+
+
+def _cmd_session(args: argparse.Namespace) -> int:
+    root = _path(args.root)
+    if args.session_command == "open":
+        document = open_session(witness_path=_path(args.witness), root=root, force=args.force)
+        _write(
+            document,
+            args.output,
+            text=f"session {document['session_id']} open at {root} ({document['failure_class']})"
+            if args.format == "text"
+            else None,
+        )
+        return EXIT_SUCCESS
+    if args.session_command == "attach":
+        document = attach_session(root)
+        memo = document.get("memo", {})
+        _write(
+            document,
+            args.output,
+            text=f"session {document['session_id']} {document['state']} "
+            f"(queries={document.get('queries', 0)} memo_hits={memo.get('hits', 0)} "
+            f"memo_misses={memo.get('misses', 0)} rebuilt={document.get('indexes_rebuilt', False)})"
+            if args.format == "text"
+            else None,
+        )
+        return EXIT_SUCCESS if document.get("state") == "open" else EXIT_FAILURE
+    if args.session_command == "query":
+        if args.limit is not None and not 1 <= args.limit <= 512:
+            raise ValueError("--limit must be between 1 and 512")
+        params: dict[str, Any] = {}
+        if args.event is not None:
+            params["event_id"] = args.event
+        for key in ("kind", "operation", "value", "question", "start", "limit", "max_steps"):
+            value = getattr(args, key, None)
+            if value is not None:
+                params[key] = value
+        if args.inspection:
+            params["inspection"] = load_json(_path(args.inspection))
+        if args.evidence_artifact:
+            params["evidence_artifacts"] = [load_json(_path(path)) for path in args.evidence_artifact]
+        mncs_path = _path(args.mncs) if args.mncs else None
+        if mncs_path is None and args.op in {"sufficiency", "diagnose", "phases"}:
+            mncs_path = resolve_mncs(None)
+        envelope = query_session(
+            root,
+            args.op,
+            params,
+            mncs_path=mncs_path,
+            core_path=_path(args.core) if args.core else None,
+        )
+        _write(
+            envelope,
+            args.output,
+            text=f"query {args.op} memo_hit={envelope['memo_hit']} ({_text_summary(envelope['result'])})"
+            if args.format == "text"
+            else None,
+        )
+        return EXIT_SUCCESS
+    if args.session_command == "close":
+        document = close_session(root, wipe=args.wipe)
+        _write(
+            document,
+            args.output,
+            text=f"session {document['session_id']} closed (wiped={document['wiped']})"
+            if args.format == "text"
+            else None,
+        )
+        return EXIT_SUCCESS
+    raise ValueError(f"unknown session command: {args.session_command}")
 
 
 def _cmd_replay(args: argparse.Namespace) -> int:
@@ -555,6 +725,152 @@ def _cmd_import_actions(args: argparse.Namespace) -> int:
     return EXIT_SUCCESS
 
 
+def _cmd_break(args: argparse.Namespace) -> int:
+    if args.function is not None:
+        kind, value = "function", args.function
+    elif args.operation is not None:
+        kind, value = "operation", args.operation
+    else:
+        kind, value = "line", args.line
+    if args.witness:
+        if args.program or args.request:
+            raise ValueError("break takes either --witness or --program/--request, not both")
+        witness = load_witness(_path(args.witness))
+        stop_set = witness_stop_set(witness, kind, value)
+    else:
+        if not args.program or not args.request:
+            raise ValueError("break record mode requires --program and --request")
+        if args.max_events < 1 or args.max_events > 512:
+            raise ValueError("--max-events must be between 1 and 512")
+        if args.max_values < 0 or args.max_values > 2048:
+            raise ValueError("--max-values must be between 0 and 2048")
+        if args.max_value_bytes < 0 or args.max_value_bytes > 65536:
+            raise ValueError("--max-value-bytes must be between 0 and 65536")
+        program = _path(args.program)
+        try:
+            witness, stop_set = record_stop_set(
+                mncs_path=_runtime(args),
+                program_path=program,
+                request_path=_path(args.request),
+                cwd=_path(args.cwd) if args.cwd else program.parent,
+                kind=kind,
+                value=value,
+                timeout_seconds=args.timeout,
+                max_events=args.max_events,
+                max_values=args.max_values,
+                max_value_bytes=args.max_value_bytes,
+                core_path=_path(args.core) if args.core else None,
+                library_paths=[_path(path) for path in args.library],
+            )
+        except UnresolvedTarget as exc:
+            stop_set = exc.stop_set
+            witness = None
+        if witness is not None:
+            witness_out = args.witness_out
+            if witness_out is None and args.output:
+                derived = _path(args.output)
+                witness_out = str(derived.parent / (derived.stem + ".witness.json"))
+            if witness_out is None:
+                raise ValueError("break record mode requires --witness-out (or --output to derive it)")
+            write_json(_path(witness_out), witness)
+    resolution = stop_set.get("resolution", {})
+    operations = resolution.get("operations", [])
+    _write(
+        stop_set,
+        args.output,
+        text=f"stop {kind}={value}: {resolution.get('status')} "
+        f"({len(operations)} operations, {stop_set.get('matched_event_count', 0)} matched events, "
+        f"{stop_set.get('executions', 0)} executions)"
+        if args.format == "text"
+        else None,
+    )
+    return EXIT_SUCCESS if resolution.get("status") in {"resolved", "observed_only", "opaque"} else EXIT_FAILURE
+
+
+def _cmd_phases(args: argparse.Namespace) -> int:
+    witness = load_witness(_path(args.witness))
+    document = compiler_phases(
+        witness,
+        mncs_path=_runtime(args),
+        timeout_seconds=args.timeout,
+        kind=args.kind,
+    )
+    _write(
+        document,
+        args.output,
+        text=f"phases: {document.get('pass_count', 0)} passes ({document.get('compilation', {}).get('compilation_status', document.get('status'))})"
+        if args.format == "text"
+        else None,
+    )
+    return EXIT_SUCCESS if document.get("status") == "complete" else EXIT_FAILURE
+
+
+def _cmd_watch(args: argparse.Namespace) -> int:
+    witness = load_witness(_path(args.witness))
+    if args.binding is not None:
+        document = watch_binding(witness, args.binding)
+    else:
+        document = watch_value(witness, args.value)
+    _write(
+        document,
+        args.output,
+        text=f"{len(document.get('claims', []))} provenance claims; completeness={document.get('completeness', {}).get('status')}"
+        if args.format == "text"
+        else None,
+    )
+    return EXIT_SUCCESS
+
+
+def _cmd_retain(args: argparse.Namespace) -> int:
+    document = retain_witness(witness_path=_path(args.witness), store_path=_path(args.store))
+    _write(
+        document,
+        args.output,
+        text=f"retained {document['witness_id']} at generation {document['store']['generation']} ({document['bytes']} bytes)"
+        if args.format == "text"
+        else None,
+    )
+    return EXIT_SUCCESS
+
+
+def _cmd_fetch(args: argparse.Namespace) -> int:
+    output = _path(args.output)
+    document = fetch_witness(store_path=_path(args.store), witness_id=args.witness_id, output_path=output)
+    _write(
+        document,
+        None,
+        text=f"fetched {document['witness_id']} ({document['bytes']} bytes, integrity={document['integrity']})"
+        if args.format == "text"
+        else None,
+    )
+    return EXIT_SUCCESS
+
+
+def _cmd_remediate(args: argparse.Namespace) -> int:
+    try:
+        envelope = remediate(
+            target=_path(args.target),
+            dry_run=args.dry_run,
+            changed_paths=args.changed_path,
+            budget=args.budget,
+            mncs_path=args.mncs,
+        )
+    except Exception as exc:  # noqa: BLE001 - envelope over exit codes
+        envelope = crash_envelope(args.target, args.dry_run, f"{type(exc).__name__}: {exc}")
+    if args.json:
+        print(json.dumps(envelope, sort_keys=True, ensure_ascii=False))
+        return EXIT_SUCCESS
+    summary = envelope.get("summary", {})
+    print(
+        f"remediation: repaired={summary.get('repaired', 0)} reconciled={summary.get('reconciled', 0)} "
+        f"degraded={summary.get('degraded', 0)} blockers={summary.get('blockers', 0)} "
+        f"dry_run={envelope.get('dry_run', False)}"
+    )
+    for item in envelope.get("escalations", [])[:8]:
+        print(f"  escalation {item.get('severity')}: {item.get('id')}: {item.get('action')}")
+    return EXIT_SUCCESS
+
+
 def _cmd_export(args: argparse.Namespace) -> int:
     witness = load_witness(_path(args.witness))
     if args.kind == "witness":
@@ -639,6 +955,23 @@ def _api_one(request: dict[str, Any]) -> dict[str, Any]:
         document["projection"] = "effect-provenance"
         document["target"]["effect"] = effect
         return document
+    if operation == "break":
+        kinds = [("function", request.get("function")), ("operation", request.get("operation_identity")), ("line", request.get("line"))]
+        supplied = [(key, value) for key, value in kinds if value is not None and value != ""]
+        if len(supplied) != 1:
+            raise ValueError("break requires exactly one of function, operation_identity, or line")
+        kind, value = supplied[0]
+        if kind in {"function", "operation"} and not isinstance(value, str):
+            raise ValueError(f"break {kind} must be a string")
+        return witness_stop_set(witness, kind, value if isinstance(value, str) else str(value))
+    if operation == "watch":
+        binding = request.get("binding")
+        value = request.get("value")
+        if bool(isinstance(binding, str) and binding) == bool(isinstance(value, str) and value):
+            raise ValueError("watch requires exactly one of binding or value")
+        if isinstance(binding, str) and binding:
+            return watch_binding(witness, binding)
+        return watch_value(witness, value)
     if operation == "replay":
         if request.get("mode", "trace") == "trace":
             return replay_trace(witness)
@@ -687,6 +1020,13 @@ def main(argv: list[str] | None = None) -> int:
             "trace": _cmd_trace,
             "why": _cmd_why,
             "open": _cmd_open,
+            "session": _cmd_session,
+            "break": _cmd_break,
+            "watch": _cmd_watch,
+            "phases": _cmd_phases,
+            "retain": _cmd_retain,
+            "fetch": _cmd_fetch,
+            "remediate": _cmd_remediate,
             "replay": _cmd_replay,
             "minimize": _cmd_minimize,
             "validate": _cmd_validate,
@@ -697,9 +1037,9 @@ def main(argv: list[str] | None = None) -> int:
             "provider": _cmd_api,
         }
         return handlers[args.command](args)
-    except (RunnerError, ValueError, OSError, json.JSONDecodeError) as exc:
+    except (RunnerError, SessionError, TargetError, RetentionError, StoreUnavailable, ValueError, OSError, json.JSONDecodeError) as exc:
         print(f"mncs-debug: {exc}", file=sys.stderr)
-        return EXIT_INVALID_INVOCATION if isinstance(exc, ValueError) else EXIT_INFRASTRUCTURE
+        return EXIT_INVALID_INVOCATION if isinstance(exc, (SessionError, TargetError, ValueError)) else EXIT_INFRASTRUCTURE
 
 
 if __name__ == "__main__":

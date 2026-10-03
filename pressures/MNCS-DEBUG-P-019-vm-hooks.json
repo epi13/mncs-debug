@@ -1,0 +1,34 @@
+{
+  "id": "MNCS-DEBUG-P-019",
+  "title": "VM runtime has no observation or suspension hooks for native debugging",
+  "status": "open",
+  "severity": "major",
+  "owner_layer_candidate": "mncs-vm",
+  "pinned_revisions": {
+    "baseline_file": "docs/baseline/revisions.json",
+    "mncs-debug": "campaign/native-debug-20261002 over 34ddf6b",
+    "mncs-vm": "2ab2857 main"
+  },
+  "debugger_capability_attempted": ["breakpoints", "step_continue_pause", "live inspection", "deterministic replay"],
+  "minimal_reproducer": {
+    "program": "tests/fixtures/checked-add.mncs.json",
+    "command": "MNCS=/path/to/mncs ./bin/mncs-debug capabilities"
+  },
+  "expected_semantics": "The canonical VM runtime exposes observation and suspension hooks (safe points, stop conditions, state inspection, replay) so the debugger can target VM execution natively instead of completed reference-runtime runs.",
+  "actual_behavior_limitation": "mncs-vm (2ab2857) declares debugging, stepping, inspection, snapshot, replay, and observability hooks as owned future work over a minimal SSA-subset engine; no hook surface exists, so all native debugging targets the reference runtime via completed-execution witnesses.",
+  "why_capability_matters": "Post-hoc witnesses cannot stop, step, or inspect live state; true breakpoints, watches with stops, stepping, and deterministic replay need execution-layer primitives.",
+  "current_workaround": "Immutable witnesses plus resident sessions, stop sets, watches, and trace replay over bounded runs; live capabilities stay unsupported with pressure pointers.",
+  "host_language_code_required": {
+    "present": false,
+    "classification": "none",
+    "files": [],
+    "why": "No host code involved; the gap is a missing runtime contract.",
+    "changes_semantics": false
+  },
+  "proposed_primitive_or_semantic_direction": "A minimal VM observation contract first (event stream with semantic identity plus safe-point enumeration), then stop/inspect/resume tokens; the debugger's witness/session/stop-set vocabulary is designed to bind to those hooks when they land.",
+  "alternatives_considered": ["debugger-owned interpreter instrumentation (duplicates the VM)", "host ptrace (not semantic, not portable)"],
+  "tests_evidence": ["capabilities breakpoints/watchpoints/step_continue_pause unsupported", "mncs-vm README owned-future-work list"],
+  "affected_files_or_modules": ["mncs-vm engine/session/evidence", "mncs_debug/session.py", "mncs_debug/targets.py"],
+  "dependencies_on_other_pressures": ["MNCS-DEBUG-P-004", "MNCS-DEBUG-P-005"],
+  "resolution_criteria": "The debugger can bind a stop set or watch to a VM execution hook and receive typed stop/inspection events under a documented contract."
+}

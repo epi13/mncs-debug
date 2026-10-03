@@ -35,7 +35,14 @@ The initial implementation can:
 - import a pinned `mncs.test-result/1` document without inventing a parallel
   test-result protocol;
 - attempt conservative integer-input minimization while preserving an exact
-  bounded failure signature; and
+  bounded failure signature;
+- bind witnesses to durable resident sessions with attach/reconnect,
+  precomputed indexes, and memoized warm queries;
+- resolve function/operation/line targets to selected-capture stop sets, and
+  value bindings to observations plus native origin chains;
+- retain witnesses verbatim in Store and fetch them back byte-identical;
+- repair debugger infrastructure through `mncs.remediation/1` with evidence;
+- project compiler-owned study, pass, and resolution facts on demand; and
 - expose capability discovery and a newline-delimited Forge-ready API.
 
 The current runtime still cannot provide true suspended sessions, stop-on-
@@ -43,7 +50,9 @@ watchpoint behavior, expression evaluation, task ancestry, scheduler control,
 or deterministic effect replay. Imported-source operation maps and external
 environment capture are also bounded by explicit compiler/runtime boundaries.
 These are represented as capability states and pressure records, not hidden
-behind a fake debugger interface.
+behind a fake debugger interface. `break`, `watch`, sessions, and replay
+are targeted-observation operations over bounded runs, not live-process
+controls.
 
 This is intentionally not GDB/LLDB with MNCS text around it. GDB and LLDB can
 remain independent investigative witnesses, but the stable model here is
@@ -98,6 +107,10 @@ The initial protocol family is versioned by schema name:
 | `mncs.debug-provenance/1` | partial causal/dataflow claims with completeness labels |
 | `mncs.debug-api/1` | programmatic operation envelope |
 | `mncs.debug-validation/1` | validation result for a protocol artifact |
+| `mncs.debug-resident-session/1` | durable session binding one witness with indexes and memo |
+| `mncs.debug-stop-set/1` | resolved semantic target plus targeted capture positions |
+| `mncs.debug-retention/1` | Store retention/fetch receipt for one witness |
+| `mncs.debug-phases/1` | on-demand compiler pipeline projection for a recorded program |
 | `mncs.execution-observation/1` | language/runtime bounded typed execution facts consumed by the debugger |
 | `mncs.execution-source-map/1` | compiler-owned exact source correspondence joined by operation identity |
 

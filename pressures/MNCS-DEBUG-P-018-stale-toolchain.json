@@ -1,0 +1,34 @@
+{
+  "id": "MNCS-DEBUG-P-018",
+  "title": "Environment toolchain descriptors point at a stale release binary",
+  "status": "open",
+  "severity": "warning",
+  "owner_layer_candidate": "mncs-environment/mncs-language",
+  "pinned_revisions": {
+    "baseline_file": "docs/baseline/revisions.json",
+    "mncs-debug": "campaign/native-debug-20261002 over 34ddf6b",
+    "mncs-language": "425de20 stdlib/extraction-20261002"
+  },
+  "debugger_capability_attempted": ["ambient diagnostic capture", "environment-provided toolchain"],
+  "minimal_reproducer": {
+    "program": "tests/fixtures/checked-add.mncs.json",
+    "command": "ls -la mncs-language/target/release/mncs mncs-language/target/debug/mncs"
+  },
+  "expected_semantics": "The toolchain address published in invocation descriptors (target/release/mncs) tracks the current language revision, so ambient capture observes current compiler/runtime behavior.",
+  "actual_behavior_limitation": "target/release/mncs is dated 2026-09-23 while target/debug/mncs is dated 2026-10-01 on an active extraction branch; descriptors (including this repo's) address release, so environment-driven capture runs a 9-day-old toolchain.",
+  "why_capability_matters": "Stale-toolchain capture misattributes behavior: observations, source maps, and identities may not match the code under debug.",
+  "current_workaround": "Explicit MNCS paths (usually the debug binary) for direct and test use; release remains the descriptor default for stability.",
+  "host_language_code_required": {
+    "present": false,
+    "classification": "none",
+    "files": [],
+    "why": "No host code involved; this is a build/Descriptor freshness gap.",
+    "changes_semantics": false
+  },
+  "proposed_primitive_or_semantic_direction": "A toolchain freshness contract (descriptor toolchain identity vs language revision, with staleness surfaced in readiness) or a release rebuild cadence tied to language merges.",
+  "alternatives_considered": ["descriptors address debug binaries (slow, unoptimized)", "debugger rebuilds toolchains (not debugger-owned)"],
+  "tests_evidence": ["descriptor toolchain target/release/mncs dated Sep 23 vs debug binary Oct 1"],
+  "affected_files_or_modules": ["mncs-environment readiness", "mncs-language build cadence", ".mncs/project.json toolchain addresses"],
+  "dependencies_on_other_pressures": [],
+  "resolution_criteria": "Descriptor toolchains carry a revision identity and staleness is visible, or release artifacts track language HEAD within a documented window."
+}

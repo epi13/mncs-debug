@@ -11,6 +11,7 @@ from typing import Any, Iterable
 
 from .protocol import (
     INSPECTION_SCHEMA,
+    PHASES_SCHEMA,
     PROVENANCE_SCHEMA,
     PROTOCOL_VERSION,
     REPLAY_SCHEMA,
@@ -25,8 +26,8 @@ from .protocol import (
     sha256_file,
     validate_witness_integrity,
 )
-from .runner import ProcessObservation, RunnerError, build_witness, resolve_mncs
-from .native_core import NativeCoreError
+from .runner import ProcessObservation, RunnerError, build_witness, collect_static, resolve_mncs, run_process
+from .native_core import NativeCoreError, default_stdlib_library
 from .generated.debug import (
     EvidencePresence,
     MinimizationStatus,
@@ -1703,3 +1704,157 @@ class _ReplayInputs:
 
 def _replay_inputs(witness: dict[str, Any]) -> _ReplayInputs:
     return _ReplayInputs(witness)
+
+
+def _blocked_phases(witness: dict[str, Any], reason: str) -> dict[str, Any]:
+    material = {"witness_id": witness.get("witness_id"), "status": "blocked", "reason": reason}
+    return {
+        "schema_version": PHASES_SCHEMA,
+        "protocol_version": PROTOCOL_VERSION,
+        "phases_id": identity("phases", material),
+        "witness_id": witness.get("witness_id"),
+        "status": "blocked",
+        "reason": reason,
+        "kind": "all",
+        "program": {},
+        "compilation": {},
+        "stages": {},
+        "passes": [],
+        "resolutions": {},
+        "unresolved": {},
+        "collection_errors": [],
+    }
+
+
+def compiler_phases(
+    witness: dict[str, Any],
+    *,
+    mncs_path: Path,
+    timeout_seconds: float | None = None,
+    kind: str = "all",
+) -> dict[str, Any]:
+    """Project the compiler pipeline behind a recorded program on demand.
+
+    The recorded program is resolved exactly as replay resolves it (original
+    paths when digests match, otherwise embedded bytes), then the
+    compiler-owned study commands are run against it. Nothing is retained at
+    record time, so normal recording pays no compiler-introspection cost.
+    """
+
+    if kind not in {"all", "summary", "passes", "resolutions"}:
+        raise ValueError("phases kind must be one of all, summary, passes, resolutions")
+    try:
+        environment, recorded = _replay_environment(witness)
+    except RunnerError as exc:
+        return _blocked_phases(witness, f"recorded libraries are unavailable: {exc}")
+    if not recorded:
+        stdlib = default_stdlib_library()
+        if stdlib is not None:
+            environment = {"MNCS_LIBRARY_PATH": os.fspath(stdlib)}
+    try:
+        inputs = _replay_inputs(witness)
+        program_path, _, cwd = inputs.__enter__()
+    except RunnerError as exc:
+        return _blocked_phases(witness, str(exc))
+    try:
+        static, documents = collect_static(
+            mncs_path=mncs_path,
+            program_path=program_path,
+            cwd=cwd,
+            target_function=None,
+            timeout_seconds=timeout_seconds if timeout_seconds is not None else 60.0,
+            environment=environment,
+        )
+        study = documents.get("study")
+        if study is None and program_path.suffix != ".mncs":
+            observation = run_process(
+                [os.fspath(mncs_path), "compiler-study", os.fspath(program_path)],
+                cwd=cwd,
+                timeout_seconds=timeout_seconds if timeout_seconds is not None else 60.0,
+                environment=environment,
+            )
+            if observation.json is not None:
+                study = observation.json
+                documents["study"] = study
+            else:
+                static.setdefault("collection_errors", []).append(
+                    {"operation": "compiler-study", "returncode": observation.returncode}
+                )
+    finally:
+        inputs.__exit__()
+    study = study if isinstance(study, dict) else {}
+    stages = study.get("stage_fingerprints") if isinstance(study.get("stage_fingerprints"), dict) else {}
+    raw_passes = study.get("pass_executions") if isinstance(study.get("pass_executions"), list) else []
+    passes = [
+        {
+            "pass_id": item.get("pass_id"),
+            "pass_identity": item.get("pass_identity"),
+            "edge_identity": item.get("edge_identity"),
+        }
+        for item in raw_passes[:64]
+        if isinstance(item, dict)
+    ]
+    raw_resolutions = study.get("name_resolutions")
+    resolutions: Any = {}
+    if isinstance(raw_resolutions, dict):
+        resolutions = {key: raw_resolutions[key] for key in list(raw_resolutions)[:32]}
+    elif isinstance(raw_resolutions, list):
+        resolutions = raw_resolutions[:128]
+    compilation = {
+        key: study.get(key)
+        for key in (
+            "compilation_status",
+            "compiler_identity",
+            "pipeline_identity",
+            "semantic_fingerprint",
+            "hir_fingerprint",
+            "ssa_fingerprint",
+        )
+        if key in study
+    }
+    functions = static.get("functions") if isinstance(static.get("functions"), list) else []
+    operations = static.get("operations") if isinstance(static.get("operations"), list) else []
+    material = {
+        "witness_id": witness.get("witness_id"),
+        "kind": kind,
+        "compilation": compilation,
+        "stages": stages,
+        "passes": passes,
+        "resolutions": resolutions,
+    }
+    document = {
+        "schema_version": PHASES_SCHEMA,
+        "protocol_version": PROTOCOL_VERSION,
+        "phases_id": identity("phases", material),
+        "witness_id": witness.get("witness_id"),
+        "status": "complete",
+        "kind": kind,
+        "program": {
+            "path": (witness.get("program", {}) or {}).get("path"),
+            "sha256": (witness.get("program", {}) or {}).get("sha256"),
+        },
+        "compilation": compilation,
+        "stages": dict(list(stages.items())[:64]),
+        "passes": passes if kind in {"all", "passes"} else [],
+        "pass_count": len(raw_passes),
+        "resolutions": resolutions if kind in {"all", "resolutions"} else {},
+        "unresolved": {
+            "obligations": (study.get("unresolved_obligations") or [])[:32]
+            if isinstance(study.get("unresolved_obligations"), list)
+            else study.get("unresolved_obligations"),
+            "assumptions": (study.get("unresolved_assumptions") or [])[:32]
+            if isinstance(study.get("unresolved_assumptions"), list)
+            else study.get("unresolved_assumptions"),
+        },
+        "static": {
+            "functions": [
+                {"name": item.get("name"), "identity": item.get("identity")}
+                for item in functions[:64]
+                if isinstance(item, dict)
+            ],
+            "operation_count": len(operations),
+            "truncated": bool(static.get("truncated", False)),
+        },
+        "collection_errors": static.get("collection_errors", []),
+    }
+    return document

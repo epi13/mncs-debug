@@ -1,0 +1,34 @@
+{
+  "id": "MNCS-DEBUG-P-015",
+  "title": "Native toolchain calls recompile per invocation with no warm reuse",
+  "status": "open",
+  "severity": "major",
+  "owner_layer_candidate": "mncs-language/runtime",
+  "pinned_revisions": {
+    "baseline_file": "docs/baseline/revisions.json",
+    "mncs-debug": "campaign/native-debug-20261002 over 34ddf6b",
+    "mncs-language": "425de20 stdlib/extraction-20261002"
+  },
+  "debugger_capability_attempted": ["resident_debug_sessions", "warm repeated native diagnosis"],
+  "minimal_reproducer": {
+    "program": "native/mncs/debug/debug.mncs",
+    "command": "time mncs call native/mncs/debug/debug.mncs decide --args '{}' (twice in a row)"
+  },
+  "expected_semantics": "Repeated native evaluations of an unchanged module reuse compiled artifacts or a resident evaluator, so the second identical call is cheap.",
+  "actual_behavior_limitation": "Each native call pays the full compile (~10s quiet, ~70s under family load) with no observed warm reuse; a record costs one observe (~ms) plus one native compile, and every sufficiency/diagnosis call pays again.",
+  "why_capability_matters": "Interactive-rate debugging needs sub-second repeated questions; per-call recompilation makes every native question expensive and load-sensitive (10s to 70s observed).",
+  "current_workaround": "Resident sessions memoize native decisions by request identity (11.2s cold to 0.13s warm measured back-to-back); cold questions still pay full compile.",
+  "host_language_code_required": {
+    "present": true,
+    "classification": "legitimate platform/bootstrap boundary",
+    "files": ["mncs_debug/session.py"],
+    "why": "The memo is launcher-side content addressing over immutable witnesses; it cannot warm the toolchain itself.",
+    "changes_semantics": false
+  },
+  "proposed_primitive_or_semantic_direction": "A toolchain artifact cache with documented invalidation, or a resident native evaluation service the debugger can bind to, keyed by module interface identity.",
+  "alternatives_considered": ["debugger-owned compile cache (duplicates toolchain knowledge)", "fewer native calls (reduces semantic coverage)"],
+  "tests_evidence": ["sufficiency memo: 11.2s cold to 0.13s warm", "record: ~12s quiet to ~70s under load"],
+  "affected_files_or_modules": ["mncs-language native call path", "mncs_debug/session.py", "mncs_debug/native_core.py"],
+  "dependencies_on_other_pressures": [],
+  "resolution_criteria": "Two consecutive identical native calls show documented warm reuse, or a resident evaluation contract exists that the debugger can adopt."
+}
