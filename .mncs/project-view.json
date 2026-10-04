@@ -84,7 +84,7 @@
   "purpose": "Self-hosted debugging, tracing, replay, and execution introspection for the MNCS ecosystem.",
   "repository": "mncs-debug",
   "schema_version": "mncs.project-view/1",
-  "source_identity": "sha256:ca10058d764e62774a07d11ceddd1956cc63fcb93a3b80a39605b5b7a7e9f28e",
+  "source_identity": "sha256:34057e4f3e208f909ce362192b8f397de4aac36ac2beb7ad820bdc9333908c74",
   "structure": {
     "layout": "mncs.repository-layout/1",
     "surfaces": [
@@ -123,17 +123,6 @@
         },
         "note": "Native debugger outcome, evidence sufficiency, escalation, and stop policy are canonical here.",
         "path": "native/mncs/debug/"
-      },
-      {
-        "class": "host-boundary",
-        "classification": {
-          "authority": "none",
-          "boundary_kind": "process",
-          "lifecycle": "active",
-          "semantic_role": "platform-adapter"
-        },
-        "note": "Process, artifact, and protocol adaptation.",
-        "path": "mncs_debug/transport.py"
       },
       {
         "authority": "MNCS-Commons",
