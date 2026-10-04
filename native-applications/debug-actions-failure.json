@@ -5,7 +5,7 @@
   "module": "mncs.debug",
   "entry_function": "actions_failure_artifact_app",
   "profile": "0.18",
-  "interface_identity": "31f110be96e0950d24635bd2b44f368f9a8c0133013482c92a1882238c957b22",
+  "interface_identity": "5d7f604aed9013b2095a0bf7b2da6b4e34139b462b0c9292f5e6af7a018daf24",
   "libraries": [
     "../../mncs-stdlib/library",
     "../../MNCS-Commons/src/mncs_commons/mesh/mncs",

@@ -5,7 +5,7 @@
   "module": "mncs.debug.diagnostic_coherence",
   "entry_function": "diagnostic_coherence_app",
   "profile": "0.18",
-  "interface_identity": "9fcd4d008a7138df26324966ecc54f3863442e059b86c231dc88fa123eaac7af",
+  "interface_identity": "eccd0c2909b470a7c4fe9a6e19c1e2fb6c92663cf7ad9a7f79eab2acab641267",
   "libraries": [
     "../../mncs-stdlib/library",
     "../native"
