@@ -1,7 +1,7 @@
 {
  "schema_version": "mncs-family.repository-manifest/v0alpha1",
  "repository": "mncs-debug",
- "revision": 9,
+ "revision": 10,
  "manifest_location": "in-repository",
  "authority": {
   "note": "mncs-debug owns debugger semantics, witnesses, trace and capability truth; process/filesystem/transport code remains an explicit adapter boundary."
@@ -112,6 +112,39 @@
       "path": "target/release/mncs"
      },
      "toolchain_env": "MNCS"
+    }
+   },
+   {
+    "contract": "canonical-vm-debug",
+    "version": "1",
+    "kind": "compiler-correlated-live-debug",
+    "stability": "experimental",
+    "fingerprint_sources": [
+     "mncs_debug/live.py",
+     "mncs_debug/targets.py",
+     "mncs_debug/cli.py"
+    ],
+    "effects": [
+     "verify"
+    ],
+    "invocation": {
+     "kind": "executable",
+     "path": "bin/mncs-debug",
+     "fixed_argv": [
+      "live"
+     ],
+     "toolchains": {
+      "MNCS_VM": {
+       "repository": "mncs-vm",
+       "path": "target/debug/mncs-vm"
+      }
+     }
+    },
+    "artifact_contract": {
+     "artifact_schema": "mncs.vm.artifact/1",
+     "product_schema": "mncs.compiler-vm-product/1",
+     "source_correspondence_authority": "compiler",
+     "runtime_debug_protocol": "mncs.vm.debug/1"
     }
    }
   ],

@@ -459,3 +459,37 @@ def watch_value(witness: dict[str, Any], value_identity: str) -> dict[str, Any]:
     """Answer a watch for one exact native value identity."""
 
     return provenance_query(witness, question=f"watch {value_identity}", value=value_identity)
+
+
+def load_compiler_product(path: Path) -> dict[str, Any]:
+    """Load sealed direct-artifact correspondence without recompiling source.
+
+    Compiler remains the mapping authority. This is a file/identity membrane,
+    not a migration decoder or source scanner. VM admission remains mandatory.
+    """
+    import json
+    from .protocol import sha256_file, sha256_value
+
+    path = path.resolve()
+    product = json.loads(path.read_text())
+    if product.get("schema_version") != "mncs.compiler-vm-product/1":
+        raise TargetError("unsupported compiler product schema")
+    receipt = product["build_receipt"]
+    if receipt["identity"] != sha256_value(receipt["core"]):
+        raise TargetError("compiler build receipt identity mismatch")
+    if receipt["core"]["artifact"] != product["artifact"] or receipt["core"]["evidence"] != product["evidence"]:
+        raise TargetError("compiler product references differ from receipt")
+    root = path.parent
+    artifact = (root / product["artifact"]["address"]).resolve()
+    evidence_path = (root / product["evidence"]["address"]).resolve()
+    if (not artifact.is_relative_to(root) or not evidence_path.is_relative_to(root)
+            or sha256_file(artifact) != product["artifact"]["sha256"]
+            or sha256_file(evidence_path) != product["evidence"]["sha256"]):
+        raise TargetError("compiler product bytes are corrupt or escape selected cache")
+    evidence = json.loads(evidence_path.read_text())
+    source_map = evidence.get("source_map")
+    errors = validate_language_source_map(source_map)
+    if errors or source_map.get("identity") != receipt["core"]["source_map_identity"]:
+        raise TargetError("compiler source correspondence is invalid: " + "; ".join(errors))
+    return {"artifact_path":artifact, "artifact_identity":product["artifact"]["identity"],
+            "source_map":source_map, "build_receipt":receipt, "producer":evidence["producer"]}

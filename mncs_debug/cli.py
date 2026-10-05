@@ -339,6 +339,7 @@ def _build_parser() -> argparse.ArgumentParser:
     live_start.add_argument("--root", help="session directory; defaults to a fresh directory under the live root")
     live_start.add_argument("--compile", help="self-contained .mncs source to compile in the daemon")
     live_start.add_argument("--artifact", help="frozen mncs.vm.artifact/1 JSON file")
+    live_start.add_argument("--compiler-product", help="direct compiler product and source correspondence; no source recompilation")
     live_start.add_argument("--callable", help="MODULE::NAME entry point")
     live_start.add_argument("--function", help="function identity entry point")
     live_start.add_argument("--args", help="JSON file with an array of wire execution values")
@@ -1325,6 +1326,14 @@ def _cmd_live(args: argparse.Namespace) -> int:
             stops.append({"id": "effect", "target": {"kind": "effect_boundary", "phase": args.stop_effect}})
         capture = "failure_only" if args.capture == "failure-only" else args.capture
         root = _path(args.root) if args.root else default_sessions_root() / f"live-{os.getpid()}-{int(time.time())}"
+        compiler_product = None
+        artifact_path = _path(args.artifact) if args.artifact else None
+        if args.compiler_product:
+            if args.artifact or args.compile:
+                raise ValueError("--compiler-product selects its own frozen artifact")
+            from .targets import load_compiler_product
+            compiler_product = load_compiler_product(_path(args.compiler_product))
+            artifact_path = compiler_product["artifact_path"]
         document = live_start(
             root=root,
             vm_path=resolve_mncs_vm(args.mncs_vm),
@@ -1332,7 +1341,7 @@ def _cmd_live(args: argparse.Namespace) -> int:
             arguments=arguments,
             envelope=envelope,
             providers=providers,
-            artifact_path=_path(args.artifact) if args.artifact else None,
+            artifact_path=artifact_path,
             compile_path=_path(args.compile) if args.compile else None,
             capture=capture,
             max_events=args.max_events,
@@ -1343,6 +1352,14 @@ def _cmd_live(args: argparse.Namespace) -> int:
             stop_on_abnormal_terminal=args.stop_failure,
             timeout_seconds=args.timeout,
         )
+        if compiler_product is not None:
+            if document["session"]["artifact"] != compiler_product["artifact_identity"]:
+                live_close(root)
+                raise ValueError("live VM artifact does not match compiler product")
+            correspondence = {key: value for key, value in compiler_product.items() if key != "artifact_path"}
+            (root / "compiler-correspondence.json").write_text(json.dumps(correspondence, sort_keys=True))
+            document["compiler_correspondence"] = {"path":str(root / "compiler-correspondence.json"),
+                "identity":compiler_product["source_map"]["identity"], "build_receipt":compiler_product["build_receipt"]["identity"]}
         _write(
             document,
             args.output,
