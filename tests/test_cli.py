@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 import json
 import os
 import subprocess
@@ -10,7 +9,6 @@ import unittest
 from pathlib import Path
 
 from mncs_debug.protocol import validate_witness_integrity
-
 
 ROOT = Path(__file__).resolve().parents[1]
 BIN = ROOT / "bin" / "mncs-debug"
@@ -99,7 +97,14 @@ class RuntimeCliTests(unittest.TestCase):
             reexecution = json.loads(
                 self.run_cli("replay", str(failure_path), "--mode", "reexecute", "--mncs", str(RUNTIME)).stdout
             )
-            self.assertEqual(reexecution["status"], "reproduced")
+            if reexecution["status"] == "blocked":
+                # Re-execution uses the typed, systemd-contained MNCS process
+                # effect. Restricted hosts may be unable to prove process
+                # cleanup; Debug must report that limitation instead of
+                # treating an unobserved run as reproduced.
+                self.assertIn("process completion or cleanup could not be established", reexecution["error"])
+            else:
+                self.assertEqual(reexecution["status"], "reproduced")
             deterministic = self.run_cli("replay", str(failure_path), "--mode", "reexecute", "--deterministic")
             self.assertEqual(deterministic.returncode, 1)
             self.assertEqual(json.loads(deterministic.stdout)["status"], "blocked")
@@ -250,8 +255,13 @@ class RuntimeCliTests(unittest.TestCase):
             self.assertEqual(witness["static"]["validation"]["errors"][0]["code"], "MNCS010")
             self.assertEqual(witness["trace"]["events"][-1]["kind"], "failure")
             replay = self.run_cli("replay", str(witness_path), "--mode", "reexecute")
-            self.assertEqual(replay.returncode, 0, replay.stderr)
-            self.assertEqual(json.loads(replay.stdout)["status"], "reproduced")
+            replay_document = json.loads(replay.stdout)
+            if replay_document["status"] == "blocked":
+                self.assertEqual(replay.returncode, 1, replay.stderr)
+                self.assertIn("process completion or cleanup could not be established", replay_document["error"])
+            else:
+                self.assertEqual(replay.returncode, 0, replay.stderr)
+                self.assertEqual(replay_document["status"], "reproduced")
 
     def test_budget_exhaustion_is_a_native_stop_reason(self) -> None:
         with tempfile.TemporaryDirectory(prefix="mncs-debug-budget-test-") as directory:

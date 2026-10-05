@@ -26,6 +26,7 @@ the session directory.
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import shutil
@@ -38,6 +39,8 @@ from typing import Any
 
 from .protocol import (
     LIVE_SESSION_SCHEMA as SESSION_SCHEMA,
+)
+from .protocol import (
     PROTOCOL_VERSION,
     identity,
     load_json,
@@ -121,11 +124,14 @@ class LiveClient:
         self._next_id = 0
 
     def _connect(self) -> socket.socket:
+        connection: socket.socket | None = None
         try:
             connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             connection.settimeout(self._timeout)
             connection.connect(os.fspath(self._socket_path))
         except OSError as exc:
+            if connection is not None:
+                connection.close()
             raise LiveError(f"cannot reach debug daemon at {self._socket_path}: {exc}") from exc
         return connection
 
@@ -180,12 +186,15 @@ def _wait_for_socket(socket_path: Path, timeout_seconds: float = 10.0) -> None:
     last: OSError | None = None
     while time.time() < deadline:
         try:
-            probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            probe.settimeout(1.0)
-            probe.connect(os.fspath(socket_path))
-            probe.close()
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
+                probe.settimeout(1.0)
+                probe.connect(os.fspath(socket_path))
             return
         except OSError as exc:
+            if exc.errno in {errno.EACCES, errno.EPERM}:
+                raise LiveError(
+                    f"debug daemon socket is inaccessible at {socket_path}: {exc}"
+                ) from exc
             last = exc
             time.sleep(0.05)
     raise LiveError(f"debug daemon did not serve {socket_path} in time: {last}")
@@ -263,7 +272,11 @@ def start_session(
     try:
         _wait_for_socket(socket_path)
     except LiveError:
-        process.poll()
+        _reap_child(process, graceful_timeout=0.0)
+        try:
+            socket_path.unlink(missing_ok=True)
+        except OSError:
+            pass
         raise
     client = LiveClient(socket_path, timeout_seconds=timeout_seconds)
     try:
@@ -384,10 +397,42 @@ def _shutdown_daemon(socket_path: Path, process: subprocess.Popen[bytes] | None 
     except LiveError:
         pass
     if process is not None:
-        try:
-            process.wait(timeout=5.0)
-        except (OSError, subprocess.SubprocessError):
-            pass
+        _reap_child(process)
+
+
+def _reap_child(
+    process: subprocess.Popen[bytes],
+    *,
+    graceful_timeout: float = 5.0,
+    terminate_timeout: float = 2.0,
+) -> None:
+    """Reap our daemon, escalating only after bounded graceful shutdown."""
+    try:
+        process.wait(timeout=graceful_timeout)
+        return
+    except subprocess.TimeoutExpired:
+        pass
+    except (OSError, subprocess.SubprocessError):
+        return
+
+    if process.poll() is not None:
+        return
+    try:
+        process.terminate()
+        process.wait(timeout=terminate_timeout)
+        return
+    except subprocess.TimeoutExpired:
+        pass
+    except (OSError, subprocess.SubprocessError):
+        return
+
+    if process.poll() is not None:
+        return
+    try:
+        process.kill()
+        process.wait(timeout=terminate_timeout)
+    except (OSError, subprocess.SubprocessError):
+        pass
 
 
 def _live_document(root: Path) -> dict[str, Any]:

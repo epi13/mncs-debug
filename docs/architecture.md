@@ -224,6 +224,11 @@ test id, and return digest. It is a reproduction check, not deterministic
 replay. `--deterministic` always returns a structured blocked result at this
 stage.
 
+Bounded re-execution delegates process creation through Debug's typed process
+effect. The selected provider must establish child completion and cleanup; if
+it cannot, replay remains `blocked` instead of turning an unobserved process
+into reproduction evidence.
+
 Minimization changes only integer request arguments and keeps a candidate only
 when that signature remains exact. It is conservative and can report
 `no_reduction` or `blocked`; it does not claim semantic equivalence beyond the
