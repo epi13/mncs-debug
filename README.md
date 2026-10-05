@@ -11,6 +11,7 @@ python3 -m unittest discover -s tests -p 'test_*.py'
 
 Declared capabilities (declarations do not establish execution health):
 
+- `canonical-vm-debug/1` — compiler-correlated-live-debug (experimental)
 - `debugger/1` — structured-debugger (experimental)
 - `repository-remediation/1` — remediation-tool (experimental)
 

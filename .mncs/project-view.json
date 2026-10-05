@@ -48,6 +48,39 @@
       "kind": "remediation-tool",
       "stability": "experimental",
       "version": "1"
+    },
+    {
+      "artifact_contract": {
+        "artifact_schema": "mncs.vm.artifact/1",
+        "product_schema": "mncs.compiler-vm-product/1",
+        "runtime_debug_protocol": "mncs.vm.debug/1",
+        "source_correspondence_authority": "compiler"
+      },
+      "contract": "canonical-vm-debug",
+      "effects": [
+        "verify"
+      ],
+      "fingerprint_sources": [
+        "mncs_debug/live.py",
+        "mncs_debug/targets.py",
+        "mncs_debug/cli.py"
+      ],
+      "invocation": {
+        "fixed_argv": [
+          "live"
+        ],
+        "kind": "executable",
+        "path": "bin/mncs-debug",
+        "toolchains": {
+          "MNCS_VM": {
+            "path": "target/debug/mncs-vm",
+            "repository": "mncs-vm"
+          }
+        }
+      },
+      "kind": "compiler-correlated-live-debug",
+      "stability": "experimental",
+      "version": "1"
     }
   ],
   "dependencies": [
@@ -84,7 +117,7 @@
   "purpose": "Self-hosted debugging, tracing, replay, and execution introspection for the MNCS ecosystem.",
   "repository": "mncs-debug",
   "schema_version": "mncs.project-view/1",
-  "source_identity": "sha256:34057e4f3e208f909ce362192b8f397de4aac36ac2beb7ad820bdc9333908c74",
+  "source_identity": "sha256:fdc51eac39c3bd4d4db8a4b1643e69bc000f24e48711a2135122aef5c00508f5",
   "structure": {
     "layout": "mncs.repository-layout/1",
     "surfaces": [
