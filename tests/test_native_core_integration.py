@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -11,6 +12,26 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _require_call_launcher(binary: str) -> None:
+    """Skip unless the configured launcher supports the native `call` verb.
+
+    A bare ``mncs`` name can resolve to an unrelated same-named tool on
+    PATH; only a launcher advertising ``call`` can run these tests.
+    """
+    try:
+        probe = subprocess.run(
+            [binary, "--help"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        pytest.skip(f"native MNCS launcher unavailable: {error}")
+    if probe.returncode != 0 or not re.search(r"\bcall\b", probe.stdout + probe.stderr):
+        pytest.skip(f"native MNCS launcher has no call verb: {binary}")
 
 
 def _run_native_call(binary: str) -> tuple[dict, dict]:
@@ -54,6 +75,7 @@ def _run_native_call(binary: str) -> tuple[dict, dict]:
 
 def test_native_witness_materialization_and_replay_plan() -> None:
     binary = os.environ.get("MNCS_BINARY", "mncs")
+    _require_call_launcher(binary)
     try:
         document, process_document = _run_native_call(binary)
     except (OSError, subprocess.SubprocessError) as error:
